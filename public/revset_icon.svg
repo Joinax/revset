@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" fill="#4169E1"/>
+  <!-- Bottom layer — translucent -->
+  <path d="M256 397 L397 320.5 L256 244 L115 320.5 Z" fill="rgba(255,255,255,0.22)"/>
+  <!-- Middle layer -->
+  <path d="M256 320 L397 243.5 L256 167 L115 243.5 Z" fill="rgba(255,255,255,0.55)"/>
+  <!-- Top layer — white -->
+  <path d="M256 243 L397 166.5 L256 90 L115 166.5 Z" fill="#ffffff"/>
+</svg>

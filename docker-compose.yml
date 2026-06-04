@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: revitstore_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       revitstore
+      POSTGRES_USER:     revitstore
+      POSTGRES_PASSWORD: revitstore_secret
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

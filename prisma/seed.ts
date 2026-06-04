@@ -1,0 +1,45 @@
+// prisma/seed.ts
+import { PrismaClient } from '../src/generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import 'dotenv/config'
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+})
+const db = new PrismaClient({ adapter })
+
+async function main() {
+  console.log('🌱 Заполняем базу данных...')
+
+  const categories = await Promise.all([
+    db.category.upsert({ where: { slug: 'furniture' },   update: {}, create: { slug: 'furniture',   name: 'Мебель',       emoji: '🪑', iconBg: '#1C2A10', order: 1 } }),
+    db.category.upsert({ where: { slug: 'engineering' }, update: {}, create: { slug: 'engineering', name: 'Инженерия',    emoji: '🔧', iconBg: '#101C2A', order: 2 } }),
+    db.category.upsert({ where: { slug: 'lighting' },    update: {}, create: { slug: 'lighting',    name: 'Освещение',    emoji: '💡', iconBg: '#1C1020', order: 3 } }),
+    db.category.upsert({ where: { slug: 'windows' },     update: {}, create: { slug: 'windows',     name: 'Окна и двери', emoji: '🪟', iconBg: '#1C1C10', order: 4 } }),
+  ])
+  console.log(`✅ Создано ${categories.length} категорий`)
+
+  const author = await db.user.upsert({
+    where: { email: 'arch_studio@revitstore.ru' },
+    update: {},
+    create: {
+      email: 'arch_studio@revitstore.ru', name: 'arch_studio',
+      passwordHash: null, role: 'AUTHOR',
+      authorProfile: { create: { bio: 'BIM-специалист', city: 'Москва', isVerified: true, responseTime: '~2 часа', acceptOrders: true } },
+    },
+  })
+  console.log(`✅ Создан автор: ${author.name}`)
+
+  const furniture = categories[0]
+  const products = await Promise.all([
+    db.product.upsert({ where: { id: 'product-1' }, update: {}, create: { id: 'product-1', name: 'Кресло Herman Miller Aeron', description: 'Высокоточная BIM-модель.', price: 490, priceOld: 690, previewEmoji: '🪑', previewBg: '#141420', lod: 'LOD 300', revitVersions: ['2022','2023','2024','2025'], fileSize: '4.2 МБ', isPublished: true, isNew: true, downloads: 1240, categoryId: furniture.id, authorId: author.id } }),
+    db.product.upsert({ where: { id: 'product-2' }, update: {}, create: { id: 'product-2', name: 'Ванна Villeroy & Boch Oberon', description: 'Точная модель ванны.', price: 350, previewEmoji: '🛁', previewBg: '#14201A', lod: 'LOD 300', revitVersions: ['2023','2024','2025'], fileSize: '2.8 МБ', isPublished: true, downloads: 430, categoryId: furniture.id, authorId: author.id } }),
+    db.product.upsert({ where: { id: 'product-3' }, update: {}, create: { id: 'product-3', name: 'Светильник Eglo Salobrena', description: 'Бесплатная модель.', price: null, previewEmoji: '💡', previewBg: '#201414', lod: 'LOD 200', revitVersions: ['2022','2023','2024','2025'], fileSize: '1.1 МБ', isPublished: true, downloads: 2100, categoryId: furniture.id, authorId: author.id } }),
+  ])
+  console.log(`✅ Создано ${products.length} товаров`)
+  console.log('🎉 База данных готова!')
+}
+
+main()
+  .catch(e => { console.error(e); process.exit(1) })
+  .finally(() => db.$disconnect())

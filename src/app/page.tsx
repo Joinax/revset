@@ -1,65 +1,86 @@
-import Image from "next/image";
+// src/app/page.tsx
+// Главная страница — данные из БД
 
-export default function Home() {
+import Navbar       from '@/components/Navbar'
+import Hero         from '@/components/Hero'
+import StatsStrip   from '@/components/StatsStrip'
+import CategoryGrid from '@/components/CategoryGrid'
+import ProductGrid  from '@/components/ProductCard'
+import CTABlock     from '@/components/CTABlock'
+import { db }       from '@/lib/db'
+
+// Next.js Server Component — fetch прямо в компоненте, без useEffect
+export default async function HomePage() {
+
+  // Загружаем категории и товары параллельно
+  const [categories, products, stats] = await Promise.all([
+
+    db.category.findMany({
+      orderBy: { order: 'asc' },
+    }),
+
+    db.product.findMany({
+      where:   { isPublished: true },
+      orderBy: { downloads: 'desc' },
+      take:    6,
+      include: { author: { select: { name: true } } },
+    }),
+
+    // Статистика для StatsStrip
+    /*Promise.all([
+      db.product.count({ where: { isPublished: true } }),
+      db.user.count({ where: { role: 'AUTHOR' } }),
+    ]),*/
+  ])
+
+  //const [productCount, authorCount] = stats
+
+  // Приводим данные из БД к типу Product который ожидает ProductCard
+  const mappedProducts = products.map(p => ({
+    id:          p.id,
+    name:        p.name,
+    author:      p.author.name ?? 'Автор',
+    price:       p.price,
+    rating:      4.8,          // TODO: считать из отзывов когда появятся
+    reviewCount: 0,            // TODO: считать из Review
+    isNew:       p.isNew,
+    emoji:       p.previewEmoji ?? '📦',
+    previewBg:   p.previewBg   ?? '#141420',
+  }))
+
+  // Приводим категории к типу Category
+  const mappedCategories = categories.map(c => ({
+    slug:    c.slug,
+    name:    c.name,
+    count:   'моделей',        // TODO: считать через _count
+    emoji:   c.emoji   ?? '📦',
+    iconBg:  c.iconBg  ?? '#1C1C28',
+  }))
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+      <Navbar />
+
+      <main>
+        <Hero />
+        
+        {/* <StatsStrip
+          productCount={productCount}
+          authorCount={authorCount}
+        /> */}
+
+        <CategoryGrid items={mappedCategories} />
+
+        <ProductGrid products={mappedProducts} />
+
+        <CTABlock />
       </main>
+
+      <div style={{ height: '64px' }} className="bottom-spacer" />
+
+      <style>{`
+        @media (min-width: 641px) { .bottom-spacer { display: none; } }
+      `}</style>
     </div>
-  );
+  )
 }
