@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
+import BuyButton from '@/components/BuyButton'
 
 type Props = {
   product: {
@@ -148,9 +149,13 @@ export default function ProductClient({ product }: Props) {
 
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px' }}>Стандартная лицензия</div>
 
-              <button style={{ display: 'block', width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontFamily: 'var(--font-unbounded)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginBottom: '8px' }}>
-                {product.price !== null ? 'Купить сейчас' : 'Скачать бесплатно'}
-              </button>
+              {product.price !== null ? (
+                <BuyButton productId={product.id} price={product.price} name={product.name} />
+              ) : (
+                <button style={{ display: 'block', width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontFamily: 'var(--font-unbounded)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginBottom: '8px' }}>
+                  Скачать бесплатно
+                </button>
+              )}
 
               <button onClick={() => setInFavorites(f => !f)} style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                 <i className="ti ti-heart" style={{ fontSize: '16px' }} />
