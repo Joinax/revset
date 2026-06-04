@@ -10,11 +10,7 @@ const YOOKASSA_API = 'https://api.yookassa.ru/v3'
 
 // Basic Auth — shopId:secretKey в Base64
 function getAuthHeader() {
-  const shopId    = process.env.YOOKASSA_SHOP_ID
-  const secretKey = process.env.YOOKASSA_SECRET_KEY
-  console.log('shopId:', shopId)
-  console.log('secretKey первые 10 символов:', secretKey?.slice(0, 10))
-  const credentials = `${shopId}:${secretKey}`
+  const credentials = `${process.env.YOOKASSA_SHOP_ID}:${process.env.YOOKASSA_SECRET_KEY}`
   return `Basic ${Buffer.from(credentials).toString('base64')}`
 }
 
