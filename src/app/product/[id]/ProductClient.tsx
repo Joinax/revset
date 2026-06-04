@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import BuyButton from '@/components/BuyButton'
+import DownloadButton from '@/components/DownloadButton'
 
 type Props = {
   product: {
@@ -152,9 +153,11 @@ export default function ProductClient({ product }: Props) {
               {product.price !== null ? (
                 <BuyButton productId={product.id} price={product.price} name={product.name} />
               ) : (
-                <button style={{ display: 'block', width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontFamily: 'var(--font-unbounded)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginBottom: '8px' }}>
-                  Скачать бесплатно
-                </button>
+                <DownloadButton
+                  productId={product.id}
+                  isFree={true}
+                  isPurchased={false}
+                />
               )}
 
               <button onClick={() => setInFavorites(f => !f)} style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

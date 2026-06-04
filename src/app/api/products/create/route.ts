@@ -1,0 +1,64 @@
+// src/app/api/products/create/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session) {
+      return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
+    }
+
+    // Проверяем что пользователь автор
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      include: { authorProfile: true },
+    })
+
+    if (!user || user.role !== 'author' || !user.authorProfile) {
+      return NextResponse.json({ error: 'Доступ только для авторов' }, { status: 403 })
+    }
+
+    const { name, description, price, lod, revitVersions, fileKey, fileName, categorySlug } = await req.json()
+
+    // Валидация
+    if (!name || !fileKey) {
+      return NextResponse.json({ error: 'Название и файл обязательны' }, { status: 400 })
+    }
+
+    // Находим категорию
+    const category = await db.category.findFirst({
+      where: categorySlug ? { slug: categorySlug } : {},
+    })
+
+    if (!category) {
+      return NextResponse.json({ error: 'Категория не найдена' }, { status: 400 })
+    }
+
+    // Создаём товар в БД
+    const product = await db.product.create({
+      data: {
+        name,
+        description:   description || null,
+        price:         price ? parseFloat(price) : null,
+        lod:           lod || 'LOD 300',
+        revitVersions: revitVersions || ['2022', '2023', '2024', '2025'],
+        isPublished:   true,
+        isNew:         true,
+        downloads:     0,
+        categoryId:    category.id,
+        authorId:      session.user.id,
+        // fileKey храним в bimParams
+        bimParams: JSON.stringify({ fileKey, fileName }),
+      },
+    })
+
+    return NextResponse.json({ productId: product.id }, { status: 201 })
+
+  } catch (error) {
+    console.error('Create product error:', error)
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+  }
+}

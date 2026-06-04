@@ -4,6 +4,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
+import FileUpload from '@/components/FileUpload'
+import UploadProductForm from '@/components/UploadProductForm'
 
 type Product = {
   id: string; name: string; price: number | null; isPublished: boolean
@@ -190,60 +192,8 @@ export default function AuthorDashboardClient({ user, products, stats }: Props) 
         {activeTab === 'upload' && (
           <div style={{ maxWidth: '560px' }}>
             <h2 style={{ fontSize: '16px', marginBottom: '20px' }}>Загрузить новую модель</h2>
-
-            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'grid', gap: '16px' }}>
-
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Название модели *</label>
-                <input type="text" placeholder="Кресло Herman Miller Aeron"
-                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Описание</label>
-                <textarea placeholder="Подробное описание модели..." rows={3}
-                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-manrope)' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Цена (₽)</label>
-                  <input type="number" placeholder="0 = бесплатно"
-                    style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>LOD</label>
-                  <select style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
-                    <option>LOD 100</option>
-                    <option>LOD 200</option>
-                    <option>LOD 300</option>
-                    <option>LOD 400</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Загрузка файла */}
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA файл *</label>
-                <div style={{
-                  border: '2px dashed var(--border)', borderRadius: '10px',
-                  padding: '32px', textAlign: 'center', cursor: 'pointer',
-                  transition: 'border-color 0.2s',
-                }}>
-                  <i className="ti ti-upload" style={{ fontSize: '28px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }} />
-                  <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>Перетащите RFA файл сюда</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>или нажмите для выбора · Максимум 50 МБ</div>
-                </div>
-              </div>
-
-              <div style={{ background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '8px', padding: '12px', fontSize: '12px', color: 'var(--muted)' }}>
-                <i className="ti ti-info-circle" style={{ marginRight: '6px', color: 'var(--accent)' }} />
-                Загрузка файлов будет доступна после подключения хранилища S3. Форма уже готова.
-              </div>
-
-              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                Опубликовать модель
-              </button>
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+              <UploadProductForm />
             </div>
           </div>
         )}
