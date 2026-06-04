@@ -6,9 +6,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { signIn } from '@/lib/auth-client'
+import { useAppSession } from '@/components/SessionProvider'
 
 export default function LoginPage() {
   const router  = useRouter()
+  const { refresh } = useAppSession()
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
@@ -19,21 +21,16 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { error } = await signIn.email({
-      email,
-      password,
-      callbackURL: '/',
-    })
-
-    setLoading(false)
+    const { error } = await signIn.email({ email, password, callbackURL: '/' })
 
     if (error) {
+      setLoading(false)
       setError('Неверный email или пароль')
       return
     }
 
+    await refresh()   // ← обновляем сессию в провайдере
     router.push('/')
-    router.refresh()
   }
 
   return (
@@ -44,8 +41,7 @@ export default function LoginPage() {
 
           <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <div style={{ fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>
-              <span style={{ color: 'var(--accent)' }}>REV</span>
-              <span style={{ color: 'var(--text)' }}>SET</span>
+              <span style={{ color: 'var(--accent)' }}>REV</span><span style={{ color: 'var(--text)' }}>SET</span>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Войдите в свой аккаунт</p>
           </div>
@@ -56,7 +52,6 @@ export default function LoginPage() {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required
                 style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
             </div>
-
             <div>
               <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Пароль</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required

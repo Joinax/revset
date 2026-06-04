@@ -6,9 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── ТАБЛИЦЫ BETTER AUTH (обязательные) ───────────────────────────────────
-// Better Auth создаёт их сам, но мы описываем здесь для Prisma
-
 model User {
   id            String    @id
   name          String
@@ -19,15 +16,15 @@ model User {
   updatedAt     DateTime
   role          String    @default("user")
 
-  // Наши дополнительные поля
   authorProfile AuthorProfile?
   products      Product[]
   orders        Order[]
   favorites     Favorite[]
   reviews       Review[]
-
   sessions      Session[]
   accounts      Account[]
+
+  @@map("user")  // ← использовать таблицу "user" а не "User"
 }
 
 model Session {
@@ -40,6 +37,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
 }
 
 model Account {
@@ -57,6 +56,8 @@ model Account {
   password              String?
   createdAt             DateTime
   updatedAt             DateTime
+
+  @@map("account")
 }
 
 model Verification {
@@ -66,9 +67,9 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime?
   updatedAt  DateTime?
-}
 
-// ── НАШИ ТАБЛИЦЫ ─────────────────────────────────────────────────────────
+  @@map("verification")
+}
 
 model AuthorProfile {
   id           String   @id @default(cuid())

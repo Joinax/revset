@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Unbounded, Manrope } from 'next/font/google'
 import ThemeProvider from '@/components/ThemeProvider'
+import SessionProvider from '@/components/SessionProvider'
 import './globals.css'
 
 const unbounded = Unbounded({
@@ -18,16 +19,12 @@ const manrope = Manrope({
 })
 
 export const metadata: Metadata = {
-  icons: {
-    icon: '/revset_icon.svg',
-  },
   title: {
     default:  'REVSET — Revit-семейства для профессионалов',
     template: '%s | REVSET',
   },
-  description:
-    'Маркетплейс BIM-семейств (.rfa) для Autodesk Revit. ' +
-    'Мебель, освещение, оборудование — готовые модели LOD 200–400.',
+  description: 'Маркетплейс BIM-семейств (.rfa) для Autodesk Revit.',
+  icons: { icon: '/revset_icon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -45,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProvider>
-          {children}
+          <SessionProvider>
+            {children}
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

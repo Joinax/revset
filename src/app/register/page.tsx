@@ -6,9 +6,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { signUp } from '@/lib/auth-client'
+import { useAppSession } from '@/components/SessionProvider'
 
 export default function RegisterPage() {
   const router  = useRouter()
+  const { refresh } = useAppSession()
   const [name,     setName]     = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -25,26 +27,16 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    const { error } = await signUp.email({
-      name,
-      email,
-      password,
-      callbackURL: '/',
-    })
-
-    setLoading(false)
+    const { error } = await signUp.email({ name, email, password, callbackURL: '/' })
 
     if (error) {
-      setError(
-        error.code === 'USER_ALREADY_EXISTS'
-          ? 'Этот email уже зарегистрирован'
-          : 'Ошибка регистрации. Попробуйте ещё раз.'
-      )
+      setLoading(false)
+      setError(error.code === 'USER_ALREADY_EXISTS' ? 'Этот email уже зарегистрирован' : 'Ошибка регистрации')
       return
     }
 
+    await refresh()   // ← обновляем сессию в провайдере
     router.push('/')
-    router.refresh()
   }
 
   return (
@@ -55,8 +47,7 @@ export default function RegisterPage() {
 
           <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <div style={{ fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>
-              <span style={{ color: 'var(--accent)' }}>REV</span>
-              <span style={{ color: 'var(--text)' }}>SET</span>
+              <span style={{ color: 'var(--accent)' }}>REV</span><span style={{ color: 'var(--text)' }}>SET</span>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Создайте аккаунт</p>
           </div>

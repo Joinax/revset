@@ -2,17 +2,20 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import ThemeToggle from './ThemeToggle'
-import { useSession, signOut } from '@/lib/auth-client'
+import { useAppSession } from './SessionProvider'
+import { signOut } from '@/lib/auth-client'
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { data: session } = useSession()
-  const user = session?.user
+  const { user, refresh } = useAppSession()
+  const router = useRouter()
 
   async function handleSignOut() {
     await signOut()
-    window.location.href = '/'
+    await refresh()   // ← обновляем сессию сразу
+    router.push('/')
   }
 
   return (
@@ -23,85 +26,52 @@ export default function Navbar() {
           <span><span style={{ color: 'var(--accent)' }}>REV</span><span style={{ color: 'var(--text)' }}>SET</span></span>
         </Link>
 
-        {/* Ссылки — десктоп */}
         <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <Link href="/catalog"     className="nav-link">Каталог</Link>
           <Link href="/for-authors" className="nav-link">Авторам</Link>
           <Link href="/blog"        className="nav-link">Блог</Link>
         </div>
 
-        {/* Правая часть */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-          <button aria-label="Поиск"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
+          <button aria-label="Поиск" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
             <i className="ti ti-search" style={{ fontSize: '18px' }} />
           </button>
-          <button aria-label="Избранное"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
+          <button aria-label="Избранное" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
             <i className="ti ti-heart" style={{ fontSize: '18px' }} />
           </button>
 
           <ThemeToggle />
 
-          {/* Если залогинен — показываем аватар и имя, иначе — кнопки */}
           {user ? (
             <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Link href="/account" style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: 'var(--bg2)', border: '1px solid var(--border)',
-                borderRadius: '8px', padding: '6px 12px',
-                fontSize: '13px', color: 'var(--text)', fontWeight: 500,
-              }}>
-                {/* Аватар-инициал */}
-                <span style={{
-                  width: '24px', height: '24px', borderRadius: '50%',
-                  background: 'var(--accent)', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '11px', fontWeight: 700, flexShrink: 0,
-                }}>
+              <Link href="/account" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>
+                <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
                   {(user.name ?? user.email ?? 'U')[0].toUpperCase()}
                 </span>
                 <span>{user.name ?? user.email}</span>
               </Link>
-              <button onClick={handleSignOut} style={{
-                background: 'none', border: '1px solid var(--border)',
-                borderRadius: '8px', padding: '6px 12px',
-                fontSize: '13px', color: 'var(--muted)', cursor: 'pointer',
-              }}>
+              <button onClick={handleSignOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', color: 'var(--muted)', cursor: 'pointer' }}>
                 Выйти
               </button>
             </div>
           ) : (
             <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Link href="/login" style={{
-                background: 'none', border: '1px solid var(--border)',
-                color: 'var(--text)', padding: '7px 16px', borderRadius: '6px',
-                fontSize: '13px', fontWeight: 500,
-              }}>
+              <Link href="/login" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 500 }}>
                 Войти
               </Link>
-              <Link href="/register" style={{
-                background: 'var(--accent)', color: '#fff',
-                padding: '8px 16px', borderRadius: '6px',
-                fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap',
-              }}>
+              <Link href="/register" style={{ background: 'var(--accent)', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Регистрация
               </Link>
             </div>
           )}
 
-          {/* Бургер — мобиль */}
-          <button
-            aria-label="Меню"
-            onClick={() => setMenuOpen(o => !o)}
-            className="burger-btn"
+          <button aria-label="Меню" onClick={() => setMenuOpen(o => !o)} className="burger-btn"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'none' }}>
             <i className={`ti ${menuOpen ? 'ti-x' : 'ti-menu-2'}`} style={{ fontSize: '22px' }} />
           </button>
         </div>
       </nav>
 
-      {/* Мобильное меню */}
       {menuOpen && (
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '12px 20px 20px' }}>
           <Link href="/catalog"     className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Каталог</Link>
@@ -127,7 +97,6 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Нижнее меню — мобиль */}
       <nav className="bottom-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg)', borderTop: '1px solid var(--border)', zIndex: 100, padding: '8px 0 calc(8px + env(safe-area-inset-bottom))' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {[
