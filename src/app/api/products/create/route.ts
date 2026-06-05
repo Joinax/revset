@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Доступ только для авторов' }, { status: 403 })
     }
 
-    const { name, description, price, lod, revitVersions, fileKey, fileName, categorySlug } = await req.json()
+    const { name, description, price, revitVersions, fileKey, fileName, categorySlug, imageKeys } = await req.json()
 
     // Валидация
     if (!name || !fileKey) {
@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
         name,
         description:   description || null,
         price:         price ? parseFloat(price) : null,
-        lod:           lod || 'LOD 300',
         revitVersions: revitVersions || ['2022', '2023', '2024', '2025'],
         isPublished:   true,
         isNew:         true,
         downloads:     0,
         categoryId:    category.id,
         authorId:      session.user.id,
+        images: imageKeys ?? [],
         // fileKey храним в bimParams
         bimParams: JSON.stringify({ fileKey, fileName }),
       },

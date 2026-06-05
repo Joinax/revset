@@ -104,11 +104,11 @@ model Product {
   priceOld      Float?
   previewEmoji  String?
   previewBg     String?
-  lod           String?
   revitVersions String[]
   fileSize      String?
   dimensions    String?
   bimParams     String?
+  images        String[]    @default([])
   isPublished   Boolean     @default(false)
   isNew         Boolean     @default(false)
   downloads     Int         @default(0)

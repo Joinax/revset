@@ -177,9 +177,10 @@ export default function AuthorDashboardClient({ user, products, stats }: Props) 
                         style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', color: 'var(--text)' }}>
                         Просмотр
                       </Link>
-                      <button style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', color: 'var(--text)', cursor: 'pointer' }}>
-                        Изменить
-                      </button>
+                      <Link href={`/author-dashboard/edit/${product.id}`}
+                        style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', color: 'var(--text)' }}>
+                         Изменить
+                      </Link>
                     </div>
                   </div>
                 ))}

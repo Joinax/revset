@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FileUpload from './FileUpload'
+import ImageUpload from './ImageUpload'
 
 const CATEGORIES = [
   { slug: 'furniture',   name: 'Мебель'       },
@@ -23,10 +24,12 @@ export default function UploadProductForm() {
   const [category,    setCategory]    = useState('furniture')
   const [versions,    setVersions]    = useState<string[]>(['2022', '2023', '2024', '2025'])
   const [fileKey,     setFileKey]     = useState('')
+  const [images,      setImages]      = useState<{fileKey: string; url: string; name: string}[]>([])
   const [fileName,    setFileName]    = useState('')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState('')
   const [success,     setSuccess]     = useState(false)
+  
 
   function toggleVersion(v: string) {
     setVersions(prev =>
@@ -55,6 +58,7 @@ export default function UploadProductForm() {
           categorySlug:  category,
           fileKey,
           fileName,
+          imageKeys: images.map(i => i.fileKey),
         }),
       })
 
@@ -152,6 +156,12 @@ export default function UploadProductForm() {
       </div>
 
       {/* Загрузка файла */}
+      <div>
+        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
+          Фотографии модели (до 6 штук)
+        </label>
+        <ImageUpload onImagesChange={setImages} />
+      </div>
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA файл *</label>
         <FileUpload onUpload={(key, file) => { setFileKey(key); setFileName(file) }} />

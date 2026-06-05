@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import BuyButton from '@/components/BuyButton'
 import DownloadButton from '@/components/DownloadButton'
+import ProductGallery from '@/components/ProductGallery'
 
 type Props = {
   product: {
@@ -63,10 +64,14 @@ export default function ProductClient({ product }: Props) {
 
           {/* Левая колонка */}
           <div>
-            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '90px', position: 'relative', marginBottom: '12px', background: product.previewBg ?? 'var(--bg2)' } as any}>
-              {thumbs[activeThumb]}
-              {product.isNew && <span style={{ position: 'absolute', top: '12px', left: '12px', background: 'var(--accent)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>Новинка</span>}
-            </div>
+            <ProductGallery
+              images={product.images}
+              productName={product.name}
+              emoji={product.previewEmoji ?? '📦'}
+              previewBg={product.previewBg ?? '#141420'}
+              s3Endpoint={process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'}
+              s3Bucket={process.env.NEXT_PUBLIC_S3_BUCKET ?? 'revset'}
+            />
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
               {thumbs.map((t, i) => (

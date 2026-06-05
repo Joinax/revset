@@ -39,6 +39,7 @@ export default function FileUpload({ onUpload }: Props) {
           fileName: file.name,
           fileType: file.type || 'application/octet-stream',
           fileSize: file.size,
+          uploadType: 'rfa',
         }),
       })
 
