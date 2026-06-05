@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar'
 import BuyButton from '@/components/BuyButton'
 import DownloadButton from '@/components/DownloadButton'
 import ProductGallery from '@/components/ProductGallery'
+import ReviewForm from '@/components/ReviewForm'
 
 type Props = {
   product: {
@@ -115,6 +116,12 @@ export default function ProductClient({ product }: Props) {
 
             {activeTab === 'reviews' && (
               <div style={{ padding: '16px 0', display: 'grid', gap: '8px' }}>
+                <ReviewForm
+                  productId={product.id}
+                  isFree={product.price === null}
+                  isPurchased={false}
+                  onReviewAdded={() => window.location.reload()}
+                />
                 {product.reviews.length === 0 ? (
                   <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Отзывов пока нет.</p>
                 ) : product.reviews.map(r => (
@@ -135,7 +142,7 @@ export default function ProductClient({ product }: Props) {
                   </div>
                 ))}
               </div>
-            )}
+)}
           </div>
 
           {/* Правая колонка */}
