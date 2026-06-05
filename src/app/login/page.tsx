@@ -52,6 +52,11 @@ export default function LoginPage() {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required
                 style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
             </div>
+            <div style={{ textAlign: 'right' }}>
+              <Link href="/reset-password" style={{ fontSize: '12px', color: 'var(--accent)' }}>
+                Забыли пароль?
+              </Link>
+            </div>
             <div>
               <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Пароль</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required

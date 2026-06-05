@@ -36,7 +36,7 @@ export default function RegisterPage() {
     }
 
     await refresh()   // ← обновляем сессию в провайдере
-    router.push('/')
+    router.push('/verify-email')
   }
 
   return (
