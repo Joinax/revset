@@ -3,6 +3,7 @@ import { Unbounded, Manrope } from 'next/font/google'
 import ThemeProvider from '@/components/ThemeProvider'
 import SessionProvider from '@/components/SessionProvider'
 import './globals.css'
+import Footer from '@/components/Footer'
 
 const unbounded = Unbounded({
   subsets: ['latin', 'cyrillic'],
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <SessionProvider>
             {children}
+            <Footer />
           </SessionProvider>
         </ThemeProvider>
       </body>
