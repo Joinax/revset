@@ -1,6 +1,7 @@
 // src/app/catalog/page.tsx
 import { db } from '@/lib/db'
 import CatalogClient from './CatalogClient'
+export { metadata } from './metadata'
 
 // Загружаем данные на сервере, передаём клиентскому компоненту
 export default async function CatalogPage() {
