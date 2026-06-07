@@ -24,30 +24,35 @@ export default function UploadProductForm() {
   const [category,    setCategory]    = useState('furniture')
   const [versions,    setVersions]    = useState<string[]>(['2022', '2023', '2024', '2025'])
   const [fileKey,     setFileKey]     = useState('')
-  const [images,      setImages]      = useState<{fileKey: string; url: string; name: string}[]>([])
   const [fileName,    setFileName]    = useState('')
+  const [images,      setImages]      = useState<{fileKey: string; url: string; name: string}[]>([])
+  const [mainIndex,   setMainIndex]   = useState(0)
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState('')
   const [success,     setSuccess]     = useState(false)
-  
 
   function toggleVersion(v: string) {
-    setVersions(prev =>
-      prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
-    )
+    setVersions(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    if (!name.trim()) { setError('Укажите название модели'); return }
-    if (!fileKey)      { setError('Загрузите RFA файл'); return }
+    if (!name.trim())          { setError('Укажите название модели'); return }
+    if (images.length === 0)   { setError('Загрузите хотя бы одно фото'); return }
+    if (!fileKey)              { setError('Загрузите RFA файл'); return }
     if (versions.length === 0) { setError('Выберите хотя бы одну версию Revit'); return }
 
     setLoading(true)
 
     try {
+      // Переставляем главное фото на первое место
+      const sortedImages = [
+        images[mainIndex],
+        ...images.filter((_, i) => i !== mainIndex),
+      ]
+
       const res = await fetch('/api/products/create', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,18 +61,13 @@ export default function UploadProductForm() {
           price:         price || null,
           revitVersions: versions,
           categorySlug:  category,
-          fileKey,
-          fileName,
-          imageKeys: images.map(i => i.fileKey),
+          fileKey, fileName,
+          imageKeys: sortedImages.map(i => i.fileKey),
         }),
       })
 
       const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? 'Ошибка публикации')
-        return
-      }
+      if (!res.ok) { setError(data.error ?? 'Ошибка публикации'); return }
 
       setSuccess(true)
       setTimeout(() => router.push(`/product/${data.productId}`), 1500)
@@ -89,32 +89,23 @@ export default function UploadProductForm() {
     )
   }
 
+  const canSubmit = !loading && !!fileKey && images.length > 0
+
   return (
     <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '16px' }}>
 
-      {/* Название */}
       <div>
-        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
-          Название модели *
-        </label>
-        <input
-          type="text" value={name} onChange={e => setName(e.target.value)}
-          placeholder="Кресло Herman Miller Aeron" required
-          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }}
-        />
+        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Название модели *</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Кресло Herman Miller Aeron" required
+          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
       </div>
 
-      {/* Описание */}
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Описание</label>
-        <textarea
-          value={description} onChange={e => setDescription(e.target.value)}
-          placeholder="Подробное описание модели..." rows={3}
-          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-manrope)' }}
-        />
+        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Подробное описание модели..." rows={3}
+          style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-manrope)' }} />
       </div>
 
-      {/* Категория и цена */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <div>
           <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Категория *</label>
@@ -125,43 +116,32 @@ export default function UploadProductForm() {
         </div>
         <div>
           <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Цена (₽) — пусто = бесплатно</label>
-          <input
-            type="number" value={price} onChange={e => setPrice(e.target.value)}
-            placeholder="0 = бесплатно" min="0"
-            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }}
-          />
+          <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0 = бесплатно" min="0"
+            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
         </div>
       </div>
 
-      {/* Версии Revit */}
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Версии Revit *</label>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {REVIT_VERSIONS.map(v => (
-            <button
-              key={v} type="button"
-              onClick={() => toggleVersion(v)}
-              style={{
-                padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer',
-                border: `1px solid ${versions.includes(v) ? 'var(--accent)' : 'var(--border)'}`,
-                background: versions.includes(v) ? 'rgba(41,82,200,0.1)' : 'var(--bg)',
-                color: versions.includes(v) ? 'var(--accent)' : 'var(--muted)',
-                fontWeight: versions.includes(v) ? 600 : 400,
-              }}
-            >
+            <button key={v} type="button" onClick={() => toggleVersion(v)}
+              style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', border: `1px solid ${versions.includes(v) ? 'var(--accent)' : 'var(--border)'}`, background: versions.includes(v) ? 'rgba(41,82,200,0.1)' : 'var(--bg)', color: versions.includes(v) ? 'var(--accent)' : 'var(--muted)', fontWeight: versions.includes(v) ? 600 : 400 }}>
               {v}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Загрузка файла */}
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
-          Фотографии модели (до 6 штук)
+          Фотографии модели * <span style={{ color: 'var(--danger)' }}>(обязательно, до 6 штук)</span>
         </label>
-        <ImageUpload onImagesChange={setImages} />
+        <ImageUpload
+          onImagesChange={(imgs, idx) => { setImages(imgs); setMainIndex(idx) }}
+        />
       </div>
+
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA файл *</label>
         <FileUpload onUpload={(key, file) => { setFileKey(key); setFileName(file) }} />
@@ -173,16 +153,12 @@ export default function UploadProductForm() {
         </div>
       )}
 
-      <button
-        type="submit" disabled={loading || !fileKey}
-        style={{
-          width: '100%', background: loading || !fileKey ? 'var(--bg3)' : 'var(--accent)',
-          color: '#fff', border: 'none', borderRadius: '8px', padding: '13px',
-          fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '13px', fontWeight: 700,
-          cursor: loading || !fileKey ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {loading ? 'Публикуем...' : !fileKey ? 'Сначала загрузите файл' : 'Опубликовать модель'}
+      <button type="submit" disabled={!canSubmit}
+        style={{ width: '100%', background: canSubmit ? 'var(--accent)' : 'var(--bg3)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '13px', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
+        {loading             ? 'Публикуем...'                 :
+         images.length === 0 ? 'Сначала загрузите фото'       :
+         !fileKey            ? 'Сначала загрузите RFA файл'   :
+                               'Опубликовать модель'}
       </button>
 
     </form>

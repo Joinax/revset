@@ -5,12 +5,12 @@ import { useState, useRef } from 'react'
 
 type UploadedImage = {
   fileKey: string
-  url:     string   // локальный preview через URL.createObjectURL
+  url:     string
   name:    string
 }
 
 type Props = {
-  onImagesChange: (images: UploadedImage[]) => void
+  onImagesChange: (images: UploadedImage[], mainIndex: number) => void
   maxImages?:     number
   initialImages?: UploadedImage[]
 }
@@ -20,17 +20,15 @@ export default function ImageUpload({
   maxImages = 6,
   initialImages = [],
 }: Props) {
-  const [images,   setImages]   = useState<UploadedImage[]>(initialImages)
+  const [images,    setImages]    = useState<UploadedImage[]>(initialImages)
+  const [mainIndex, setMainIndex] = useState(0)
   const [uploading, setUploading] = useState(false)
-  const [error,    setError]    = useState('')
+  const [error,     setError]     = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleFiles(files: FileList) {
     const remaining = maxImages - images.length
-    if (remaining <= 0) {
-      setError(`Максимум ${maxImages} изображений`)
-      return
-    }
+    if (remaining <= 0) { setError(`Максимум ${maxImages} изображений`); return }
 
     const toUpload = Array.from(files).slice(0, remaining)
     setError('')
@@ -49,44 +47,18 @@ export default function ImageUpload({
       }
 
       try {
-        // Получаем presigned URL
         const res = await fetch('/api/upload', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            fileName:   file.name,
-            fileType:   file.type,
-            fileSize:   file.size,
-            uploadType: 'image',
-          }),
+          body:    JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size, uploadType: 'image' }),
         })
-
-        if (!res.ok) {
-          const data = await res.json()
-          setError(data.error ?? 'Ошибка загрузки')
-          continue
-        }
-
+        if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Ошибка загрузки'); continue }
         const { uploadUrl, fileKey } = await res.json()
 
-        // Загружаем в S3
-        const uploadRes = await fetch(uploadUrl, {
-          method:  'PUT',
-          headers: { 'Content-Type': file.type },
-          body:    file,
-        })
+        const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+        if (!uploadRes.ok) { setError('Ошибка загрузки в хранилище'); continue }
 
-        if (!uploadRes.ok) {
-          setError('Ошибка загрузки в хранилище')
-          continue
-        }
-
-        uploaded.push({
-          fileKey,
-          url:  URL.createObjectURL(file),
-          name: file.name,
-        })
-
+        uploaded.push({ fileKey, url: URL.createObjectURL(file), name: file.name })
       } catch {
         setError('Ошибка соединения')
       }
@@ -94,76 +66,59 @@ export default function ImageUpload({
 
     const newImages = [...images, ...uploaded]
     setImages(newImages)
-    onImagesChange(newImages)
+    onImagesChange(newImages, mainIndex)
     setUploading(false)
   }
 
   function removeImage(index: number) {
     const newImages = images.filter((_, i) => i !== index)
+    const newMain   = index === mainIndex ? 0 : index < mainIndex ? mainIndex - 1 : mainIndex
     setImages(newImages)
-    onImagesChange(newImages)
+    setMainIndex(newMain)
+    onImagesChange(newImages, newMain)
+  }
+
+  function setAsMain(index: number) {
+    setMainIndex(index)
+    onImagesChange(images, index)
   }
 
   return (
     <div>
-      {/* Превью загруженных изображений */}
       {images.length > 0 && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '8px',
-          marginBottom: '12px',
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
           {images.map((img, i) => (
-            <div key={img.fileKey} style={{ position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <img src={img.url} alt={img.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div key={img.fileKey} style={{ position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${i === mainIndex ? 'var(--accent)' : 'var(--border)'}` }}>
+              <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
               {/* Кнопка удаления */}
-              <button
-                type="button"
-                onClick={() => removeImage(i)}
-                style={{
-                  position: 'absolute', top: '4px', right: '4px',
-                  width: '22px', height: '22px', borderRadius: '50%',
-                  background: 'rgba(0,0,0,0.6)', border: 'none',
-                  color: '#fff', fontSize: '14px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  lineHeight: 1,
-                }}
-              >
+              <button type="button" onClick={() => removeImage(i)}
+                style={{ position: 'absolute', top: '4px', right: '4px', width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
                 ×
               </button>
-              {/* Первое изображение — главное */}
-              {i === 0 && (
-                <span style={{
-                  position: 'absolute', bottom: '4px', left: '4px',
-                  background: 'var(--accent)', color: '#fff',
-                  fontSize: '10px', fontWeight: 700,
-                  padding: '2px 6px', borderRadius: '3px',
-                }}>
+
+              {/* Бейдж главного фото */}
+              {i === mainIndex ? (
+                <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'var(--accent)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '3px' }}>
                   Главное
                 </span>
+              ) : (
+                /* Кнопка сделать главным */
+                <button type="button" onClick={() => setAsMain(i)}
+                  style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: '10px', cursor: 'pointer', padding: '2px 6px', borderRadius: '3px' }}>
+                  Сделать главным
+                </button>
               )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Кнопка добавления */}
       {images.length < maxImages && (
-        <div
-          onClick={() => inputRef.current?.click()}
-          style={{
-            border: '2px dashed var(--border)', borderRadius: '10px',
-            padding: '24px', textAlign: 'center', cursor: 'pointer',
-            transition: 'border-color 0.2s',
-          }}
-        >
-          <input
-            ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp"
-            multiple style={{ display: 'none' }}
-            onChange={e => { if (e.target.files) handleFiles(e.target.files) }}
-          />
+        <div onClick={() => inputRef.current?.click()}
+          style={{ border: '2px dashed var(--border)', borderRadius: '10px', padding: '24px', textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s' }}>
+          <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: 'none' }}
+            onChange={e => { if (e.target.files) handleFiles(e.target.files) }} />
           {uploading ? (
             <>
               <i className="ti ti-loader" style={{ fontSize: '24px', color: 'var(--accent)', display: 'block', marginBottom: '6px' }} />
@@ -180,6 +135,12 @@ export default function ImageUpload({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {images.length > 0 && (
+        <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)' }}>
+          Нажмите «Сделать главным» чтобы выбрать превью карточки
         </div>
       )}
 
