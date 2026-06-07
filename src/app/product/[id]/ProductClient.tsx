@@ -13,8 +13,10 @@ type Props = {
     id: string; name: string; description: string | null
     price: number | null; priceOld: number | null
     previewEmoji: string | null; previewBg: string | null
-    lod: string | null; revitVersions: string[]; fileSize: string | null
+    revitVersions: string[]; fileSize: string | null
     dimensions: string | null; isNew: boolean; downloads: number
+    images: string[]
+    avgRating: number | null
     category: { name: string; slug: string }
     author: { id: string; name: string | null; authorProfile: { bio: string | null; city: string | null; isVerified: boolean; totalSales: number } | null }
     reviews: { id: string; rating: number; text: string | null; createdAt: Date; user: { name: string | null } }[]
@@ -26,6 +28,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 export default function ProductClient({ product }: Props) {
+  const { avgRating } = product
   const [activeTab,   setActiveTab]   = useState<'desc' | 'params' | 'reviews'>('desc')
   const [activeThumb, setActiveThumb] = useState(0)
   const [inFavorites, setInFavorites] = useState(false)
@@ -34,9 +37,6 @@ export default function ProductClient({ product }: Props) {
     ? Math.round((1 - product.price / product.priceOld) * 100)
     : null
 
-  const avgRating = product.reviews.length
-    ? (product.reviews.reduce((s, r) => s + r.rating, 0) / product.reviews.length).toFixed(1)
-    : null
 
   const bimParams = [
     { key: 'Формат файла',  value: 'RFA (Revit Family)'              },

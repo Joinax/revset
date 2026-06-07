@@ -9,7 +9,11 @@ export default async function CatalogPage() {
     db.product.findMany({
       where:   { isPublished: true },
       orderBy: { downloads: 'desc' },
-      include: { author: { select: { name: true } } },
+      include: {
+        author:  { select: { name: true } },
+        _count:  { select: { reviews: true } },
+        reviews: { select: { rating: true } },
+      },
     }),
     db.category.findMany({ orderBy: { order: 'asc' } }),
   ])
@@ -19,11 +23,13 @@ export default async function CatalogPage() {
     name:        p.name,
     author:      p.author.name ?? 'Автор',
     price:       p.price,
-    rating:      4.8,
-    reviewCount: 0,
-    isNew:       p.isNew,
-    emoji:       p.previewEmoji ?? '📦',
-    previewBg:   p.previewBg   ?? '#141420',
+    rating:      p.reviews.length > 0
+      ? Math.round(p.reviews.reduce((sum, r) => sum + r.rating, 0) / p.reviews.length * 10) / 10
+      : null,
+    reviewCount:   p._count.reviews,
+    isNew:         p.isNew,
+    emoji:         p.previewEmoji ?? '📦',
+    previewBg:     p.previewBg   ?? '#141420',
     revitVersions: p.revitVersions,
     categorySlug:  p.categoryId,
   }))

@@ -15,9 +15,16 @@ export default async function HomePage() {
   // Загружаем категории и товары параллельно
   const [categories, products, stats] = await Promise.all([
 
-    db.category.findMany({
-      orderBy: { order: 'asc' },
-    }),
+db.product.findMany({
+  where:   { isPublished: true },
+  orderBy: { downloads: 'desc' },
+  take:    6,
+  include: {
+    author: { select: { name: true } },
+    _count: { select: { reviews: true } },
+    reviews: { select: { rating: true } },  // для подсчёта рейтинга
+  },
+}),
 
     db.product.findMany({
       where:   { isPublished: true },
@@ -36,17 +43,19 @@ export default async function HomePage() {
   //const [productCount, authorCount] = stats
 
   // Приводим данные из БД к типу Product который ожидает ProductCard
-  const mappedProducts = products.map(p => ({
-    id:          p.id,
-    name:        p.name,
-    author:      p.author.name ?? 'Автор',
-    price:       p.price,
-    rating:      4.8,          // TODO: считать из отзывов когда появятся
-    reviewCount: 0,            // TODO: считать из Review
-    isNew:       p.isNew,
-    emoji:       p.previewEmoji ?? '📦',
-    previewBg:   p.previewBg   ?? '#141420',
-  }))
+const mappedProducts = products.map(p => ({
+  id:          p.id,
+  name:        p.name,
+  author:      p.author.name ?? 'Автор',
+  price:       p.price,
+  rating:      p.reviews.length > 0
+    ? Math.round(p.reviews.reduce((sum, r) => sum + r.rating, 0) / p.reviews.length * 10) / 10
+    : null,
+  reviewCount: p._count.reviews,
+  isNew:       p.isNew,
+  emoji:       p.previewEmoji ?? '📦',
+  previewBg:   p.previewBg   ?? '#141420',
+}))
 
   // Приводим категории к типу Category
   const mappedCategories = categories.map(c => ({

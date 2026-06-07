@@ -5,7 +5,7 @@ import ProductClient from './ProductClient'
 export { generateMetadata } from './metadata'
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params  // ← в Next.js 16 params асинхронный
+  const { id } = await params
 
   const product = await db.product.findUnique({
     where: { id },
@@ -18,5 +18,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   if (!product) notFound()
 
-  return <ProductClient product={product} />
+  // Считаем средний рейтинг из реальных отзывов
+  const avgRating = product.reviews.length > 0
+    ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length
+    : null
+
+  return <ProductClient product={{ ...product, avgRating }} />
 }
