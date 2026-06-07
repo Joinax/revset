@@ -1,17 +1,31 @@
+// src/app/catalog/CatalogClient.tsx
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useTransition, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import { ProductCard } from '@/components/ProductCard'
-import FilterSidebar, { type Filters } from '@/components/FilterSidebar'
 
 type Product = {
   id: string; name: string; author: string; price: number | null
-  rating: number; reviewCount: number; isNew: boolean
+  rating: number | null; reviewCount: number; isNew: boolean
   emoji: string; previewBg: string; revitVersions: string[]; categorySlug: string
 }
-type Category = { slug: string; name: string; count: string; emoji: string; iconBg: string; id: string }
+type Category = { slug: string; name: string; emoji: string; iconBg: string; id: string }
+type CurrentParams = {
+  q: string; sort: string; page: string; category: string
+  versions: string; price: string; priceMin: string; priceMax: string
+}
+
+type Props = {
+  products:      Product[]
+  categories:    Category[]
+  total:         number
+  perPage:       number
+  currentPage:   number
+  currentParams: CurrentParams
+}
 
 const SORT_OPTIONS = [
   { value: 'popular',   label: 'По популярности' },
@@ -20,79 +34,147 @@ const SORT_OPTIONS = [
   { value: 'expensive', label: 'Сначала дороже'  },
 ]
 
-const DEFAULT_FILTERS: Filters = {
-  categories: [], revitVersions: [], priceType: ['free', 'paid'], priceMin: '', priceMax: '',
-}
+const REVIT_VERSIONS = ['2022', '2023', '2024', '2025']
 
-function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 10px', fontSize: '12px', color: 'var(--muted)' }}>
-      {label}
-      <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, fontSize: '14px' }}>×</button>
-    </span>
-  )
-}
+export default function CatalogClient({
+  products, categories, total, perPage, currentPage, currentParams,
+}: Props) {
+  const router   = useRouter()
+  const pathname = usePathname()
+  const [isPending, startTransition] = useTransition()
 
-function Pagination({ current, total, onChange }: { current: number; total: number; onChange: (p: number) => void }) {
-  const pages = Array.from({ length: Math.min(total, 5) }, (_, i) => i + 1)
-  return (
-    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', padding: '20px 0' }}>
-      {pages.map(p => (
-        <button key={p} onClick={() => onChange(p)} style={{ width: '30px', height: '30px', borderRadius: '6px', border: `1px solid ${p === current ? 'var(--accent)' : 'var(--border)'}`, background: p === current ? 'var(--accent)' : 'var(--bg2)', color: p === current ? '#fff' : 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontWeight: p === current ? 700 : 400 }}>
-          {p}
-        </button>
-      ))}
-      {total > 5 && (
-        <button onClick={() => onChange(total)} style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>{total}</button>
-      )}
-    </div>
-  )
-}
-
-export default function CatalogClient({ products, categories }: { products: Product[]; categories: Category[] }) {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
-  const [search, setSearch]   = useState('')
-  const [sort, setSort]       = useState('popular')
-  const [page, setPage]       = useState(1)
+  // Локальное состояние для полей которые обновляем с задержкой
+  const [search,   setSearch]   = useState(currentParams.q)
+  const [priceMin, setPriceMin] = useState(currentParams.priceMin)
+  const [priceMax, setPriceMax] = useState(currentParams.priceMax)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  const totalPages = Math.ceil(total / perPage)
+
+  // Обновляем URL с новыми параметрами
+  function updateParams(updates: Partial<CurrentParams>) {
+    const params = new URLSearchParams()
+    const merged = { ...currentParams, ...updates, page: '1' }
+
+    if (merged.q)        params.set('q',        merged.q)
+    if (merged.category) params.set('category', merged.category)
+    if (merged.versions) params.set('versions', merged.versions)
+    if (merged.price && merged.price !== 'all') params.set('price', merged.price)
+    if (merged.priceMin) params.set('priceMin', merged.priceMin)
+    if (merged.priceMax) params.set('priceMax', merged.priceMax)
+    if (merged.sort && merged.sort !== 'popular') params.set('sort', merged.sort)
+    if (updates.page)    params.set('page',     updates.page)
+
+    const query = params.toString()
+    startTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname)
+    })
+  }
+
+  // Поиск с задержкой 400мс
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value)
+    const timer = setTimeout(() => updateParams({ q: value }), 400)
+    return () => clearTimeout(timer)
+  }, [currentParams])
+
+  // Переключение версии Revit
+  function toggleVersion(v: string) {
+    const current = currentParams.versions ? currentParams.versions.split(',') : []
+    const updated = current.includes(v) ? current.filter(x => x !== v) : [...current, v]
+    updateParams({ versions: updated.join(',') })
+  }
+
+  // Активные фильтры для чипов
   const activeChips = [
-    ...filters.categories.map(c => ({ label: categories.find(x => x.id === c)?.name ?? c, clear: () => setFilters(f => ({ ...f, categories: f.categories.filter(x => x !== c) })) })),
-    ...filters.revitVersions.map(v => ({ label: v, clear: () => setFilters(f => ({ ...f, revitVersions: f.revitVersions.filter(x => x !== v) })) })),
+    ...(currentParams.category ? [{ label: categories.find(c => c.slug === currentParams.category)?.name ?? currentParams.category, clear: () => updateParams({ category: '' }) }] : []),
+    ...(currentParams.versions ? currentParams.versions.split(',').map(v => ({ label: `Revit ${v}`, clear: () => toggleVersion(v) })) : []),
+    ...(currentParams.price && currentParams.price !== 'all' ? [{ label: currentParams.price === 'free' ? 'Бесплатные' : 'Платные', clear: () => updateParams({ price: 'all' }) }] : []),
   ]
 
-  const filtered = useMemo(() => {
-    let result = products
-    if (search) result = result.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-    if (filters.categories.length > 0) result = result.filter(p => filters.categories.includes(p.categorySlug))
-    if (filters.revitVersions.length > 0) result = result.filter(p => filters.revitVersions.some(v => p.revitVersions.includes(v.replace('Revit ', ''))))
-    if (!filters.priceType.includes('free')) result = result.filter(p => p.price !== null)
-    if (!filters.priceType.includes('paid')) result = result.filter(p => p.price === null)
-    if (filters.priceMin) result = result.filter(p => p.price === null || p.price >= Number(filters.priceMin))
-    if (filters.priceMax) result = result.filter(p => p.price === null || p.price <= Number(filters.priceMax))
-    if (sort === 'cheap') result = [...result].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
-    if (sort === 'expensive') result = [...result].sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
-    return result
-  }, [filters, search, sort, products])
+  const FilterContent = () => (
+    <div style={{ padding: '20px' }}>
+      {/* Категории */}
+      <div style={{ marginBottom: '22px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>Категория</div>
+        {categories.map(cat => (
+          <label key={cat.slug} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '7px', cursor: 'pointer' }}>
+            <span onClick={() => updateParams({ category: currentParams.category === cat.slug ? '' : cat.slug })}
+              style={{ width: '15px', height: '15px', borderRadius: '3px', border: currentParams.category === cat.slug ? 'none' : '1.5px solid var(--border)', background: currentParams.category === cat.slug ? 'var(--accent)' : 'var(--bg2)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s' }}>
+              {currentParams.category === cat.slug && <i className="ti ti-check" style={{ fontSize: '10px', color: '#fff' }} />}
+            </span>
+            <span style={{ fontSize: '13px', color: 'var(--text)' }}>{cat.name}</span>
+          </label>
+        ))}
+      </div>
 
-  const PER_PAGE = 6
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const pageProducts = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+      {/* Версии Revit */}
+      <div style={{ marginBottom: '22px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>Версия Revit</div>
+        {REVIT_VERSIONS.map(ver => {
+          const checked = currentParams.versions?.split(',').includes(ver)
+          return (
+            <label key={ver} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '7px', cursor: 'pointer' }}>
+              <span onClick={() => toggleVersion(ver)}
+                style={{ width: '15px', height: '15px', borderRadius: '3px', border: checked ? 'none' : '1.5px solid var(--border)', background: checked ? 'var(--accent)' : 'var(--bg2)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                {checked && <i className="ti ti-check" style={{ fontSize: '10px', color: '#fff' }} />}
+              </span>
+              <span style={{ fontSize: '13px', color: 'var(--text)' }}>{ver}</span>
+            </label>
+          )
+        })}
+      </div>
 
-  function handleFiltersChange(f: Filters) { setFilters(f); setPage(1) }
+      {/* Цена */}
+      <div style={{ marginBottom: '22px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>Цена</div>
+        {[{ value: 'all', label: 'Все' }, { value: 'free', label: 'Бесплатные' }, { value: 'paid', label: 'Платные' }].map(opt => (
+          <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '7px', cursor: 'pointer' }}>
+            <span onClick={() => updateParams({ price: opt.value })}
+              style={{ width: '15px', height: '15px', borderRadius: '50%', border: currentParams.price === opt.value || (opt.value === 'all' && !currentParams.price) ? 'none' : '1.5px solid var(--border)', background: currentParams.price === opt.value || (opt.value === 'all' && !currentParams.price) ? 'var(--accent)' : 'var(--bg2)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              {(currentParams.price === opt.value || (opt.value === 'all' && !currentParams.price)) && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />}
+            </span>
+            <span style={{ fontSize: '13px', color: 'var(--text)' }}>{opt.label}</span>
+          </label>
+        ))}
+
+        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+          <input type="number" placeholder="от" value={priceMin}
+            onChange={e => setPriceMin(e.target.value)}
+            onBlur={() => updateParams({ priceMin })}
+            style={{ flex: 1, width: 0, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '7px 10px', color: 'var(--text)', fontSize: '12px', outline: 'none' }} />
+          <input type="number" placeholder="до" value={priceMax}
+            onChange={e => setPriceMax(e.target.value)}
+            onBlur={() => updateParams({ priceMax })}
+            style={{ flex: 1, width: 0, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '7px 10px', color: 'var(--text)', fontSize: '12px', outline: 'none' }} />
+        </div>
+      </div>
+
+      {/* Сбросить */}
+      <button onClick={() => { setSearch(''); setPriceMin(''); setPriceMax(''); router.push(pathname) }}
+        style={{ width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', padding: '4px 0', textAlign: 'left' }}>
+        Сбросить фильтры
+      </button>
+    </div>
+  )
 
   return (
     <>
       <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
         <Navbar />
 
+        {/* Поиск */}
         <div style={{ margin: '18px 24px', display: 'flex', gap: '10px' }}>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Поиск по названию..." style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
-          <button style={{ background: 'var(--accent)', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, fontSize: '14px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="ti ti-search" style={{ fontSize: '15px' }} />
-            <span className="search-btn-text">Найти</span>
-          </button>
-          <button onClick={() => setDrawerOpen(true)} className="filter-mobile-btn" style={{ display: 'none', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', cursor: 'pointer', alignItems: 'center', gap: '6px', fontSize: '13px', whiteSpace: 'nowrap' }}>
+          <input
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Поиск по названию, категории, автору..."
+            style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', opacity: isPending ? 0.7 : 1 }}
+          />
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="filter-mobile-btn"
+            style={{ display: 'none', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', cursor: 'pointer', alignItems: 'center', gap: '6px', fontSize: '13px', whiteSpace: 'nowrap' }}>
             <i className="ti ti-adjustments-horizontal" style={{ fontSize: '16px' }} />
             Фильтры
             {activeChips.length > 0 && <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: '10px', fontSize: '10px', fontWeight: 700, padding: '1px 6px' }}>{activeChips.length}</span>}
@@ -100,55 +182,93 @@ export default function CatalogClient({ products, categories }: { products: Prod
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr' }} className="catalog-layout">
+
+          {/* Сайдбар */}
           <div style={{ borderRight: '1px solid var(--border)', minHeight: '600px' }} className="catalog-sidebar">
-            <FilterSidebar filters={filters} onChange={handleFiltersChange} />
+            <FilterContent />
           </div>
 
+          {/* Контент */}
           <div style={{ padding: '18px 20px' }}>
+
+            {/* Тулбар */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Найдено {filtered.length} моделей</span>
-              <select value={sort} onChange={e => { setSort(e.target.value); setPage(1) }} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 12px', borderRadius: '6px', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                {isPending ? 'Загружаем...' : `Найдено ${total} моделей`}
+              </span>
+              <select value={currentParams.sort} onChange={e => updateParams({ sort: e.target.value })}
+                style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 12px', borderRadius: '6px', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
                 {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
 
+            {/* Активные чипы */}
             {activeChips.length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                {activeChips.map((chip, i) => <Chip key={i} label={chip.label} onRemove={chip.clear} />)}
-                <button onClick={() => setFilters(DEFAULT_FILTERS)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer' }}>Сбросить всё</button>
+                {activeChips.map((chip, i) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '20px', padding: '4px 10px', fontSize: '12px', color: 'var(--muted)' }}>
+                    {chip.label}
+                    <button onClick={chip.clear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, fontSize: '14px' }}>×</button>
+                  </span>
+                ))}
+                <button onClick={() => { setSearch(''); setPriceMin(''); setPriceMax(''); router.push(pathname) }}
+                  style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer' }}>
+                  Сбросить всё
+                </button>
               </div>
             )}
 
-            {pageProducts.length > 0 ? (
-              <div className="cards-grid">
-                {pageProducts.map(p => <ProductCard key={p.id} product={p} />)}
+            {/* Сетка товаров */}
+            {products.length > 0 ? (
+              <div className="cards-grid" style={{ opacity: isPending ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                {products.map(p => <ProductCard key={p.id} product={p} />)}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
                 <i className="ti ti-search-off" style={{ fontSize: '40px', display: 'block', marginBottom: '12px' }} />
-                Ничего не найдено
+                Ничего не найдено — попробуйте изменить фильтры
               </div>
             )}
 
-            {filtered.length > PER_PAGE && <Pagination current={page} total={totalPages} onChange={setPage} />}
+            {/* Пагинация */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', padding: '20px 0' }}>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map(p => (
+                  <button key={p} onClick={() => updateParams({ page: p.toString() })}
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: `1px solid ${p === currentPage ? 'var(--accent)' : 'var(--border)'}`, background: p === currentPage ? 'var(--accent)' : 'var(--bg2)', color: p === currentPage ? '#fff' : 'var(--muted)', fontSize: '13px', cursor: 'pointer', fontWeight: p === currentPage ? 700 : 400 }}>
+                    {p}
+                  </button>
+                ))}
+                {totalPages > 7 && (
+                  <button onClick={() => updateParams({ page: totalPages.toString() })}
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>
+                    {totalPages}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         <div style={{ height: '64px' }} className="bottom-spacer" />
       </div>
 
+      {/* Мобильный drawer */}
       {drawerOpen && (
         <>
           <div onClick={() => setDrawerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
           <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg)', borderRadius: '16px 16px 0 0', zIndex: 201, maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg)' }}>
               <span style={{ fontWeight: 600, fontSize: '15px' }}>Фильтры</span>
-              <button onClick={() => setDrawerOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><i className="ti ti-x" style={{ fontSize: '20px' }} /></button>
+              <button onClick={() => setDrawerOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                <i className="ti ti-x" style={{ fontSize: '20px' }} />
+              </button>
             </div>
-            <FilterSidebar filters={filters} onChange={handleFiltersChange} />
+            <FilterContent />
             <div style={{ padding: '0 20px 24px' }}>
-              <button onClick={() => setDrawerOpen(false)} style={{ width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
-                Показать {filtered.length} моделей
+              <button onClick={() => setDrawerOpen(false)}
+                style={{ width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+                Показать {total} моделей
               </button>
             </div>
           </div>
