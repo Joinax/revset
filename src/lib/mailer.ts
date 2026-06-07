@@ -87,3 +87,30 @@ export async function sendPasswordResetEmail(to: string, name: string, url: stri
     `),
   })
 }
+
+// Уведомление автору о продаже
+export async function sendSaleNotificationEmail(
+  to: string,
+  authorName: string,
+  productName: string,
+  amount: number,
+) {
+  await transporter.sendMail({
+    from:    `"REVSET" <${process.env.SMTP_FROM}>`,
+    to,
+    subject: `Продажа: ${productName} | REVSET`,
+    html:    emailTemplate(`
+      <h2>Поздравляем, ${authorName}!</h2>
+      <p>Ваша модель была куплена.</p>
+      <div style="background:#F0F0F8;border-radius:8px;padding:16px;margin:16px 0;">
+        <div style="font-size:13px;color:#888;margin-bottom:4px;">Модель</div>
+        <div style="font-size:15px;font-weight:700;color:#1A1A1A;">${productName}</div>
+      </div>
+      <div style="background:#F0F0F8;border-radius:8px;padding:16px;margin:16px 0;">
+        <div style="font-size:13px;color:#888;margin-bottom:4px;">Ваш заработок (80%)</div>
+        <div style="font-size:22px;font-weight:700;color:#4169E1;">${Math.round(amount * 0.8)} ₽</div>
+      </div>
+      <p style="font-size:12px;color:#999;">Выплата поступит на ваш счёт в ближайшую дату выплат.</p>
+    `),
+  })
+}
