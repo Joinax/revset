@@ -1,21 +1,43 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import ThemeToggle from './ThemeToggle'
 import { useAppSession } from './SessionProvider'
 import { signOut } from '@/lib/auth-client'
 
 export default function Navbar() {
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpen,   setMenuOpen]   = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const { user, refresh } = useAppSession()
   const router = useRouter()
 
+  // Фокус на поле поиска когда открывается
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus()
+  }, [searchOpen])
+
   async function handleSignOut() {
     await signOut()
-    await refresh()   // ← обновляем сессию сразу
+    await refresh()
     router.push('/')
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/catalog?q=${encodeURIComponent(searchQuery.trim())}`)
+      setSearchOpen(false)
+      setSearchQuery('')
+    }
+  }
+
+  // Закрываем поиск по Escape
+  function handleSearchKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery('') }
   }
 
   return (
@@ -26,19 +48,53 @@ export default function Navbar() {
           <span><span style={{ color: 'var(--accent)' }}>REV</span><span style={{ color: 'var(--text)' }}>SET</span></span>
         </Link>
 
-        <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link href="/catalog"     className="nav-link">Каталог</Link>
-          <Link href="/for-authors" className="nav-link">Авторам</Link>
-          <Link href="/blog"        className="nav-link">Блог</Link>
-        </div>
+        {/* Строка поиска — раскрывается при нажатии */}
+        {searchOpen ? (
+          <form onSubmit={handleSearch} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', margin: '0 16px' }}>
+            <input
+              ref={searchRef}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Поиск по моделям..."
+              style={{
+                flex: 1, background: 'var(--bg2)', border: '1px solid var(--accent)',
+                borderRadius: '8px', padding: '8px 14px', color: 'var(--text)',
+                fontSize: '14px', outline: 'none',
+              }}
+            />
+            <button type="submit" style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '8px 16px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Найти
+            </button>
+            <button type="button" onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '20px', lineHeight: 1 }}>
+              ×
+            </button>
+          </form>
+        ) : (
+          <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <Link href="/catalog"     className="nav-link">Каталог</Link>
+            <Link href="/for-authors" className="nav-link">Авторам</Link>
+            <Link href="/blog"        className="nav-link">Блог</Link>
+          </div>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-          <button aria-label="Поиск" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
-            <i className="ti ti-search" style={{ fontSize: '18px' }} />
-          </button>
-          <button aria-label="Избранное" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
-            <i className="ti ti-heart" style={{ fontSize: '18px' }} />
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: searchOpen ? '0' : 'auto' }}>
+          {/* Поиск */}
+          {!searchOpen && (
+            <button aria-label="Поиск" onClick={() => setSearchOpen(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}>
+              <i className="ti ti-search" style={{ fontSize: '18px' }} />
+            </button>
+          )}
+
+          {/* Избранное — только если залогинен */}
+          {user && (
+            <Link href="/account#favorites" aria-label="Избранное"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', textDecoration: 'none' }}>
+              <i className="ti ti-heart" style={{ fontSize: '18px' }} />
+            </Link>
+          )}
 
           <ThemeToggle />
 
@@ -72,14 +128,29 @@ export default function Navbar() {
         </div>
       </nav>
 
+      {/* Мобильное меню */}
       {menuOpen && (
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '12px 20px 20px' }}>
+          {/* Поиск в мобильном меню */}
+          <form onSubmit={e => { handleSearch(e); setMenuOpen(false) }} style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Поиск по моделям..."
+              style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '9px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }}
+            />
+            <button type="submit" style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '9px 14px', color: '#fff', cursor: 'pointer' }}>
+              <i className="ti ti-search" style={{ fontSize: '16px' }} />
+            </button>
+          </form>
+
           <Link href="/catalog"     className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Каталог</Link>
           <Link href="/for-authors" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Авторам</Link>
           <Link href="/blog"        className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Блог</Link>
           {user ? (
             <>
-              <Link href="/account" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Личный кабинет</Link>
+              <Link href="/account"    className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Личный кабинет</Link>
+              <Link href="/account#favorites" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Избранное</Link>
               <button onClick={handleSignOut} style={{ display: 'block', width: '100%', marginTop: '12px', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', padding: '10px 0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
                 Выйти
               </button>
@@ -97,15 +168,16 @@ export default function Navbar() {
         </div>
       )}
 
+      {/* Нижнее меню — мобиль */}
       <nav className="bottom-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg)', borderTop: '1px solid var(--border)', zIndex: 100, padding: '8px 0 calc(8px + env(safe-area-inset-bottom))' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {[
             { href: '/',          icon: 'ti-home',  label: 'Главная'   },
             { href: '/catalog',   icon: 'ti-books', label: 'Каталог'   },
-            { href: '/favorites', icon: 'ti-heart', label: 'Избранное' },
-            { href: user ? '/account' : '/login', icon: 'ti-user', label: user ? 'Кабинет' : 'Войти' },
+            { href: user ? '/account' : '/login', icon: 'ti-heart', label: 'Избранное' },
+            { href: user ? '/account' : '/login', icon: 'ti-user',  label: user ? 'Кабинет' : 'Войти' },
           ].map(item => (
-            <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', color: 'var(--muted)', fontSize: '10px', fontWeight: 500, padding: '4px 0' }}>
+            <Link key={item.label} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', color: 'var(--muted)', fontSize: '10px', fontWeight: 500, padding: '4px 0' }}>
               <i className={`ti ${item.icon}`} style={{ fontSize: '22px' }} />
               {item.label}
             </Link>

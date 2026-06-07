@@ -1,7 +1,7 @@
 // src/app/account/AccountClient.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -32,7 +32,14 @@ const TABS = [
 type Tab = typeof TABS[number]['key']
 
 export default function AccountClient({ user, orders, favorites }: Props) {
-  const [activeTab,   setActiveTab]   = useState<Tab>('orders')
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#favorites') return 'favorites'
+    return 'orders'
+  })
+
+  useEffect(() => {
+    if (window.location.hash === '#favorites') setActiveTab('favorites')
+  }, [])
   const [editMode,    setEditMode]    = useState(false)
   const [editName,    setEditName]    = useState(user.name)
   const [editLoading, setEditLoading] = useState(false)
