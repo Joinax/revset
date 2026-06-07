@@ -1,16 +1,18 @@
 // src/app/catalog/page.tsx
-import { db } from '@/lib/db'
+import { db }      from '@/lib/db'
+import { auth }    from '@/lib/auth'
+import { headers } from 'next/headers'
 import CatalogClient from './CatalogClient'
 export { metadata } from './metadata'
 
 type SearchParams = {
-  q?:        string    // поиск
-  category?: string    // slug категории
-  versions?: string    // через запятую: 2022,2023
-  price?:    string    // free | paid | all
+  q?:        string
+  category?: string
+  versions?: string
+  price?:    string
   priceMin?: string
   priceMax?: string
-  sort?:     string    // popular | newest | cheap | expensive
+  sort?:     string
   page?:     string
 }
 
@@ -22,6 +24,7 @@ export default async function CatalogPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const session = await auth.api.getSession({ headers: await headers() })
 
   const q        = params.q        ?? ''
   const sort     = params.sort     ?? 'popular'
@@ -31,32 +34,15 @@ export default async function CatalogPage({
   const priceMax = params.priceMax ? parseFloat(params.priceMax) : undefined
   const versions = params.versions ? params.versions.split(',') : []
 
-  // Находим категорию если выбрана
   const category = params.category
     ? await db.category.findUnique({ where: { slug: params.category } })
     : null
 
-  // Строим фильтр
   const where: any = { isPublished: true }
-
-  // Поиск по названию через PostgreSQL
-  if (q) {
-    where.name = { contains: q, mode: 'insensitive' }
-  }
-
-  // Фильтр по категории
-  if (category) {
-    where.categoryId = category.id
-  }
-
-  // Фильтр по цене
-  if (priceFilter === 'free') {
-    where.price = null
-  } else if (priceFilter === 'paid') {
-    where.price = { not: null }
-  }
-
-  // Фильтр по диапазону цен
+  if (q)        where.name       = { contains: q, mode: 'insensitive' }
+  if (category) where.categoryId = category.id
+  if (priceFilter === 'free') where.price = null
+  else if (priceFilter === 'paid') where.price = { not: null }
   if (priceMin !== undefined || priceMax !== undefined) {
     where.price = {
       ...where.price,
@@ -64,24 +50,17 @@ export default async function CatalogPage({
       ...(priceMax !== undefined ? { lte: priceMax } : {}),
     }
   }
+  if (versions.length > 0) where.revitVersions = { hasSome: versions }
 
-  // Фильтр по версиям Revit
-  if (versions.length > 0) {
-    where.revitVersions = { hasSome: versions }
-  }
-
-  // Сортировка
   const orderBy: any =
     sort === 'newest'    ? { createdAt: 'desc' } :
     sort === 'cheap'     ? { price: 'asc'      } :
     sort === 'expensive' ? { price: 'desc'     } :
-                           { downloads: 'desc' }  // popular
+                           { downloads: 'desc' }
 
-  // Параллельно загружаем товары и общее количество
-  const [products, total, categories] = await Promise.all([
+  const [products, total, categories, favorites] = await Promise.all([
     db.product.findMany({
-      where,
-      orderBy,
+      where, orderBy,
       skip:    (page - 1) * PER_PAGE,
       take:    PER_PAGE,
       include: {
@@ -92,7 +71,13 @@ export default async function CatalogPage({
     }),
     db.product.count({ where }),
     db.category.findMany({ orderBy: { order: 'asc' } }),
+    session?.user ? db.favorite.findMany({
+      where:  { userId: session.user.id },
+      select: { productId: true },
+    }) : Promise.resolve([]),
   ])
+
+  const favoriteIds = new Set(favorites.map(f => f.productId))
 
   const mappedProducts = products.map(p => ({
     id:            p.id,
@@ -108,6 +93,7 @@ export default async function CatalogPage({
     previewBg:     p.previewBg   ?? '#141420',
     revitVersions: p.revitVersions,
     categorySlug:  p.categoryId,
+    isFavorited:   favoriteIds.has(p.id),
   }))
 
   const mappedCategories = categories.map(c => ({

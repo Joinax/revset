@@ -6,10 +6,14 @@ import CategoryGrid from '@/components/CategoryGrid'
 import ProductGrid  from '@/components/ProductCard'
 import CTABlock     from '@/components/CTABlock'
 import { db }       from '@/lib/db'
+import { auth }     from '@/lib/auth'
+import { headers }  from 'next/headers'
 
 export default async function HomePage() {
 
-  const [categories, products, productCount, authorCount] = await Promise.all([
+  const session = await auth.api.getSession({ headers: await headers() })
+
+  const [categories, products, productCount, authorCount, favorites] = await Promise.all([
     db.category.findMany({ orderBy: { order: 'asc' } }),
     db.product.findMany({
       where:   { isPublished: true },
@@ -23,7 +27,14 @@ export default async function HomePage() {
     }),
     db.product.count({ where: { isPublished: true } }),
     db.user.count({ where: { role: 'author' } }),
+    // Загружаем избранное только если залогинен
+    session?.user ? db.favorite.findMany({
+      where:  { userId: session.user.id },
+      select: { productId: true },
+    }) : Promise.resolve([]),
   ])
+
+  const favoriteIds = new Set(favorites.map(f => f.productId))
 
   const mappedProducts = products.map(p => ({
     id:          p.id,
@@ -37,6 +48,7 @@ export default async function HomePage() {
     isNew:       p.isNew,
     emoji:       p.previewEmoji ?? '📦',
     previewBg:   p.previewBg   ?? '#141420',
+    isFavorited: favoriteIds.has(p.id),
   }))
 
   const mappedCategories = categories.map(c => ({

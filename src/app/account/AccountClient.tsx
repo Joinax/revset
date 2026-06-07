@@ -32,10 +32,7 @@ const TABS = [
 type Tab = typeof TABS[number]['key']
 
 export default function AccountClient({ user, orders, favorites }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
-    if (typeof window !== 'undefined' && window.location.hash === '#favorites') return 'favorites'
-    return 'orders'
-  })
+  const [activeTab, setActiveTab] = useState<Tab>('orders')
 
   useEffect(() => {
     if (window.location.hash === '#favorites') setActiveTab('favorites')
