@@ -109,25 +109,6 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
               ))}
             </div>
           </div>
-
-          {/* Кнопка заказа */}
-          {author.authorProfile?.acceptOrders && (
-            <div style={{
-              background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)',
-              borderRadius: '10px', padding: '16px', textAlign: 'center', minWidth: '180px',
-            }}>
-              <i className="ti ti-message" style={{ fontSize: '24px', color: 'var(--accent)', display: 'block', marginBottom: '8px' }} />
-              <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>Принимает заказы</div>
-              {author.authorProfile.responseTime && (
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '12px' }}>
-                  Ответ {author.authorProfile.responseTime}
-                </div>
-              )}
-              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '8px 16px', fontSize: '12px' }}>
-                Написать
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Модели автора */}
