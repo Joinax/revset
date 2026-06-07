@@ -21,13 +21,14 @@ type Props = {
     author: { id: string; name: string | null; authorProfile: { bio: string | null; city: string | null; isVerified: boolean; totalSales: number } | null }
     reviews: { id: string; rating: number; text: string | null; createdAt: Date; user: { name: string | null } }[]
   }
+  isPurchased: boolean
 }
 
 function Stars({ rating }: { rating: number }) {
   return <span style={{ color: 'var(--accent)', fontSize: '12px' }}>{'★'.repeat(rating)}{'☆'.repeat(5 - rating)}</span>
 }
 
-export default function ProductClient({ product }: Props) {
+export default function ProductClient({ product, isPurchased }: Props) {
   const { avgRating } = product
   const [activeTab,   setActiveTab]   = useState<'desc' | 'params' | 'reviews'>('desc')
   const [activeThumb, setActiveThumb] = useState(0)
@@ -42,7 +43,6 @@ export default function ProductClient({ product }: Props) {
     { key: 'Формат файла',  value: 'RFA (Revit Family)'              },
     { key: 'Версия Revit',  value: product.revitVersions.join(', ')  },
     { key: 'Категория',     value: product.category.name             },
-    { key: 'LOD',           value: product.lod ?? '—'               },
     { key: 'Размеры',       value: product.dimensions ?? '—'        },
     { key: 'Размер файла',  value: product.fileSize ?? '—'          },
   ]
@@ -119,7 +119,7 @@ export default function ProductClient({ product }: Props) {
                 <ReviewForm
                   productId={product.id}
                   isFree={product.price === null}
-                  isPurchased={false}
+                  isPurchased={isPurchased}
                   onReviewAdded={() => window.location.reload()}
                 />
                 {product.reviews.length === 0 ? (
@@ -162,15 +162,23 @@ export default function ProductClient({ product }: Props) {
 
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px' }}>Стандартная лицензия</div>
 
-              {product.price !== null ? (
-                <BuyButton productId={product.id} price={product.price} name={product.name} />
-              ) : (
-                <DownloadButton
-                  productId={product.id}
-                  isFree={true}
-                  isPurchased={false}
-                />
-              )}
+                {product.price !== null ? (
+                  isPurchased ? (
+                    <DownloadButton
+                      productId={product.id}
+                      isFree={false}
+                      isPurchased={true}
+                    />
+                  ) : (
+                    <BuyButton productId={product.id} price={product.price} name={product.name} />
+                  )
+                ) : (
+                  <DownloadButton
+                    productId={product.id}
+                    isFree={true}
+                    isPurchased={false}
+                  />
+                )}
 
               <button onClick={() => setInFavorites(f => !f)} style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                 <i className="ti ti-heart" style={{ fontSize: '16px' }} />
