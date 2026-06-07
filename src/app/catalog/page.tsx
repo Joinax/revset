@@ -39,7 +39,13 @@ export default async function CatalogPage({
     : null
 
   const where: any = { isPublished: true }
-  if (q)        where.name       = { contains: q, mode: 'insensitive' }
+  if (q) {
+    where.OR = [
+      { name:        { contains: q, mode: 'insensitive' } },
+      { description: { contains: q, mode: 'insensitive' } },
+      { author:      { is: { name: { contains: q, mode: 'insensitive' } } } },
+    ]
+  }
   if (category) where.categoryId = category.id
   if (priceFilter === 'free') where.price = null
   else if (priceFilter === 'paid') where.price = { not: null }

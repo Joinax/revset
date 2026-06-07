@@ -75,7 +75,6 @@ export default function Navbar() {
           <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <Link href="/catalog"     className="nav-link">Каталог</Link>
             <Link href="/for-authors" className="nav-link">Авторам</Link>
-            <Link href="/blog"        className="nav-link">Блог</Link>
           </div>
         )}
 
@@ -146,7 +145,6 @@ export default function Navbar() {
 
           <Link href="/catalog"     className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Каталог</Link>
           <Link href="/for-authors" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Авторам</Link>
-          <Link href="/blog"        className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Блог</Link>
           {user ? (
             <>
               <Link href="/account"    className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Личный кабинет</Link>
