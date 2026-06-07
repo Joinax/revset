@@ -13,10 +13,13 @@ export type Product = {
   isNew?:      boolean
   emoji:       string
   previewBg:   string
-  isFavorited?: boolean  // ← новое поле
+  isFavorited?: boolean
+  images?:     string[]
 }
 
-// Кнопка избранного с локальным стейтом
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+
 function FavoriteButton({ productId, isFavorited = false }: { productId: string; isFavorited?: boolean }) {
   const [faved, setFaved] = useState(isFavorited)
 
@@ -37,15 +40,18 @@ function FavoriteButton({ productId, isFavorited = false }: { productId: string;
       aria-label={faved ? 'Убрать из избранного' : 'Добавить в избранное'}
       onClick={handleClick}
       style={{
-        position: 'absolute', top: '8px', right: '8px',
-        background: faved ? 'rgba(41,82,200,0.15)' : 'none',
+        position: 'absolute', top: '10px', right: '10px',
+        background: faved ? 'rgba(41,82,200,0.9)' : 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(8px)',
         border: 'none', cursor: 'pointer',
-        color: faved ? 'var(--accent)' : 'var(--muted)',
-        padding: '4px', borderRadius: '6px',
-        lineHeight: 1, transition: 'color 0.2s, background 0.2s',
+        color: faved ? '#fff' : '#888',
+        width: '32px', height: '32px', borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        lineHeight: 1, transition: 'all 0.2s',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
       }}
     >
-      <i className={`ti ${faved ? 'ti-heart-filled' : 'ti-heart'}`} style={{ fontSize: '16px' }} />
+      <i className={`ti ${faved ? 'ti-heart-filled' : 'ti-heart'}`} style={{ fontSize: '15px' }} />
     </button>
   )
 }
@@ -55,43 +61,102 @@ type CardProps = {
 }
 
 export function ProductCard({ product }: CardProps) {
-  const { id, name, author, price, rating, reviewCount, isNew, emoji, previewBg, isFavorited } = product
+  const { id, name, author, price, rating, reviewCount, isNew, emoji, previewBg, isFavorited, images } = product
+
+  const hasImage = images && images.length > 0
+  const imageUrl = hasImage ? `${S3_ENDPOINT}/${S3_BUCKET}/${images[0]}` : null
 
   return (
-    <Link href={`/product/${id}`} style={{ textDecoration: 'none', display: 'block' }} className="card">
-      <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', background: previewBg, borderBottom: '1px solid var(--border)', position: 'relative' }}>
+    <Link href={`/product/${id}`} style={{ textDecoration: 'none', display: 'block' }} className="card product-card">
+      {/* Превью */}
+      <div style={{
+        height: '200px',
+        position: 'relative',
+        overflow: 'hidden',
+        background: hasImage ? '#f5f5f5' : previewBg,
+      }}>
+        {hasImage ? (
+          <img
+            src={imageUrl!}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
+            className="product-card-img"
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>
+            {emoji}
+          </div>
+        )}
+
+        {/* Оверлей при hover */}
+        <div className="product-card-overlay" style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 60%)',
+          opacity: 0, transition: 'opacity 0.3s',
+        }} />
+
         {isNew && (
-          <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'var(--accent)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
+          <span style={{
+            position: 'absolute', top: '10px', left: '10px',
+            background: 'var(--accent)', color: '#fff',
+            fontSize: '10px', fontWeight: 700,
+            padding: '3px 8px', borderRadius: '20px',
+            letterSpacing: '0.04em',
+          }}>
             Новинка
           </span>
         )}
+
         <FavoriteButton productId={id} isFavorited={isFavorited} />
-        {emoji}
       </div>
 
-      <div style={{ padding: '12px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {/* Инфо */}
+      <div style={{ padding: '14px 14px 12px' }}>
+        <div style={{
+          fontSize: '13px', fontWeight: 600, marginBottom: '3px',
+          color: 'var(--text)', whiteSpace: 'nowrap',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          lineHeight: 1.3,
+        }}>
           {name}
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>{author}</div>
+        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>{author}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {price !== null ? (
-            <span className="price">{price} ₽</span>
+            <span style={{
+              fontFamily: 'var(--font-unbounded), sans-serif',
+              fontSize: '14px', fontWeight: 700, color: 'var(--accent)',
+            }}>{price} ₽</span>
           ) : (
-            <span className="badge-free">Бесплатно</span>
+            <span style={{
+              fontSize: '11px', fontWeight: 700, color: 'var(--success)',
+              background: 'rgba(29,158,117,0.1)',
+              padding: '3px 8px', borderRadius: '20px',
+            }}>Бесплатно</span>
           )}
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            {rating ? `★ ${rating} (${reviewCount})` : `★ (${reviewCount})`}
-          </span>
+          {(rating || reviewCount > 0) && (
+            <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ color: '#F59E0B' }}>★</span>
+              {rating ? `${rating}` : '—'} <span style={{ opacity: 0.6 }}>({reviewCount})</span>
+            </span>
+          )}
         </div>
       </div>
+
+      <style>{`
+        .product-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .product-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.1); }
+        .product-card:hover .product-card-img { transform: scale(1.04); }
+        .product-card:hover .product-card-overlay { opacity: 1; }
+        .dark .product-card:hover { box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+      `}</style>
     </Link>
   )
 }
 
 type GridProps = {
-  title?:    string
-  products?: Product[]
+  title?:      string
+  products?:   Product[]
   showSeeAll?: boolean
 }
 
@@ -101,18 +166,19 @@ export default function ProductGrid({
   showSeeAll = true,
 }: GridProps) {
   return (
-    <section>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '28px 24px 16px' }}>
-        <span style={{ fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.03em' }}>
-          {title}
-        </span>
+    <section style={{ padding: '0 24px 32px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '32px 0 20px',
+      }}>
+        <h2 style={{ fontSize: '20px', margin: 0 }}>{title}</h2>
         {showSeeAll && (
-          <Link href="/catalog" style={{ fontSize: '12px', color: 'var(--muted)' }} className="see-all-link">
-            Смотреть все →
+          <Link href="/catalog" style={{ fontSize: '13px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }} className="see-all-link">
+            Смотреть все <i className="ti ti-arrow-right" style={{ fontSize: '14px' }} />
           </Link>
         )}
       </div>
-      <div className="cards-grid" style={{ padding: '0 24px 24px' }}>
+      <div className="cards-grid">
         {products.map(product => (
           <ProductCard key={product.id} product={product} />
         ))}

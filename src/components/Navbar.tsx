@@ -43,6 +43,7 @@ export default function Navbar() {
   return (
     <>
       <nav className="navbar">
+        <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', gap: '16px' }}> 
         <Link href="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src="/revset_icon.svg" alt="REVSET" style={{ width: '28px', height: '28px' }} />
           <span><span style={{ color: 'var(--accent)' }}>REV</span><span style={{ color: 'var(--text)' }}>SET</span></span>
@@ -124,6 +125,7 @@ export default function Navbar() {
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'none' }}>
             <i className={`ti ${menuOpen ? 'ti-x' : 'ti-menu-2'}`} style={{ fontSize: '22px' }} />
           </button>
+        </div>
         </div>
       </nav>
 

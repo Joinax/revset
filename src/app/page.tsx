@@ -13,7 +13,7 @@ export default async function HomePage() {
 
   const session = await auth.api.getSession({ headers: await headers() })
 
-  const [categories, products, productCount, authorCount, favorites] = await Promise.all([
+  const [categories, products, , , favorites] = await Promise.all([
     db.category.findMany({ orderBy: { order: 'asc' } }),
     db.product.findMany({
       where:   { isPublished: true },
@@ -49,6 +49,7 @@ export default async function HomePage() {
     emoji:       p.previewEmoji ?? '📦',
     previewBg:   p.previewBg   ?? '#141420',
     isFavorited: favoriteIds.has(p.id),
+    images: p.images ?? [],
   }))
 
   const mappedCategories = categories.map(c => ({
@@ -59,18 +60,18 @@ export default async function HomePage() {
     iconBg: c.iconBg ?? '#1C1C28',
   }))
 
-  return (
-    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
-      <Navbar />
-      <main>
-        <Hero />
-        <StatsStrip productCount={productCount} authorCount={authorCount} />
-        <CategoryGrid items={mappedCategories} />
-        <ProductGrid products={mappedProducts} />
-        <CTABlock />
-      </main>
-      <div style={{ height: '64px' }} className="bottom-spacer" />
-      <style>{`@media (min-width: 641px) { .bottom-spacer { display: none; } }`}</style>
-    </div>
-  )
+return (
+  <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+    <Navbar />
+    <main style={{ maxWidth: '1280px', margin: '0 auto' }}>
+      <Hero />
+      {/* <StatsStrip productCount={productCount} authorCount={authorCount} /> */}
+      <CategoryGrid items={mappedCategories} />
+      <ProductGrid products={mappedProducts} />
+      <CTABlock />
+    </main>
+    <div style={{ height: '64px' }} className="bottom-spacer" />
+    <style>{`@media (min-width: 641px) { .bottom-spacer { display: none; } }`}</style>
+  </div>
+)
 }

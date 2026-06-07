@@ -3,10 +3,10 @@
 import Link from 'next/link'
 
 export type Category = {
-  slug: string
-  name: string
-  count: string
-  emoji: string
+  slug:   string
+  name:   string
+  count:  string
+  emoji:  string
   iconBg: string
 }
 
@@ -24,53 +24,59 @@ type Props = {
 
 export default function CategoryGrid({ title = 'Категории', items = categories }: Props) {
   return (
-    <section>
+    <section style={{ padding: '0 24px 8px' }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '28px 24px 16px',
+        padding: '32px 0 20px',
       }}>
-        <span style={{
-          fontFamily: 'var(--font-unbounded), sans-serif',
-          fontSize: '16px', fontWeight: 700, letterSpacing: '-0.03em',
-        }}>
-          {title}
-        </span>
-        <Link href="/catalog" style={{ fontSize: '12px', color: 'var(--muted)' }} className="see-all-link">
-          Все категории →
+        <h2 style={{ fontSize: '20px', margin: 0 }}>{title}</h2>
+        <Link href="/catalog" style={{ fontSize: '13px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }} className="see-all-link">
+          Все категории <i className="ti ti-arrow-right" style={{ fontSize: '14px' }} />
         </Link>
       </div>
 
-      <div className="cats-grid" style={{ padding: '0 24px 32px' }}>
+      <div className="cats-grid">
         {items.map(cat => (
           <Link
             key={cat.slug}
             href={`/catalog?category=${cat.slug}`}
             className="cat-card"
             style={{
-              display: 'block', background: 'var(--bg2)',
-              border: '1px solid var(--border)', borderRadius: '10px',
-              padding: '16px 14px', textDecoration: 'none', transition: 'border-color 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '18px 16px',
+              textDecoration: 'none',
+              transition: 'all 0.2s',
             }}
           >
             <div style={{
-              width: '34px', height: '34px', borderRadius: '8px',
-              background: cat.iconBg, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: '18px', marginBottom: '10px',
+              width: '48px', height: '48px', borderRadius: '12px',
+              background: cat.iconBg,
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: '22px',
+              flexShrink: 0,
             }}>
               {cat.emoji}
             </div>
-            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '3px', color: 'var(--text)' }}>
-              {cat.name}
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', marginBottom: '3px' }}>
+                {cat.name}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                {cat.count}
+              </div>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              {cat.count}
-            </div>
+            <i className="ti ti-arrow-right" style={{ fontSize: '16px', color: 'var(--muted)', marginLeft: 'auto' }} />
           </Link>
         ))}
       </div>
 
       <style>{`
-        .cat-card:hover  { border-color: rgba(41, 82, 200, 0.3) !important; }
+        .cat-card:hover { border-color: var(--accent) !important; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(41,82,200,0.1); }
         .see-all-link:hover { color: var(--accent) !important; }
       `}</style>
     </section>

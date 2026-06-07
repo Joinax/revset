@@ -273,3 +273,22 @@ button {
 .dark :focus-visible {
   box-shadow: 0 0 0 3px rgba(65, 105, 225, 0.4);
 }
+
+/* Карточки товаров — белый фон в светлой теме */
+.card {
+  background: var(--bg) !important;
+}
+
+/* Сетка карточек — 4 колонки на широком экране */
+@media (min-width: 1200px) {
+  .cards-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Категории — горизонтальный список */
+@media (max-width: 640px) {
+  .cats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

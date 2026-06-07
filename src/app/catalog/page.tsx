@@ -100,6 +100,7 @@ export default async function CatalogPage({
     revitVersions: p.revitVersions,
     categorySlug:  p.categoryId,
     isFavorited:   favoriteIds.has(p.id),
+    images: p.images ?? [],
   }))
 
   const mappedCategories = categories.map(c => ({
