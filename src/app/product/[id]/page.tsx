@@ -23,24 +23,32 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   if (!product) notFound()
 
-  // Проверяем куплен ли товар текущим пользователем
-  let isPurchased = false
-  if (session?.user && product.price !== null) {
-    const order = await db.order.findFirst({
-      where: {
-        userId: session.user.id,
-        status: 'PAID',
-        items:  { some: { productId: id } },
-      },
-    })
+  // Проверяем куплен ли товар и в избранном ли он
+  let isPurchased  = false
+  let isFavorited  = false
+
+  if (session?.user) {
+    const [order, favorite] = await Promise.all([
+      product.price !== null ? db.order.findFirst({
+        where: { userId: session.user.id, status: 'PAID', items: { some: { productId: id } } },
+      }) : null,
+      db.favorite.findUnique({
+        where: { userId_productId: { userId: session.user.id, productId: id } },
+      }),
+    ])
     isPurchased = !!order
-    console.log('user:', session?.user?.id)
-    console.log('isPurchased:', isPurchased)
+    isFavorited = !!favorite
   }
 
   const avgRating = product.reviews.length > 0
     ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length
     : null
 
-  return <ProductClient product={{ ...product, avgRating }} isPurchased={isPurchased} />
+  return (
+    <ProductClient
+      product={{ ...product, avgRating }}
+      isPurchased={isPurchased}
+      isFavorited={isFavorited}
+    />
+  )
 }

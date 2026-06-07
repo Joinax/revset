@@ -22,17 +22,18 @@ type Props = {
     reviews: { id: string; rating: number; text: string | null; createdAt: Date; user: { name: string | null } }[]
   }
   isPurchased: boolean
+  isFavorited: boolean
 }
 
 function Stars({ rating }: { rating: number }) {
   return <span style={{ color: 'var(--accent)', fontSize: '12px' }}>{'★'.repeat(rating)}{'☆'.repeat(5 - rating)}</span>
 }
 
-export default function ProductClient({ product, isPurchased }: Props) {
+export default function ProductClient({ product, isPurchased, isFavorited }: Props) {
   const { avgRating } = product
   const [activeTab,   setActiveTab]   = useState<'desc' | 'params' | 'reviews'>('desc')
   const [activeThumb, setActiveThumb] = useState(0)
-  const [inFavorites, setInFavorites] = useState(false)
+  const [inFavorites, setInFavorites] = useState(isFavorited)
 
   const discount = product.priceOld && product.price
     ? Math.round((1 - product.price / product.priceOld) * 100)
@@ -180,7 +181,18 @@ export default function ProductClient({ product, isPurchased }: Props) {
                   />
                 )}
 
-              <button onClick={() => setInFavorites(f => !f)} style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <button
+                onClick={async () => {
+                  const method = inFavorites ? 'DELETE' : 'POST'
+                  const res = await fetch('/api/favorites', {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: product.id }),
+                  })
+                  if (res.ok) setInFavorites(f => !f)
+                }}
+                style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
                 <i className="ti ti-heart" style={{ fontSize: '16px' }} />
                 {inFavorites ? 'В избранном' : 'В избранное'}
               </button>
