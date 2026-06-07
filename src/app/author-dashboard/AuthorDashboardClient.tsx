@@ -23,7 +23,8 @@ type Stats = {
   totalSales: number; totalRevenue: number; totalDownloads: number
 }
 
-type Props = { user: User; products: Product[]; stats: Stats }
+type Pagination = { currentPage: number; totalPages: number; perPage: number }
+type Props = { user: User; products: Product[]; stats: Stats; pagination: Pagination }
 
 const TABS = [
   { key: 'products', label: 'Мои модели',  icon: 'ti-file-3d'     },
@@ -49,7 +50,7 @@ function StatCard({ value, label, icon }: { value: string; label: string; icon: 
   )
 }
 
-export default function AuthorDashboardClient({ user, products, stats }: Props) {
+export default function AuthorDashboardClient({ user, products, stats, pagination }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('products')
   const [search, setSearch] = useState('')
 
@@ -186,6 +187,24 @@ export default function AuthorDashboardClient({ user, products, stats }: Props) 
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {/* Пагинация — только на вкладке товаров */}
+        {activeTab === 'products' && pagination.totalPages > 1 && (
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', padding: '20px 0' }}>
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(p => (
+              <a key={p} href={`/author-dashboard?page=${p}`}
+                style={{
+                  width: '30px', height: '30px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1px solid ${p === pagination.currentPage ? 'var(--accent)' : 'var(--border)'}`,
+                  background: p === pagination.currentPage ? 'var(--accent)' : 'var(--bg2)',
+                  color: p === pagination.currentPage ? '#fff' : 'var(--muted)',
+                  fontSize: '13px', fontWeight: p === pagination.currentPage ? 700 : 400,
+                  textDecoration: 'none',
+                }}>
+                {p}
+              </a>
+            ))}
           </div>
         )}
 
