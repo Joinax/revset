@@ -25,8 +25,14 @@ type Props = {
   isFavorited: boolean
 }
 
-function Stars({ rating }: { rating: number }) {
-  return <span style={{ color: 'var(--accent)', fontSize: '12px' }}>{'★'.repeat(rating)}{'☆'.repeat(5 - rating)}</span>
+function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: '1px' }}>
+      {[1,2,3,4,5].map(s => (
+        <span key={s} style={{ fontSize: `${size}px`, color: s <= Math.round(rating) ? '#F59E0B' : '#DDD' }}>★</span>
+      ))}
+    </span>
+  )
 }
 
 export default function ProductClient({ product, isPurchased, isFavorited }: Props) {
@@ -51,22 +57,24 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
       <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
         <Navbar />
 
-        {/* Обёртка с maxWidth */}
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
           {/* Хлебные крошки */}
-          <div style={{ padding: '12px 24px', fontSize: '12px', color: 'var(--muted)' }}>
-            <Link href="/"        style={{ color: 'var(--muted)' }}>Главная</Link> {' → '}
-            <Link href="/catalog" style={{ color: 'var(--muted)' }}>Каталог</Link> {' → '}
-            <Link href={`/catalog?category=${product.category.slug}`} style={{ color: 'var(--muted)' }}>{product.category.name}</Link> {' → '}
-            <span style={{ color: 'var(--accent)' }}>{product.name}</span>
+          <div style={{ padding: '14px 24px', fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <Link href="/" style={{ color: 'var(--muted)' }}>Главная</Link>
+            <span style={{ opacity: 0.4 }}>›</span>
+            <Link href="/catalog" style={{ color: 'var(--muted)' }}>Каталог</Link>
+            <span style={{ opacity: 0.4 }}>›</span>
+            <Link href={`/catalog?category=${product.category.slug}`} style={{ color: 'var(--muted)' }}>{product.category.name}</Link>
+            <span style={{ opacity: 0.4 }}>›</span>
+            <span style={{ color: 'var(--text)' }}>{product.name}</span>
           </div>
 
           {/* Основной layout */}
-          <div className="product-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: '20px', padding: '0 24px 40px', alignItems: 'start' }}>
+          <div className="product-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '28px', padding: '0 24px 48px', alignItems: 'start' }}>
 
             {/* Левая колонка */}
-            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ minWidth: 0 }}>
               <ProductGallery
                 images={product.images}
                 productName={product.name}
@@ -77,32 +85,48 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
               />
 
               {/* Вкладки */}
-              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', marginTop: '8px' }}>
                 {([
                   { key: 'desc',    label: 'Описание'                           },
                   { key: 'params',  label: 'Параметры BIM'                      },
                   { key: 'reviews', label: `Отзывы (${product.reviews.length})` },
                 ] as const).map(tab => (
                   <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                    style={{ padding: '10px 18px', fontSize: '13px', color: activeTab === tab.key ? 'var(--accent)' : 'var(--muted)', background: 'none', border: 'none', borderBottom: `2px solid ${activeTab === tab.key ? 'var(--accent)' : 'transparent'}`, marginBottom: '-1px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{
+                      padding: '12px 20px', fontSize: '13px', fontWeight: activeTab === tab.key ? 700 : 400,
+                      color: activeTab === tab.key ? 'var(--text)' : 'var(--muted)',
+                      background: 'none', border: 'none',
+                      borderBottom: `2px solid ${activeTab === tab.key ? 'var(--accent)' : 'transparent'}`,
+                      marginBottom: '-2px', cursor: 'pointer', whiteSpace: 'nowrap',
+                      transition: 'color 0.15s',
+                    }}>
                     {tab.label}
                   </button>
                 ))}
               </div>
 
               {activeTab === 'desc' && (
-                <div style={{ padding: '16px 0' }}>
-                  <p style={{ fontSize: '13px', lineHeight: 1.7 }}>{product.description ?? 'Описание отсутствует.'}</p>
+                <div style={{ padding: '20px 0' }}>
+                  {product.description ? (
+                    <p style={{ fontSize: '14px', lineHeight: 1.8, color: 'var(--text)' }}>{product.description}</p>
+                  ) : (
+                    <p style={{ fontSize: '14px', color: 'var(--muted)', fontStyle: 'italic' }}>Описание не добавлено.</p>
+                  )}
                 </div>
               )}
 
               {activeTab === 'params' && (
-                <div style={{ padding: '16px 0' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: 'var(--border)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                    {bimParams.map(p => (
-                      <div key={p.key} style={{ background: 'var(--bg2)', padding: '10px 14px' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '3px' }}>{p.key}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 500 }}>{p.value}</div>
+                <div style={{ padding: '20px 0' }}>
+                  <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                    {bimParams.map((p, i) => (
+                      <div key={p.key} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '12px 16px',
+                        background: i % 2 === 0 ? 'var(--bg)' : 'var(--bg2)',
+                        borderBottom: i < bimParams.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}>
+                        <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{p.key}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>{p.value}</span>
                       </div>
                     ))}
                   </div>
@@ -110,7 +134,7 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
               )}
 
               {activeTab === 'reviews' && (
-                <div style={{ padding: '16px 0', display: 'grid', gap: '8px' }}>
+                <div style={{ padding: '20px 0', display: 'grid', gap: '12px' }}>
                   <ReviewForm
                     productId={product.id}
                     isFree={product.price === null}
@@ -118,22 +142,25 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
                     onReviewAdded={() => window.location.reload()}
                   />
                   {product.reviews.length === 0 ? (
-                    <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Отзывов пока нет.</p>
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)' }}>
+                      <i className="ti ti-message-circle" style={{ fontSize: '32px', display: 'block', marginBottom: '8px', opacity: 0.4 }} />
+                      <p style={{ fontSize: '14px' }}>Отзывов пока нет</p>
+                    </div>
                   ) : product.reviews.map(r => (
-                    <div key={r.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+                    <div key={r.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                           {(r.user.name ?? 'А')[0].toUpperCase()}
                         </div>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{r.user.name ?? 'Аноним'}</div>
-                          <Stars rating={r.rating} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '2px' }}>{r.user.name ?? 'Аноним'}</div>
+                          <StarRating rating={r.rating} size={13} />
                         </div>
-                        <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto' }}>
-                          {new Date(r.createdAt).toLocaleDateString('ru')}
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                          {new Date(r.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                       </div>
-                      {r.text && <p style={{ fontSize: '12px', lineHeight: 1.6 }}>{r.text}</p>}
+                      {r.text && <p style={{ fontSize: '13px', lineHeight: 1.6, color: 'var(--text)', margin: 0 }}>{r.text}</p>}
                     </div>
                   ))}
                 </div>
@@ -141,21 +168,41 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
             </div>
 
             {/* Правая колонка */}
-            <div>
-              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', position: 'sticky', top: '80px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>{product.name}</div>
+            <div style={{ position: 'sticky', top: '80px' }}>
 
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                  {product.price !== null ? (
-                    <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '28px', fontWeight: 700, color: 'var(--accent)' }}>{product.price} ₽</span>
-                  ) : (
-                    <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '20px', fontWeight: 700, color: 'var(--accent)' }}>Бесплатно</span>
-                  )}
-                  {product.priceOld && <span style={{ fontSize: '14px', color: 'var(--muted)', textDecoration: 'line-through' }}>{product.priceOld} ₽</span>}
-                  {discount && <span style={{ background: 'rgba(41,82,200,0.1)', color: 'var(--accent)', fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px' }}>−{discount}%</span>}
+              {/* Название */}
+              <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px', lineHeight: 1.3, fontFamily: 'var(--font-manrope)' }}>
+                {product.name}
+              </h1>
+
+              {/* Рейтинг */}
+              {avgRating && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <StarRating rating={avgRating} size={16} />
+                  <span style={{ fontSize: '13px', fontWeight: 700 }}>{avgRating}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>({product.reviews.length} {product.reviews.length === 1 ? 'отзыв' : 'отзывов'})</span>
+                  <span style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: '4px' }}>· {product.downloads} скачали</span>
                 </div>
+              )}
 
-                <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px' }}>Стандартная лицензия</div>
+              {/* Цена */}
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '6px' }}>
+                  {product.price !== null ? (
+                    <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '30px', fontWeight: 700, color: 'var(--text)' }}>{product.price} ₽</span>
+                  ) : (
+                    <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '22px', fontWeight: 700, color: '#1D9E75' }}>Бесплатно</span>
+                  )}
+                  {product.priceOld && (
+                    <span style={{ fontSize: '16px', color: 'var(--muted)', textDecoration: 'line-through' }}>{product.priceOld} ₽</span>
+                  )}
+                  {discount && (
+                    <span style={{ background: '#E24B4A', color: '#fff', fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>−{discount}%</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px' }}>
+                  Стандартная лицензия · Бессрочный доступ
+                </div>
 
                 {product.price !== null ? (
                   isPurchased ? (
@@ -176,42 +223,62 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
                     })
                     if (res.ok) setInFavorites(f => !f)
                   }}
-                  style={{ width: '100%', background: 'transparent', color: inFavorites ? 'var(--accent)' : 'var(--text)', border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', padding: '11px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  style={{
+                    width: '100%', marginTop: '8px',
+                    background: inFavorites ? 'rgba(41,82,200,0.08)' : 'transparent',
+                    color: inFavorites ? 'var(--accent)' : 'var(--muted)',
+                    border: `1px solid ${inFavorites ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: '8px', padding: '11px', fontSize: '13px', fontWeight: 500,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    transition: 'all 0.2s',
+                  }}
                 >
-                  <i className="ti ti-heart" style={{ fontSize: '16px' }} />
+                  <i className={`ti ${inFavorites ? 'ti-heart-filled' : 'ti-heart'}`} style={{ fontSize: '16px' }} />
                   {inFavorites ? 'В избранном' : 'В избранное'}
                 </button>
+              </div>
 
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '16px 0' }} />
-
+              {/* Характеристики */}
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px', marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
+                  Характеристики
+                </div>
                 {[
-                  { key: 'Формат',   value: 'RFA'                                                    },
-                  { key: 'Версия',   value: product.revitVersions.join(', ')                         },
-                  { key: 'Рейтинг',  value: avgRating ? `★ ${avgRating} (${product.reviews.length})` : 'Нет отзывов' },
-                  { key: 'Загрузок', value: product.downloads.toLocaleString('ru')                   },
+                  { key: 'Формат',    value: 'RFA',                                    icon: 'ti-file-3d'      },
+                  { key: 'Версия',    value: product.revitVersions.join(', '),          icon: 'ti-versions'     },
+                  { key: 'Категория', value: product.category.name,                    icon: 'ti-category'     },
+                  { key: 'Загрузок',  value: product.downloads.toLocaleString('ru'),   icon: 'ti-download'     },
                 ].map((row, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{row.key}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 500 }}>{row.value}</span>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
+                      <i className={`ti ${row.icon}`} style={{ fontSize: '13px' }} />
+                      {row.key}
+                    </span>
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>{row.value}</span>
                   </div>
                 ))}
-
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '16px 0' }} />
-
-                <Link href={`/author/${product.author.id}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px', textDecoration: 'none' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--bg)', border: '1.5px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
-                    {(product.author.name ?? 'А')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{product.author.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                      {product.author.authorProfile?.city ?? ''}{product.author.authorProfile?.isVerified ? ' · ✓ Верифицирован' : ''}
-                    </div>
-                  </div>
-                  <i className="ti ti-arrow-right" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '16px' }} />
-                </Link>
               </div>
+
+              {/* Автор */}
+              <Link href={`/author/${product.author.id}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '14px 16px', textDecoration: 'none', transition: 'border-color 0.2s' }}
+                className="author-link">
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  {(product.author.name ?? 'А')[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', marginBottom: '2px' }}>
+                    {product.author.name}
+                    {product.author.authorProfile?.isVerified && (
+                      <span style={{ marginLeft: '5px', fontSize: '11px', color: '#1D9E75' }}>✓</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    {product.author.authorProfile?.city ? `📍 ${product.author.authorProfile.city}` : 'Автор моделей'}
+                  </div>
+                </div>
+                <i className="ti ti-chevron-right" style={{ color: 'var(--muted)', fontSize: '16px', flexShrink: 0 }} />
+              </Link>
             </div>
           </div>
         </div>
@@ -220,9 +287,10 @@ export default function ProductClient({ product, isPurchased, isFavorited }: Pro
       </div>
 
       <style>{`
-        @media (max-width: 768px) { .product-layout { grid-template-columns: 1fr !important; } }
-        @media (max-width: 480px) { .product-layout { padding: 0 16px 40px !important; } }
-        @media (min-width: 641px) { .bottom-spacer { display: none; } }
+        @media (max-width: 900px)  { .product-layout { grid-template-columns: 1fr !important; } }
+        @media (max-width: 480px)  { .product-layout { padding: 0 16px 40px !important; } }
+        @media (min-width: 641px)  { .bottom-spacer  { display: none; } }
+        .author-link:hover { border-color: var(--accent) !important; }
       `}</style>
     </>
   )
