@@ -37,8 +37,8 @@ export default function ForAuthorsPage() {
 
       {/* Hero */}
       <section style={{ padding: '64px 24px 48px', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '20px', padding: '5px 14px', fontSize: '12px', color: 'var(--muted)', marginBottom: '24px' }}>
-          <i className="ti ti-upload" style={{ color: 'var(--accent)' }} />
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '5px 14px', fontSize: '12px', color: 'var(--accent)', marginBottom: '24px', fontWeight: 600 }}>
+          <i className="ti ti-upload" />
           Для авторов BIM-семейств
         </div>
         <h1 style={{ marginBottom: '16px' }}>
@@ -58,7 +58,7 @@ export default function ForAuthorsPage() {
         <h2 style={{ textAlign: 'center', marginBottom: '32px' }}>Как это работает</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           {STEPS.map(step => (
-            <div key={step.num} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+            <div key={step.num} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
               <div style={{ fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '28px', fontWeight: 700, color: 'var(--accent)', marginBottom: '12px' }}>
                 {step.num}
               </div>
@@ -74,8 +74,10 @@ export default function ForAuthorsPage() {
         <h2 style={{ textAlign: 'center', marginBottom: '32px' }}>Почему REVSET</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
           {BENEFITS.map(b => (
-            <div key={b.title} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '18px' }}>
-              <i className={`ti ${b.icon}`} style={{ fontSize: '22px', color: 'var(--accent)', display: 'block', marginBottom: '10px' }} />
+            <div key={b.title} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(41,82,200,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                <i className={`ti ${b.icon}`} style={{ fontSize: '20px', color: 'var(--accent)' }} />
+              </div>
               <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px' }}>{b.title}</div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>{b.desc}</div>
             </div>
@@ -88,7 +90,7 @@ export default function ForAuthorsPage() {
         <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>Частые вопросы</h2>
         <div style={{ display: 'grid', gap: '10px' }}>
           {FAQS.map(faq => (
-            <div key={faq.q} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
+            <div key={faq.q} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
               <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>{faq.q}</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6 }}>{faq.a}</div>
             </div>
@@ -98,7 +100,7 @@ export default function ForAuthorsPage() {
 
       {/* CTA */}
       <section style={{ padding: '0 24px 64px', textAlign: 'center' }}>
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '40px 24px', maxWidth: '500px', margin: '0 auto' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(41,82,200,0.08) 0%, rgba(91,78,223,0.06) 100%)', border: '1px solid rgba(41,82,200,0.15)', borderRadius: '20px', padding: '48px 24px', maxWidth: '500px', margin: '0 auto' }}>
           <h2 style={{ marginBottom: '12px' }}>Готовы начать?</h2>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '24px', lineHeight: 1.6 }}>
             Регистрация займёт 2 минуты. Первую модель можно загрузить сразу после подтверждения аккаунта.
