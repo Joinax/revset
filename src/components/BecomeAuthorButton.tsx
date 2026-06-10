@@ -31,7 +31,7 @@ export default function BecomeAuthorButton() {
 
     await refresh()
     setModalOpen(false)
-    router.push('/author-dashboard')
+    router.push('/account')
   }
 
   return (

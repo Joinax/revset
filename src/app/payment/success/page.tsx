@@ -1,5 +1,7 @@
 // src/app/payment/success/page.tsx
 import Link from 'next/link'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 
@@ -10,10 +12,25 @@ export default async function PaymentSuccessPage({
 }) {
   const { orderId } = await searchParams
 
+  const session = await auth.api.getSession({ headers: await headers() })
+
   const order = orderId ? await db.order.findUnique({
     where:   { id: orderId },
     include: { items: { include: { product: true } } },
   }) : null
+
+  // Очищаем корзину от оплаченных товаров
+  if (order?.status === 'PAID' && session?.user) {
+    const cart = await db.cart.findUnique({ where: { userId: session.user.id } })
+    if (cart) {
+      await db.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+          productId: { in: order.items.map(i => i.product.id) },
+        },
+      })
+    }
+  }
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>

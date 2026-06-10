@@ -22,7 +22,7 @@ export default async function EditProductPage({
   if (!product) notFound()
 
   // Только автор товара может редактировать
-  if (product.authorId !== session.user.id) redirect('/author-dashboard')
+  if (product.authorId !== session.user.id) redirect('/account')
 
   const categories = await db.category.findMany({ orderBy: { order: 'asc' } })
 

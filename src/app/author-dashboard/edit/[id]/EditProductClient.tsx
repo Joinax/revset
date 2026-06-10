@@ -69,7 +69,7 @@ export default function EditProductClient({ product, categories }: Props) {
       if (!res.ok) { setError(data.error ?? 'Ошибка сохранения'); return }
 
       setSuccess(true)
-      setTimeout(() => router.push('/author-dashboard'), 1500)
+      setTimeout(() => router.push('/account?tab=author-products'), 1500)
 
     } catch {
       setError('Ошибка соединения')
@@ -86,7 +86,7 @@ export default function EditProductClient({ product, categories }: Props) {
 
         {/* Шапка */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <Link href="/author-dashboard" style={{ color: 'var(--muted)', fontSize: '13px' }}>
+          <Link href="/account?tab=author-products" style={{ color: 'var(--muted)', fontSize: '13px' }}>
             ← Назад
           </Link>
           <h1 style={{ fontSize: '18px', fontWeight: 700 }}>Редактировать модель</h1>
@@ -195,7 +195,7 @@ export default function EditProductClient({ product, categories }: Props) {
                   style={{ flex: 1, background: loading ? 'var(--bg3)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                   {loading ? 'Сохраняем...' : 'Сохранить'}
                 </button>
-                <Link href="/author-dashboard"
+                <Link href="/account?tab=author-products"
                   style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', fontSize: '13px', color: 'var(--text)', textAlign: 'center', fontWeight: 500 }}>
                   Отмена
                 </Link>

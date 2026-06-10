@@ -14,12 +14,14 @@ type SessionContextType = {
   user:    SessionUser
   loading: boolean
   refresh: () => void
+  updateUser: (patch: Partial<NonNullable<SessionUser>>) => void
 }
 
 const SessionContext = createContext<SessionContextType>({
   user:    null,
   loading: true,
   refresh: () => {},
+  updateUser: () => {},
 })
 
 export function useAppSession() {
@@ -30,10 +32,15 @@ export default function SessionProvider({ children }: { children: React.ReactNod
   const [user,    setUser]    = useState<SessionUser>(null)
   const [loading, setLoading] = useState(true)
 
+  function updateUser(patch: Partial<NonNullable<SessionUser>>) {
+    setUser(prev => prev ? { ...prev, ...patch } : prev)
+  }
+
   async function fetchSession() {
     try {
       const res = await fetch('/api/auth/get-session', {
         credentials: 'include',
+        cache: 'no-store',
       })
       if (res.ok) {
         const data = await res.json()
@@ -53,7 +60,7 @@ export default function SessionProvider({ children }: { children: React.ReactNod
   }, [])
 
   return (
-    <SessionContext.Provider value={{ user, loading, refresh: fetchSession }}>
+    <SessionContext.Provider value={{ user, loading, refresh: fetchSession, updateUser }}>
       {children}
     </SessionContext.Provider>
   )

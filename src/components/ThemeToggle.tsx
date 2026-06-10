@@ -17,9 +17,11 @@ export default function ThemeToggle() {
       aria-label={isDark ? 'Включить светлую тему' : 'Включить тёмную тему'}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       style={{
-        width: '32px', height: '32px', borderRadius: '8px',
-        border: '1px solid var(--border)', background: 'var(--bg2)',
-        color: 'var(--muted)', cursor: 'pointer',
+        width: '34px', height: '34px', borderRadius: '8px',
+        border: '1px solid var(--border)', 
+        background: 'var(--bg1)',
+        color: 'var(--text)', 
+        cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'border-color 0.2s, color 0.2s', flexShrink: 0,
       }}

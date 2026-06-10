@@ -144,11 +144,11 @@ export function ProductCard({ product }: CardProps) {
       </div>
 
       <style>{`
-        .product-card { transition: transform 0.2s, box-shadow 0.2s; }
-        .product-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.1); }
+        .product-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+        .product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(41,82,200,0.18); border-color: rgba(41,82,200,0.6) !important; }
         .product-card:hover .product-card-img { transform: scale(1.04); }
         .product-card:hover .product-card-overlay { opacity: 1; }
-        .dark .product-card:hover { box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+        .dark .product-card:hover { box-shadow: 0 8px 32px rgba(79,110,247,0.15); border-color: rgba(79,110,247,0.4) !important; }
       `}</style>
     </Link>
   )

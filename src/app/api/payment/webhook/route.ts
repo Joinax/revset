@@ -51,6 +51,15 @@ export async function POST(req: NextRequest) {
       })
  
       console.log(`✅ Заказ ${orderId} оплачен`)
+
+      // Очищаем корзину пользователя от купленных товаров
+      const purchasedProductIds = order.items.map(i => i.product.id)
+      const cart = await db.cart.findUnique({ where: { userId: order.userId } })
+      if (cart) {
+        await db.cartItem.deleteMany({
+          where: { cartId: cart.id, productId: { in: purchasedProductIds } },
+        })
+      }
  
       // Отправляем уведомления авторам каждого товара в заказе
       for (const item of order.items) {

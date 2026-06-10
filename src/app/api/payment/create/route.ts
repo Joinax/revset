@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Товар бесплатный' }, { status: 400 })
     }
 
+    // Автор не может покупать свои товары
+    if (product.authorId === session.user.id) {
+      return NextResponse.json({ error: 'Нельзя покупать собственные товары' }, { status: 400 })
+    }
+
     // Проверяем что товар не куплен ранее
     const existingOrder = await db.order.findFirst({
       where: { userId: session.user.id, status: 'PAID', items: { some: { productId } } },

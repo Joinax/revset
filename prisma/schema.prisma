@@ -23,8 +23,11 @@ model User {
   reviews       Review[]
   sessions      Session[]
   accounts      Account[]
+  following     Follow[]  @relation("Follower")
+  followers     Follow[]  @relation("Following")
+  cart          Cart?
 
-  @@map("user")  // ← использовать таблицу "user" а не "User"
+  @@map("user")
 }
 
 model Session {
@@ -121,6 +124,7 @@ model Product {
   orderItems    OrderItem[]
   favorites     Favorite[]
   reviews       Review[]
+  cartItems     CartItem[]
 }
 
 model Order {
@@ -172,4 +176,33 @@ model Review {
   text      String?
   createdAt DateTime @default(now())
   @@unique([userId, productId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Follower",  fields: [followerId],  references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  @@unique([followerId, followingId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addedAt   DateTime @default(now())
+  @@unique([cartId, productId])
 }

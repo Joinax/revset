@@ -21,21 +21,24 @@
 
 /* ── ТЁМНАЯ ТЕМА ────────────────────────────────────────────────────── */
 .dark {
-  --bg:      #0A0A0F;
-  --bg2:     #12121A;
-  --bg3:     #1C1C28;
-  --bg-page: #050508;
+  --bg:      #0C0C14;
+  --bg2:     #13131E;
+  --bg3:     #1A1A28;
+  --bg-page: #08080F;
 
-  --accent:  #4169E1;
-  --accent2: #7B6EFF;
+  --accent:  #4F6EF7;
+  --accent2: #8B7FFF;
 
-  --text:    #F0EFE8;
-  --muted:   #6E6D7A;
+  --text:    #EEEDF6;
+  --muted:   #72718A;
 
-  --border:  rgba(255, 255, 255, 0.07);
+  --border:  rgba(255, 255, 255, 0.08);
 
   --success: #1D9E75;
   --danger:  #E24B4A;
+
+  /* Свечение акцента */
+  --accent-glow: rgba(79,110,247,0.15);
 }
 
 /* ── БАЗОВЫЕ СТИЛИ ──────────────────────────────────────────────────── */
@@ -53,7 +56,7 @@ html {
 }
 
 body {
-  background-color: var(--bg-page);
+  background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-manrope), sans-serif;
   font-size: 13px;
@@ -137,7 +140,7 @@ button {
   border: 1px solid var(--border);
   transition: border-color 0.2s;
 }
-.card:hover { border-color: rgba(41, 82, 200, 0.2); }
+.card:hover { border-color: rgba(41,82,200,0.35) !important; box-shadow: 0 8px 32px rgba(41,82,200,0.1); }
 .dark .card:hover { border-color: rgba(65, 105, 225, 0.25); }
 
 .navbar {
@@ -291,4 +294,45 @@ button {
   .cats-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+/* ── ТЁМНАЯ ТЕМА — визуальные акценты ──────────────────────────────── */
+
+/* Тонкое градиентное свечение вверху страницы */
+.dark body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 600px;
+  background:
+    radial-gradient(ellipse 80% 40% at 20% -10%, rgba(79,110,247,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 30% at 80% -5%,  rgba(139,127,255,0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Карточки в тёмной теме — чуть больше контраста */
+.dark .card {
+  background: var(--bg2) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+.dark .card:hover {
+  border-color: rgba(79,110,247,0.3) !important;
+  box-shadow: 0 8px 32px rgba(79,110,247,0.08);
+}
+
+/* Navbar в тёмной теме — лёгкий blur */
+.dark .navbar {
+  background: rgba(12,12,20,0.85) !important;
+  backdrop-filter: blur(16px);
+  border-bottom-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Категории в тёмной теме */
+.dark .cat-card {
+  background: var(--bg2);
+  border-color: rgba(255,255,255,0.06);
+}
+.dark .cat-card:hover {
+  border-color: rgba(79,110,247,0.4) !important;
+  box-shadow: 0 4px 20px rgba(79,110,247,0.1);
 }

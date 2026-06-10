@@ -1,16 +1,15 @@
 // src/app/page.tsx
-import Navbar       from '@/components/Navbar'
-import Hero         from '@/components/Hero'
-import StatsStrip   from '@/components/StatsStrip'
-import CategoryGrid from '@/components/CategoryGrid'
-import ProductGrid  from '@/components/ProductCard'
-import CTABlock     from '@/components/CTABlock'
-import { db }       from '@/lib/db'
-import { auth }     from '@/lib/auth'
-import { headers }  from 'next/headers'
+import Navbar           from '@/components/Navbar'
+import Hero             from '@/components/Hero'
+import CategoryGrid     from '@/components/CategoryGrid'
+import { ProductCard }  from '@/components/ProductCard'
+import CTABlock         from '@/components/CTABlock'
+import { db }           from '@/lib/db'
+import { auth }         from '@/lib/auth'
+import { headers }      from 'next/headers'
+import Link             from 'next/link'
 
 export default async function HomePage() {
-
   const session = await auth.api.getSession({ headers: await headers() })
 
   const [categories, products, , , favorites] = await Promise.all([
@@ -18,7 +17,7 @@ export default async function HomePage() {
     db.product.findMany({
       where:   { isPublished: true },
       orderBy: { downloads: 'desc' },
-      take:    6,
+      take:    8,
       include: {
         author:  { select: { name: true } },
         _count:  { select: { reviews: true } },
@@ -27,7 +26,6 @@ export default async function HomePage() {
     }),
     db.product.count({ where: { isPublished: true } }),
     db.user.count({ where: { role: 'author' } }),
-    // Загружаем избранное только если залогинен
     session?.user ? db.favorite.findMany({
       where:  { userId: session.user.id },
       select: { productId: true },
@@ -49,29 +47,67 @@ export default async function HomePage() {
     emoji:       p.previewEmoji ?? '📦',
     previewBg:   p.previewBg   ?? '#141420',
     isFavorited: favoriteIds.has(p.id),
-    images: p.images ?? [],
+    images:      p.images ?? [],
   }))
 
   const mappedCategories = categories.map(c => ({
     slug:   c.slug,
     name:   c.name,
-    count:  'моделей',
+    count:  '',
     emoji:  c.emoji  ?? '📦',
     iconBg: c.iconBg ?? '#1C1C28',
   }))
 
-return (
-  <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
-    <Navbar />
-    <main style={{ maxWidth: '1280px', margin: '0 auto' }}>
+  return (
+    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+      <Navbar />
+
+      {/* Hero — на всю ширину страницы, без контейнера */}
       <Hero />
-      {/* <StatsStrip productCount={productCount} authorCount={authorCount} /> */}
-      <CategoryGrid items={mappedCategories} />
-      <ProductGrid products={mappedProducts} />
-      <CTABlock />
-    </main>
-    <div style={{ height: '64px' }} className="bottom-spacer" />
-    <style>{`@media (min-width: 641px) { .bottom-spacer { display: none; } }`}</style>
-  </div>
-)
+
+      {/* Отступ под поиск */}
+      {/* Весь контент ниже — в том же контейнере что и navbar */}
+      <div className="page-content">
+        <CategoryGrid items={mappedCategories} />
+
+        <section style={{ padding: '40px 0 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Трендовые модели</h2>
+            <Link href="/catalog" style={{ fontSize: '13px', color: 'var(--muted)', textDecoration: 'none' }}>
+              Смотреть все →
+            </Link>
+          </div>
+          <div className="home-products-grid">
+            {mappedProducts.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </section>
+
+        <CTABlock />
+      </div>
+
+      <div style={{ height: '64px' }} className="bottom-spacer" />
+      <style>{`
+        /* Контейнер контента — точно как navbar */
+        .page-content {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 0 48px 40px;
+        }
+        .home-products-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+        @media (max-width: 1024px) { .home-products-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px)  {
+          .home-products-grid { grid-template-columns: repeat(2, 1fr); }
+          .page-content { padding: 0 16px; }
+        }
+        @media (max-width: 480px)  { .home-products-grid { grid-template-columns: 1fr; } }
+        @media (min-width: 641px)  { .bottom-spacer { display: none; } }
+      `}</style>
+    </div>
+  )
 }
