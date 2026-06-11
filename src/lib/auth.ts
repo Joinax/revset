@@ -9,22 +9,29 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
   }),
 
+  user: {
+    additionalFields: {
+      role: {
+        type: 'string',
+        defaultValue: 'user',
+        input: false,
+      },
+    },
+  },
+
   emailAndPassword: {
     enabled:           true,
     minPasswordLength: 8,
-    // Требуем подтверждение email
     requireEmailVerification: true,
 
-    // Отправка письма сброса пароля
     sendResetPassword: async ({ user, url }) => {
       await sendPasswordResetEmail(user.email, user.name ?? 'Пользователь', url)
     },
   },
 
-  // Подтверждение email
   emailVerification: {
-    sendOnSignUp:         true,   // отправлять сразу при регистрации
-    autoSignInAfterVerification: true,  // авто-вход после подтверждения
+    sendOnSignUp:         true,
+    autoSignInAfterVerification: true,
 
     sendVerificationEmail: async ({ user, url }) => {
       await sendVerificationEmail(user.email, user.name ?? 'Пользователь', url)

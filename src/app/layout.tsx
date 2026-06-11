@@ -3,7 +3,6 @@ import { Unbounded, Manrope } from 'next/font/google'
 import ThemeProvider from '@/components/ThemeProvider'
 import SessionProvider from '@/components/SessionProvider'
 import './globals.css'
-import Footer from '@/components/Footer'
 
 const unbounded = Unbounded({
   subsets: ['latin', 'cyrillic'],
@@ -21,7 +20,7 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: {
-    default:  'REVSET — Revit-семейства для профессионалов',
+    default: 'REVSET — Revit-семейства для профессионалов',
     template: '%s | REVSET',
   },
   description: 'Маркетплейс BIM-семейств (.rfa) для Autodesk Revit.',
@@ -45,7 +44,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <SessionProvider>
             {children}
-            <Footer />
           </SessionProvider>
         </ThemeProvider>
       </body>

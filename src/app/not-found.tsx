@@ -1,13 +1,10 @@
 // src/app/not-found.tsx
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
 
 export default function NotFound() {
   return (
     <>
       <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
-        <Navbar />
-
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 48px' }}>
           <div className="not-found-layout">
 
