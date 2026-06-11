@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Unbounded, Manrope } from 'next/font/google'
+import { Unbounded, Manrope, Nunito_Sans, Poppins } from 'next/font/google'
 import ThemeProvider from '@/components/ThemeProvider'
 import SessionProvider from '@/components/SessionProvider'
 import './globals.css'
@@ -18,6 +18,20 @@ const manrope = Manrope({
   display: 'swap',
 })
 
+const nunitoSans = Nunito_Sans({
+  subsets: ['latin', 'cyrillic'],
+  weight: ['400', '600', '700', '800', '900'],
+  variable: '--font-nunito',
+  display: 'swap',
+})
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
+  variable: '--font-poppins',
+  display: 'swap',
+})
+
 export const metadata: Metadata = {
   title: {
     default: 'REVSET — Revit-семейства для профессионалов',
@@ -31,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ru"
-      className={`${unbounded.variable} ${manrope.variable}`}
+      className={`${unbounded.variable} ${manrope.variable} ${nunitoSans.variable} ${poppins.variable}`}
       suppressHydrationWarning
     >
       <head>
