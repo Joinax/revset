@@ -1,69 +1,106 @@
 'use client'
-
+ 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-
+import { useState } from 'react'
+ 
 const links = [
-  { href: '/admin/dashboard',     icon: 'ti-layout-dashboard', label: 'Дашборд' },
-  { href: '/admin/families',      icon: 'ti-box',              label: 'Семейства' },
-  { href: '/admin/users',         icon: 'ti-users',            label: 'Пользователи' },
-  { href: '/admin/verification',  icon: 'ti-shield-check',     label: 'Верификация' },
-  { href: '/admin/transactions',  icon: 'ti-credit-card',      label: 'Транзакции' },
-  { href: '/admin/settings',      icon: 'ti-settings',         label: 'Настройки' },
+  { href: '/admin/dashboard',    icon: 'ti-layout-dashboard', label: 'Дашборд' },
+  { href: '/admin/families',     icon: 'ti-box',              label: 'Семейства' },
+  { href: '/admin/users',        icon: 'ti-users',            label: 'Пользователи' },
+  { href: '/admin/verification', icon: 'ti-shield-check',     label: 'Верификация' },
+  { href: '/admin/transactions', icon: 'ti-credit-card',      label: 'Транзакции' },
+  { href: '/admin/settings',     icon: 'ti-settings',         label: 'Настройки' },
 ]
-
+ 
 export default function AdminSidebar() {
   const pathname = usePathname()
-
+  const [expanded, setExpanded] = useState(false)
+  const [hovered, setHovered] = useState<string | null>(null)
+ 
   return (
-    <aside className="w-16 hover:w-56 transition-all duration-300 overflow-hidden
-                      bg-white dark:bg-[#1A1D27] border-r border-gray-100 dark:border-gray-800
-                      flex flex-col py-4 group">
+    <aside
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+      style={{
+        width: expanded ? '240px' : '72px',
+        transition: 'width 0.25s ease',
+        flexShrink: 0,
+        height: '100vh',
+        background: 'var(--admin-bg)',
+        borderRight: '1px solid var(--admin-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '20px 0',
+        overflow: 'hidden',
+      }}
+    >
       {/* Logo */}
-      <div className="px-4 mb-8 flex items-center gap-3">
-        <span className="text-blue-600 text-xl font-bold shrink-0">R</span>
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                         text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">
-          REVSET Admin
-        </span>
-      </div>
+      <div style={{ padding: '0 20px', marginBottom: '36px', display: 'flex', alignItems: 'center', gap: '10px', height: '36px' }}>
+        <img src="/revset_icon.svg" alt="REVSET" style={{ width: '32px', height: '32px', flexShrink: 0 }} />
+        {expanded && (
+          <div style={{ whiteSpace: 'nowrap', lineHeight: 1 }}>
+            <span style={{ fontSize: '20px', fontWeight: 800 }}><h3>
+              <span style={{ color: 'var(--admin-accent)' }}>REV</span>
+              <span style={{ color: 'var(--admin-text)' }}>SET</span>
+            </h3>
 
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginTop: '3px' }}>Admin</span>
+          </div>
+        )}
+      </div>
+ 
       {/* Nav */}
-      <nav className="flex flex-col gap-1 px-2 flex-1">
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 12px', flex: 1 }}>
         {links.map(({ href, icon, label }) => {
           const active = pathname.startsWith(href)
+          const isHovered = hovered === href
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-2 py-2.5 rounded-lg transition-colors
-                ${active
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                }`}
+              onMouseEnter={() => setHovered(href)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 10px',
+                borderRadius: '10px',
+                textDecoration: 'none',
+                background: active
+                  ? 'var(--admin-accent)'
+                  : isHovered
+                  ? 'rgba(72,128,255,0.08)'
+                  : 'transparent',
+                color: active ? '#fff' : isHovered ? 'var(--admin-accent)' : 'var(--admin-muted)',
+                transition: 'background 0.15s, color 0.15s',
+                whiteSpace: 'nowrap',
+              }}
             >
-              <i className={`ti ${icon} text-xl shrink-0`} />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                               text-sm whitespace-nowrap">
-                {label}
-              </span>
+              <i className={`ti ${icon}`} style={{ fontSize: '20px', flexShrink: 0 }} />
+              {expanded && (
+                <span style={{ fontSize: '14px', fontWeight: active ? 600 : 400 }}>{label}</span>
+              )}
             </Link>
           )
         })}
       </nav>
-
+ 
       {/* Logout */}
-      <div className="px-2">
+      <div style={{ padding: '0 12px' }}>
         <button
-          className="flex items-center gap-3 px-2 py-2.5 rounded-lg w-full
-                     text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20
-                     hover:text-red-600 transition-colors"
-        >
-          <i className="ti ti-logout text-xl shrink-0" />
-          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                           text-sm whitespace-nowrap">
-            Выйти
-          </span>
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--admin-danger)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--admin-muted)')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '10px 10px', borderRadius: '10px', width: '100%',
+            color: 'var(--admin-muted)', background: 'none', border: 'none',
+            cursor: 'pointer', transition: 'color 0.15s',
+          }}>
+          <i className="ti ti-logout" style={{ fontSize: '20px', flexShrink: 0 }} />
+          {expanded && <span style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>Выйти</span>}
         </button>
       </div>
     </aside>

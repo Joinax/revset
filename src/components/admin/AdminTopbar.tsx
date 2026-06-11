@@ -4,36 +4,67 @@ import ThemeToggle from '@/components/ThemeToggle'
 
 export default function AdminTopbar() {
   return (
-    <header className="h-16 bg-white dark:bg-[#1A1D27] border-b border-gray-100 dark:border-gray-800
-                       flex items-center justify-between px-6 shrink-0">
+    <header style={{
+      height: '70px',
+      background: 'var(--admin-bg)',
+      borderBottom: '1px solid var(--admin-border)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 24px',
+      flexShrink: 0,
+    }}>
       {/* Search */}
-      <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 w-64">
-        <i className="ti ti-search text-gray-400 text-sm" />
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '8px',
+        background: 'var(--admin-bg2)',
+        border: '1px solid var(--admin-border)',
+        borderRadius: '10px',
+        padding: '10px 14px', width: '280px',
+      }}>
+        <i className="ti ti-search" style={{ fontSize: '15px', color: 'var(--admin-muted)' }} />
         <input
           type="text"
           placeholder="Поиск..."
-          className="bg-transparent text-sm outline-none text-gray-700 dark:text-gray-300
-                     placeholder-gray-400 w-full"
+          style={{
+            background: 'transparent', border: 'none', outline: 'none',
+            fontSize: '13px', color: 'var(--admin-text)', width: '100%',
+          }}
         />
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-3">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <ThemeToggle />
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-          <i className="ti ti-bell text-xl text-gray-500 dark:text-gray-400" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full" />
+        <button style={{
+          position: 'relative', padding: '8px', borderRadius: '10px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--admin-muted)',
+        }}>
+          <i className="ti ti-bell" style={{ fontSize: '20px' }} />
+          <span style={{
+            position: 'absolute', top: '6px', right: '6px',
+            width: '8px', height: '8px',
+            background: 'var(--admin-accent)', borderRadius: '50%',
+          }} />
         </button>
 
         {/* Profile */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center
-                          text-white text-sm font-medium">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '4px' }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: '50%',
+            background: 'var(--admin-accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: '14px', fontWeight: 700,
+          }}>
             A
           </div>
-          <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Admin</span>
+          <div>
+            <div style={{ fontSize: '13px', color: 'var(--admin-text)', fontWeight: 600, lineHeight: 1.2 }}>Admin</div>
+            <div style={{ fontSize: '11px', color: 'var(--admin-muted)', lineHeight: 1.2 }}>Администратор</div>
+          </div>
         </div>
       </div>
     </header>
