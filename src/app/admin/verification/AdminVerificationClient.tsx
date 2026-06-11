@@ -11,6 +11,7 @@ type Author = {
   bio: string | null
   city: string | null
   isVerified: boolean
+  autoPublish: boolean
   totalSales: number
   totalRevenue: number
   productsCount: number
@@ -25,11 +26,33 @@ type Props = {
   currentStatus: string
 }
 
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div onClick={() => !disabled && onChange(!checked)} style={{
+      width: '40px', height: '22px', borderRadius: '11px', cursor: disabled ? 'not-allowed' : 'pointer',
+      background: checked ? 'var(--admin-accent)' : 'var(--admin-border)',
+      position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      opacity: disabled ? 0.5 : 1,
+    }}>
+      <div style={{
+        position: 'absolute', top: '3px',
+        left: checked ? '21px' : '3px',
+        width: '16px', height: '16px', borderRadius: '50%',
+        background: '#fff', transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }} />
+    </div>
+  )
+}
+
 export default function AdminVerificationClient({ authors, pendingCount, verifiedCount, currentStatus }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [autoPublishMap, setAutoPublishMap] = useState<Record<string, boolean>>(
+    Object.fromEntries(authors.map(a => [a.userId, a.autoPublish]))
+  )
 
   function setStatus(status: string) {
     startTransition(() => router.push(`${pathname}?status=${status}`))
@@ -46,15 +69,21 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
     router.refresh()
   }
 
+  async function handleAutoPublish(userId: string, value: boolean) {
+    setAutoPublishMap(prev => ({ ...prev, [userId]: value }))
+    await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'toggleAutoPublish', autoPublish: value }),
+    })
+  }
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  const formatMoney = (n: number) =>
-    n.toLocaleString('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 })
-
   const TABS = [
-    { value: 'pending',  label: 'Ожидают',    count: pendingCount  },
-    { value: 'verified', label: 'Верифицированы', count: verifiedCount },
+    { value: 'pending',  label: 'Ожидают',         count: pendingCount  },
+    { value: 'verified', label: 'Верифицированы',   count: verifiedCount },
   ]
 
   return (
@@ -65,21 +94,14 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
         .role-tab { transition: all 0.15s; cursor: pointer; border: none; }
       `}</style>
 
-      {/* Header */}
       <div>
         <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--admin-text)' }}>Верификация авторов</h1>
-        <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px' }}>
-          Проверка заявок на статус автора
-        </p>
+        <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px' }}>Проверка заявок на статус автора</p>
       </div>
 
       {/* Tabs */}
-      <div style={{
-        background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
-        borderRadius: '14px', padding: '16px 20px',
-        display: 'flex', gap: '4px',
-      }}>
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--admin-bg2)', borderRadius: '10px', padding: '4px' }}>
+      <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--admin-bg2)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
           {TABS.map(tab => (
             <button key={tab.value} className="role-tab"
               onClick={() => setStatus(tab.value)}
@@ -118,107 +140,114 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
             <div key={author.userId} className="verify-card" style={{
               background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
               borderRadius: '14px', padding: '20px',
-              display: 'flex', alignItems: 'center', gap: '20px',
               boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
             }}>
-              {/* Avatar */}
-              {author.image ? (
-                <img src={author.image} alt="" style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              ) : (
-                <div style={{
-                  width: '52px', height: '52px', borderRadius: '50%',
-                  background: 'rgba(72,128,255,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--admin-accent)' }}>
-                    {author.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--admin-text)' }}>{author.name}</span>
-                  {author.isVerified && (
-                    <i className="ti ti-rosette-discount-check" style={{ color: 'var(--admin-accent)', fontSize: '16px' }} />
-                  )}
-                </div>
-                <div style={{ fontSize: '13px', color: 'var(--admin-muted)', marginBottom: '8px' }}>{author.email}</div>
-                {author.bio && (
-                  <div style={{ fontSize: '13px', color: 'var(--admin-text)', marginBottom: '8px', opacity: 0.7 }}>
-                    {author.bio}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+                {/* Avatar */}
+                {author.image ? (
+                  <img src={author.image} alt="" style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <div style={{
+                    width: '52px', height: '52px', borderRadius: '50%',
+                    background: 'rgba(72,128,255,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--admin-accent)' }}>
+                      {author.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  {author.city && (
-                    <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <i className="ti ti-map-pin" style={{ fontSize: '13px' }} />
-                      {author.city}
-                    </span>
-                  )}
-                  <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="ti ti-box" style={{ fontSize: '13px' }} />
-                    {author.productsCount} семейств
-                  </span>
-                  <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="ti ti-shopping-cart" style={{ fontSize: '13px' }} />
-                    {author.totalSales} продаж
-                  </span>
-                  <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="ti ti-calendar" style={{ fontSize: '13px' }} />
-                    Зарегистрирован {formatDate(author.registeredAt)}
-                  </span>
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
-                {!author.isVerified ? (
-                  <>
-                    <button
-                      onClick={() => handleAction(author.userId, 'approve')}
-                      disabled={loadingId === author.userId}
-                      style={{
-                        padding: '8px 20px', borderRadius: '10px', border: 'none',
-                        background: 'var(--admin-success)', color: '#fff',
-                        fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                        opacity: loadingId === author.userId ? 0.6 : 1,
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                      }}>
-                      <i className="ti ti-check" />
-                      Подтвердить
-                    </button>
-                    <button
-                      onClick={() => handleAction(author.userId, 'reject')}
-                      disabled={loadingId === author.userId}
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--admin-text)' }}>{author.name}</span>
+                    {author.isVerified && (
+                      <i className="ti ti-rosette-discount-check" style={{ color: 'var(--admin-accent)', fontSize: '16px' }} />
+                    )}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--admin-muted)', marginBottom: '8px' }}>{author.email}</div>
+                  {author.bio && (
+                    <div style={{ fontSize: '13px', color: 'var(--admin-text)', marginBottom: '8px', opacity: 0.7 }}>{author.bio}</div>
+                  )}
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    {author.city && (
+                      <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <i className="ti ti-map-pin" style={{ fontSize: '13px' }} />{author.city}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="ti ti-box" style={{ fontSize: '13px' }} />{author.productsCount} семейств
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="ti ti-shopping-cart" style={{ fontSize: '13px' }} />{author.totalSales} продаж
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="ti ti-calendar" style={{ fontSize: '13px' }} />Зарегистрирован {formatDate(author.registeredAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                  {!author.isVerified ? (
+                    <>
+                      <button onClick={() => handleAction(author.userId, 'approve')} disabled={loadingId === author.userId}
+                        style={{
+                          padding: '8px 20px', borderRadius: '10px', border: 'none',
+                          background: 'var(--admin-success)', color: '#fff',
+                          fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                          opacity: loadingId === author.userId ? 0.6 : 1,
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}>
+                        <i className="ti ti-check" /> Подтвердить
+                      </button>
+                      <button onClick={() => handleAction(author.userId, 'reject')} disabled={loadingId === author.userId}
+                        style={{
+                          padding: '8px 20px', borderRadius: '10px',
+                          border: '1px solid var(--admin-border)',
+                          background: 'transparent', color: 'var(--admin-danger)',
+                          fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                          opacity: loadingId === author.userId ? 0.6 : 1,
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}>
+                        <i className="ti ti-x" /> Отклонить
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => handleAction(author.userId, 'reject')} disabled={loadingId === author.userId}
                       style={{
                         padding: '8px 20px', borderRadius: '10px',
                         border: '1px solid var(--admin-border)',
-                        background: 'transparent', color: 'var(--admin-danger)',
+                        background: 'transparent', color: 'var(--admin-muted)',
                         fontSize: '13px', fontWeight: 600, cursor: 'pointer',
                         opacity: loadingId === author.userId ? 0.6 : 1,
-                        display: 'flex', alignItems: 'center', gap: '6px',
                       }}>
-                      <i className="ti ti-x" />
-                      Отклонить
+                      Снять верификацию
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => handleAction(author.userId, 'reject')}
-                    disabled={loadingId === author.userId}
-                    style={{
-                      padding: '8px 20px', borderRadius: '10px',
-                      border: '1px solid var(--admin-border)',
-                      background: 'transparent', color: 'var(--admin-muted)',
-                      fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                      opacity: loadingId === author.userId ? 0.6 : 1,
-                    }}>
-                    Снять верификацию
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
+
+              {/* Auto-publish toggle — только для верифицированных */}
+              {author.isVerified && (
+                <div style={{
+                  marginTop: '16px', paddingTop: '16px',
+                  borderTop: '1px solid var(--admin-border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Авто-публикация</div>
+                    <div style={{ fontSize: '12px', color: 'var(--admin-muted)', marginTop: '2px' }}>
+                      Семейства этого автора публикуются без модерации
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={autoPublishMap[author.userId] ?? false}
+                    onChange={v => handleAutoPublish(author.userId, v)}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

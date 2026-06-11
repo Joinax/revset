@@ -41,18 +41,19 @@ export default async function AdminVerificationPage({
   return (
     <AdminVerificationClient
       authors={authors.map(a => ({
-        userId:      a.userId,
-        name:        a.user.name,
-        email:       a.user.email,
-        image:       a.user.image,
-        bio:         a.bio,
-        city:        a.city,
-        isVerified:  a.isVerified,
-        totalSales:  a.totalSales,
-        totalRevenue: a.totalRevenue,
+        userId:        a.userId,
+        name:          a.user.name,
+        email:         a.user.email,
+        image:         a.user.image,
+        bio:           a.bio,
+        city:          a.city,
+        isVerified:    a.isVerified,
+        autoPublish:   a.autoPublish,
+        totalSales:    a.totalSales,
+        totalRevenue:  a.totalRevenue,
         productsCount: a.user._count.products,
-        registeredAt: a.user.createdAt.toISOString(),
-        createdAt:   a.createdAt.toISOString(),
+        registeredAt:  a.user.createdAt.toISOString(),
+        createdAt:     a.createdAt.toISOString(),
       }))}
       pendingCount={pendingCount}
       verifiedCount={verifiedCount}

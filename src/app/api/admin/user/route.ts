@@ -1,4 +1,4 @@
-// src/app/api/admin/verify/route.ts
+// src/app/api/admin/user/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
@@ -10,25 +10,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { userId, action, autoPublish } = await request.json()
-
-  // Переключение авто-публикации
-  if (action === 'toggleAutoPublish') {
-    await db.authorProfile.update({
-      where: { userId },
-      data:  { autoPublish },
-    })
-    return NextResponse.json({ ok: true })
-  }
-
-  if (!userId || !['approve', 'reject'].includes(action)) {
+  const { userId, role } = await request.json()
+  if (!userId || !['user', 'author', 'admin'].includes(role)) {
     return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
   }
 
-  await db.authorProfile.update({
-    where: { userId },
-    data:  { isVerified: action === 'approve' },
-  })
-
+  await db.user.update({ where: { id: userId }, data: { role } })
   return NextResponse.json({ ok: true })
 }

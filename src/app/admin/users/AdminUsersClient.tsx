@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 
 type User = {
@@ -165,12 +166,14 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
           users.map(user => {
             const roleInfo = ROLE_LABELS[user.role] ?? { label: user.role, color: '#848484', bg: 'rgba(132,132,132,0.1)' }
             return (
-              <div key={user.id} className="users-row" style={{
+              <Link key={user.id} href={`/admin/users/${user.id}`} className="users-row" style={{
                 display: 'grid',
                 gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr',
                 padding: '14px 20px',
                 borderBottom: '1px solid var(--admin-border)',
                 alignItems: 'center',
+                textDecoration: 'none',
+                color: 'inherit',
               }}>
                 {/* Name */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -228,7 +231,7 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
                 <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>
                   {formatDate(user.createdAt)}
                 </div>
-              </div>
+              </Link>
             )
           })
         )}
