@@ -206,3 +206,11 @@ model CartItem {
   addedAt   DateTime @default(now())
   @@unique([cartId, productId])
 }
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("setting")
+}
