@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -165,9 +166,10 @@ export default function AdminFamiliesClient({
             Семейства не найдены
           </div>
         ) : products.map(p => (
-          <div key={p.id} className="families-row" style={{
+          <Link key={p.id} href={`/admin/families/${p.id}`} className="families-row" style={{
             display: 'grid', gridTemplateColumns: '3fr 1.5fr 1fr 1fr 1fr 1fr 1fr',
             padding: '14px 20px', borderBottom: '1px solid var(--admin-border)', alignItems: 'center',
+            textDecoration: 'none', color: 'inherit',
           }}>
             {/* Name */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -220,7 +222,7 @@ export default function AdminFamiliesClient({
 
             {/* Date */}
             <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{formatDate(p.createdAt)}</div>
-          </div>
+          </Link>
         ))}
 
         {/* Pagination */}

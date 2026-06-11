@@ -133,6 +133,12 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '900px' }}>
+      <style>{`
+        .order-row:hover { border-color: var(--admin-accent) !important; }
+        .order-row { transition: border-color 0.15s; }
+        .product-row:hover { border-color: var(--admin-accent) !important; }
+        .product-row { transition: border-color 0.15s; }
+      `}</style>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <Link href="/admin/users" style={{
@@ -178,18 +184,30 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
             </span>
           </div>
           <div style={{ fontSize: '13px', color: 'var(--admin-muted)', marginBottom: '12px' }}>{user.email}</div>
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             {[
-              { label: 'Заказов',    value: user.ordersCount   },
-              { label: 'Семейств',   value: user.productsCount },
-              { label: 'Отзывов',    value: user.reviewsCount  },
-              { label: 'Избранных',  value: user.favoritesCount },
+              { label: 'Заказов',    value: user.ordersCount,    accent: false },
+              { label: 'Семейств',   value: user.productsCount,  accent: false },
+              { label: 'Отзывов',    value: user.reviewsCount,   accent: false },
             ].map(s => (
               <div key={s.label}>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-text)' }}>{s.value}</div>
                 <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{s.label}</div>
               </div>
             ))}
+            {authorProfile && (
+              <>
+                <div style={{ width: '1px', background: 'var(--admin-border)', alignSelf: 'stretch' }} />
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-accent)' }}>{authorProfile.totalSales}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Продаж</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-accent)' }}>{formatMoney(authorProfile.totalRevenue)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Выручка</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -238,23 +256,12 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
                 </div>
                 <Toggle checked={autoPublish} onChange={setAutoPublish} />
               </div>
-              {/* Author stats */}
-              <div style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '16px', display: 'flex', gap: '24px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Продаж</div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-text)' }}>{authorProfile.totalSales}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Выручка</div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-text)' }}>{formatMoney(authorProfile.totalRevenue)}</div>
-                </div>
-                {authorProfile.city && (
+              {authorProfile.city && (
                   <div>
                     <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Город</div>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--admin-text)' }}>{authorProfile.city}</div>
                   </div>
                 )}
-              </div>
             </>
           )}
         </div>
@@ -282,9 +289,12 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
             {orders.map(o => {
               const st = STATUS_STYLE[o.status] ?? { label: o.status, color: '#848484', bg: 'rgba(132,132,132,0.1)' }
               return (
-                <div key={o.id} style={{
+                <Link key={o.id} href={`/admin/orders/${o.id}`} className="order-row" style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 14px', borderRadius: '10px', background: 'var(--admin-bg2)',
+                  padding: '10px 14px', borderRadius: '10px',
+                  border: '1px solid var(--admin-border)',
+                  background: 'transparent',
+                  textDecoration: 'none', color: 'inherit',
                 }}>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>
@@ -298,7 +308,7 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
                     </span>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--admin-text)' }}>{formatMoney(o.totalAmount)}</span>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
@@ -310,9 +320,12 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
         <Section title={`Семейства (${products.length})`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {products.map(p => (
-              <div key={p.id} style={{
+              <Link key={p.id} href={`/admin/families/${p.id}`} className="product-row" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 14px', borderRadius: '10px', background: 'var(--admin-bg2)',
+                padding: '10px 14px', borderRadius: '10px',
+                border: '1px solid var(--admin-border)',
+                background: 'transparent',
+                textDecoration: 'none', color: 'inherit',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '20px' }}>{p.emoji}</span>
@@ -333,7 +346,7 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
                     {p.price ? formatMoney(p.price) : 'Бесплатно'}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </Section>
