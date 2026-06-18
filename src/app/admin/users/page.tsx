@@ -20,7 +20,11 @@ export default async function AdminUsersPage({
   const PER_PAGE = 15
 
   const where: any = {}
-  if (role !== 'all') where.role = role
+  if (role === 'banned') {
+    where.isBanned = true
+  } else if (role !== 'all') {
+    where.role = role
+  }
   if (q) {
     where.OR = [
       { name:  { contains: q, mode: 'insensitive' } },
@@ -56,6 +60,7 @@ export default async function AdminUsersPage({
         totalRevenue:  u.authorProfile?.totalRevenue ?? 0,
         ordersCount:   u._count.orders,
         productsCount: u._count.products,
+        isBanned:      (u as any).isBanned ?? false,
       }))}
       total={total}
       currentPage={page}

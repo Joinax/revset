@@ -88,29 +88,33 @@ export default function CatalogClient({ products, categories, total, perPage, cu
 
       {/* Категории */}
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', marginBottom: '12px' }}><h3>Категории</h3></div>
-        {categories.map(cat => (
-          <div key={cat.slug} onClick={() => updateParams({ category: currentParams.category === cat.slug ? '' : cat.slug })}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '7px 0', cursor: 'pointer', transition: 'color .15s',
-            }} className="filter-row">
-            <span style={{ fontSize: '13px', color: currentParams.category === cat.slug ? 'var(--accent)' : 'var(--text)', fontWeight: currentParams.category === cat.slug ? 600 : 400 }}>
-              {cat.name}
-            </span>
-            {currentParams.category === cat.slug && (
-              <i className="ti ti-chevron-right" style={{ fontSize: '13px', color: 'var(--accent)' }} />
-            )}
-          </div>
-        ))}
+        <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', marginBottom: '10px' }}>Категории</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {categories.map(cat => (
+            <div key={cat.slug} onClick={() => updateParams({ category: currentParams.category === cat.slug ? '' : cat.slug })}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+                background: currentParams.category === cat.slug ? 'rgba(72,128,255,0.08)' : 'transparent',
+                transition: 'background .15s',
+              }} className="filter-row">
+              <span style={{ fontSize: '13px', color: currentParams.category === cat.slug ? 'var(--accent)' : 'var(--text)', fontWeight: currentParams.category === cat.slug ? 600 : 400 }}>
+                {cat.name}
+              </span>
+              {currentParams.category === cat.slug && (
+                <i className="ti ti-chevron-right" style={{ fontSize: '13px', color: 'var(--accent)' }} />
+              )}
+            </div>
+          ))}
+        </div>
         <div onClick={() => updateParams({ category: '' })}
-          style={{ fontSize: '13px', color: 'var(--accent)', cursor: 'pointer', marginTop: '6px', fontWeight: 500 }}>
+          style={{ fontSize: '13px', color: 'var(--accent)', cursor: 'pointer', marginTop: '8px', marginLeft: '10px', fontWeight: 500 }}>
           Показать все
         </div>
       </div>
 
       {/* Фильтры */}
-      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', marginBottom: '16px' }}><h4>Фильтры</h4></div>
+      <h4 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', marginBottom: '16px' }}>Фильтры</h4>
 
       {/* Цена — слайдер */}
       <div style={{ marginBottom: '24px' }}>
@@ -219,13 +223,13 @@ export default function CatalogClient({ products, categories, total, perPage, cu
               {(activeCategory || activeVersions.length > 0 || (currentParams.price && currentParams.price !== 'all')) && (
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
                   {activeCategory && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
                       {activeCategory.name}
                       <button onClick={() => updateParams({ category: '' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, fontSize: '14px', lineHeight: 1 }}>×</button>
                     </span>
                   )}
                   {activeVersions.map(v => (
-                    <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
+                    <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
                       Revit {v}
                       <button onClick={() => toggleVersion(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, fontSize: '14px', lineHeight: 1 }}>×</button>
                     </span>
@@ -318,6 +322,7 @@ export default function CatalogClient({ products, categories, total, perPage, cu
         @media (min-width: 641px) { .bottom-spacer { display: none; } }
         .bc-link:hover { color: var(--accent) !important; }
         .catalog-search:focus { border-color: var(--accent) !important; }
+        .filter-row:hover { background: var(--bg2) !important; }
         .filter-row:hover span { color: var(--accent) !important; }
         .reset-btn:hover { color: var(--text) !important; }
         @media (max-width: 768px) { .catalog-layout { padding: 0 !important; } }

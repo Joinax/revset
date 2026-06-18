@@ -3,11 +3,11 @@
 /* ── СВЕТЛАЯ ТЕМА (по умолчанию) ───────────────────────────────────── */
 :root {
   --bg:      #FFFFFF;
-  --bg2:     #F5F5F2;
+  --bg2:     #F5F6FA;
   --bg3:     #ECEAE4;
   --bg-page: #F0F0F8;
 
-  --accent:  #2952C8;
+  --accent:  #4880FF;
   --accent2: #5B4EDF;
 
   --text:    #1A1A1A;
@@ -17,16 +17,21 @@
 
   --success: #1D9E75;
   --danger:  #E24B4A;
+
+  /* Глубина — лёгкая тень в покое + усиленная на hover */
+  --shadow-rest:  0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 8px 32px rgba(72, 128, 255, 0.10);
+  --radius:       14px;
 }
 
 /* ── ТЁМНАЯ ТЕМА ────────────────────────────────────────────────────── */
 .dark {
-  --bg:      #0C0C14;
-  --bg2:     #13131E;
-  --bg3:     #1A1A28;
-  --bg-page: #08080F;
+  --bg:      #242535;
+  --bg2:     #1C1C28;
+  --bg3:     #2C2D40;
+  --bg-page: #1C1C28;
 
-  --accent:  #4F6EF7;
+  --accent:  #4880FF;
   --accent2: #8B7FFF;
 
   --text:    #EEEDF6;
@@ -38,7 +43,12 @@
   --danger:  #E24B4A;
 
   /* Свечение акцента */
-  --accent-glow: rgba(79,110,247,0.15);
+  --accent-glow: rgba(72,128,255,0.15);
+
+  /* Глубина — в тёмной теме тени мягче, больше за счёт border */
+  --shadow-rest:  0 2px 12px rgba(0, 0, 0, 0.25);
+  --shadow-hover: 0 8px 32px rgba(72, 128, 255, 0.12);
+  --radius:       14px;
 }
 
 /* ── БАЗОВЫЕ СТИЛИ ──────────────────────────────────────────────────── */
@@ -109,9 +119,10 @@ button {
   background-color: var(--accent);
   border: none;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
-.btn-primary:hover { opacity: 0.88; }
+.btn-primary:hover  { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(72,128,255,0.35); opacity: 0.96; }
+.btn-primary:active { transform: translateY(0); box-shadow: 0 4px 12px rgba(72,128,255,0.25); }
 
 .btn-outline {
   display: inline-flex;
@@ -127,21 +138,31 @@ button {
   background: transparent;
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
 }
-.btn-outline:hover { border-color: rgba(41, 82, 200, 0.3); }
-.dark .btn-outline:hover { border-color: rgba(65, 105, 225, 0.3); }
+.btn-outline:hover {
+  border-color: var(--accent);
+  background: rgba(72,128,255,0.06);
+  color: var(--accent);
+  transform: translateY(-2px);
+}
+.btn-outline:active { transform: translateY(0); }
 
 .card {
-  border-radius: 12px;
+  border-radius: var(--radius);
   overflow: hidden;
   cursor: pointer;
   background-color: var(--bg2);
   border: 1px solid var(--border);
-  transition: border-color 0.2s;
+  box-shadow: var(--shadow-rest);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
-.card:hover { border-color: rgba(41,82,200,0.35) !important; box-shadow: 0 8px 32px rgba(41,82,200,0.1); }
-.dark .card:hover { border-color: rgba(65, 105, 225, 0.25); }
+.card:hover {
+  border-color: rgba(72,128,255,0.35) !important;
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.dark .card:hover { border-color: rgba(72, 128, 255, 0.25); }
 
 .navbar {
   display: flex;
@@ -172,9 +193,9 @@ button {
   font-size: 10px;
   font-weight: 700;
   color: #ffffff;
-  background-color: var(--accent);
+  background-color: var(--success);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .badge-free {
@@ -182,9 +203,20 @@ button {
   font-size: 10px;
   font-weight: 700;
   color: #ffffff;
-  background-color: var(--accent);
+  background-color: var(--success);
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+/* Облегчённый вариант — для использования внутри карточки (не как оверлей на превью) */
+.badge-free--soft {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+  background-color: rgba(29, 158, 117, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
 }
 
 .price {
@@ -271,15 +303,16 @@ button {
 /* ── ФОКУС ──────────────────────────────────────────────────────────── */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(41, 82, 200, 0.3);
+  box-shadow: 0 0 0 3px rgba(72, 128, 255, 0.3);
 }
 .dark :focus-visible {
-  box-shadow: 0 0 0 3px rgba(65, 105, 225, 0.4);
+  box-shadow: 0 0 0 3px rgba(72, 128, 255, 0.4);
 }
 
-/* Карточки товаров — белый фон в светлой теме */
+/* Карточки товаров — лёгкий контраст с фоном страницы в светлой теме */
 .card {
   background: var(--bg) !important;
+  box-shadow: var(--shadow-rest);
 }
 
 /* Сетка карточек — 4 колонки на широком экране */
@@ -295,6 +328,29 @@ button {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* Категории — базовый стиль (светлая тема) */
+.cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-rest);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  text-decoration: none;
+  color: var(--text);
+}
+.cat-card:hover {
+  border-color: rgba(72,128,255,0.3) !important;
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
 /* ── ТЁМНАЯ ТЕМА — визуальные акценты ──────────────────────────────── */
 
 /* Тонкое градиентное свечение вверху страницы */
@@ -304,7 +360,7 @@ button {
   top: 0; left: 0; right: 0;
   height: 600px;
   background:
-    radial-gradient(ellipse 80% 40% at 20% -10%, rgba(79,110,247,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 40% at 20% -10%, rgba(72,128,255,0.07) 0%, transparent 60%),
     radial-gradient(ellipse 60% 30% at 80% -5%,  rgba(139,127,255,0.05) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
@@ -316,13 +372,17 @@ button {
   border-color: rgba(255,255,255,0.06) !important;
 }
 .dark .card:hover {
-  border-color: rgba(79,110,247,0.3) !important;
-  box-shadow: 0 8px 32px rgba(79,110,247,0.08);
+  border-color: rgba(72,128,255,0.3) !important;
+  box-shadow: 0 8px 32px rgba(72,128,255,0.08);
 }
 
 /* Navbar в тёмной теме — лёгкий blur */
+.navbar {
+  background: rgba(255,255,255,0.85) !important;
+  backdrop-filter: blur(16px);
+}
 .dark .navbar {
-  background: rgba(12,12,20,0.85) !important;
+  background: rgba(36,37,53,0.85) !important;
   backdrop-filter: blur(16px);
   border-bottom-color: rgba(255,255,255,0.06) !important;
 }
@@ -333,6 +393,6 @@ button {
   border-color: rgba(255,255,255,0.06);
 }
 .dark .cat-card:hover {
-  border-color: rgba(79,110,247,0.4) !important;
-  box-shadow: 0 4px 20px rgba(79,110,247,0.1);
+  border-color: rgba(72,128,255,0.4) !important;
+  box-shadow: 0 4px 20px rgba(72,128,255,0.1);
 }

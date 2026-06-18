@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import ThemeToggle from './ThemeToggle'
 import CartButton from './CartButton'
+import NotificationBell from './NotificationBell'
 import { useAppSession } from './SessionProvider'
 import { signOut } from '@/lib/auth-client'
 
@@ -12,7 +13,9 @@ export default function Navbar() {
   const [menuOpen,    setMenuOpen]    = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { user, refresh } = useAppSession()
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
+  const isHome   = pathname === '/'
 
   async function handleSignOut() {
     await signOut()
@@ -45,16 +48,20 @@ export default function Navbar() {
             <Link href="/for-authors" className="nav-link">Авторам</Link>
           </div>
 
-          {/* Поиск — по центру, растягивается */}
-          <form onSubmit={handleSearch} className="nav-search-form nav-links-desktop">
-            <i className="ti ti-search" style={{ fontSize: '16px', color: 'var(--muted)', flexShrink: 0 }} />
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Поиск семейств для Revit..."
-              className="nav-search-input"
-            />
-          </form>
+          {/* Поиск — по центру, растягивается. На главной скрыт — там есть hero-search */}
+          {isHome ? (
+            <div className="nav-search-form nav-links-desktop" style={{ background: 'transparent', border: 'none' }} />
+          ) : (
+            <form onSubmit={handleSearch} className="nav-search-form nav-links-desktop">
+              <i className="ti ti-search" style={{ fontSize: '16px', color: 'var(--muted)', flexShrink: 0 }} />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Поиск семейств для Revit..."
+                className="nav-search-input"
+              />
+            </form>
+          )}
 
           {/* Правая часть */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
@@ -63,6 +70,7 @@ export default function Navbar() {
             {user ? (
               <>
                 <CartButton />
+                <NotificationBell />
                 <Link href="/account#favorites" className="nav-icon-btn" aria-label="Избранное">
                   <i className="ti ti-heart" style={{ fontSize: '18px' }} />
                 </Link>

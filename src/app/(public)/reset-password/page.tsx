@@ -115,10 +115,16 @@ function ResetPasswordForm() {
   )
 }
 
-export default function ResetPasswordPage() {
+// Решает, какую форму показать — сам вызов useSearchParams должен быть
+// внутри Suspense целиком, а не только условный рендер по его результату
+function ResetPasswordContent() {
   const searchParams = useSearchParams()
-  const hasToken     = !!searchParams.get('token')
+  const hasToken      = !!searchParams.get('token')
 
+  return hasToken ? <ResetPasswordForm /> : <ForgotPasswordForm />
+}
+
+export default function ResetPasswordPage() {
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 60px)', padding: '40px 24px' }}>
         <div style={{ width: '100%', maxWidth: '380px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '32px' }}>
@@ -128,7 +134,7 @@ export default function ResetPasswordPage() {
             </div>
           </div>
           <Suspense fallback={<div>Загрузка...</div>}>
-            {hasToken ? <ResetPasswordForm /> : <ForgotPasswordForm />}
+            <ResetPasswordContent />
           </Suspense>
         </div>
       </div>

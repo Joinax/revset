@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -24,6 +25,8 @@ type Props = {
   currentQ: string
   totalRevenue: number
   totalPaid: number
+  currentUserId?: string
+  currentUserName?: string   // имя пользователя для баннера
 }
 
 const STATUSES = [
@@ -44,6 +47,7 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
 export default function AdminTransactionsClient({
   orders, total, currentPage, perPage,
   currentStatus, currentQ, totalRevenue, totalPaid,
+  currentUserId = '', currentUserName = '',
 }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
@@ -51,13 +55,15 @@ export default function AdminTransactionsClient({
   const [search, setSearch] = useState(currentQ)
 
   const totalPages = Math.ceil(total / perPage)
+  const isFiltered = !!currentUserId
 
   function updateParams(updates: Record<string, string>) {
     const params = new URLSearchParams()
-    const merged = { status: currentStatus, q: currentQ, page: '1', ...updates }
+    const merged = { status: currentStatus, q: currentQ, page: '1', userId: currentUserId, ...updates }
     if (merged.status && merged.status !== 'all') params.set('status', merged.status)
     if (merged.q) params.set('q', merged.q)
     if (merged.page && merged.page !== '1') params.set('page', merged.page)
+    if (merged.userId) params.set('userId', merged.userId)
     startTransition(() => router.push(params.toString() ? `${pathname}?${params}` : pathname))
   }
 
@@ -75,11 +81,70 @@ export default function AdminTransactionsClient({
         .role-tab { transition: all 0.15s; cursor: pointer; border: none; }
       `}</style>
 
+      {/* Кнопка назад — показывается только при фильтрации по пользователю */}
+      {isFiltered && (
+        <div>
+          <Link
+            href={`/admin/users/${currentUserId}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              fontSize: '13px', color: 'var(--admin-muted)', textDecoration: 'none',
+            }}
+          >
+            <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
+            Назад к профилю
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--admin-text)' }}>Транзакции</h1>
-        <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px' }}>Все заказы платформы</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--admin-text)', margin: 0 }}>
+            Транзакции
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px', marginBottom: 0 }}>
+            {isFiltered && currentUserName
+              ? `Заказы пользователя: ${currentUserName}`
+              : 'Все заказы платформы'
+            }
+          </p>
+        </div>
+
+        {/* Бейдж фильтра — кнопка сброса */}
+        {isFiltered && (
+          <Link
+            href="/admin/transactions"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '10px',
+              border: '1px solid var(--admin-border)',
+              background: 'var(--admin-bg)',
+              fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)',
+              textDecoration: 'none', flexShrink: 0,
+            }}
+          >
+            <i className="ti ti-x" style={{ fontSize: '13px' }} />
+            Снять фильтр
+          </Link>
+        )}
       </div>
+
+      {/* Баннер контекста — показывается когда фильтруем по пользователю */}
+      {isFiltered && currentUserName && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '12px 16px', borderRadius: '12px',
+          background: 'rgba(72,128,255,0.06)',
+          border: '1px solid rgba(72,128,255,0.2)',
+        }}>
+          <i className="ti ti-filter" style={{ fontSize: '16px', color: 'var(--admin-accent)', flexShrink: 0 }} />
+          <span style={{ fontSize: '13px', color: 'var(--admin-text)' }}>
+            Показаны заказы пользователя{' '}
+            <strong style={{ color: 'var(--admin-accent)' }}>{currentUserName}</strong>
+          </span>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -176,9 +241,10 @@ export default function AdminTransactionsClient({
         ) : orders.map(order => {
           const st = STATUS_STYLE[order.status] ?? { label: order.status, color: '#848484', bg: 'rgba(132,132,132,0.1)' }
           return (
-            <div key={order.id} className="tx-row" style={{
+            <Link key={order.id} href={`/admin/orders/${order.id}`} className="tx-row" style={{
               display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.5fr 1fr 1fr',
               padding: '14px 20px', borderBottom: '1px solid var(--admin-border)', alignItems: 'center',
+              textDecoration: 'none', color: 'inherit',
             }}>
               {/* User */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -229,7 +295,7 @@ export default function AdminTransactionsClient({
               <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>
                 {formatDate(order.createdAt)}
               </div>
-            </div>
+            </Link>
           )
         })}
 

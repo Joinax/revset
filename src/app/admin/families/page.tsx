@@ -8,7 +8,7 @@ import AdminFamiliesClient from './AdminFamiliesClient'
 export default async function AdminFamiliesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; category?: string; q?: string; page?: string }>
+  searchParams: Promise<{ status?: string; category?: string; q?: string; page?: string; authorId?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session || session.user.role !== 'admin') redirect('/')
@@ -17,19 +17,30 @@ export default async function AdminFamiliesPage({
   const status   = params.status   ?? 'all'
   const category = params.category ?? 'all'
   const q        = params.q        ?? ''
+  const authorId = params.authorId ?? ''
   const page     = Math.max(1, Number(params.page ?? 1))
   const PER_PAGE = 15
 
   const where: any = {}
-  if (status === 'published')   where.isPublished = true
-  if (status === 'unpublished') where.isPublished = false
+  if (['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'].includes(status)) where.moderationStatus = status
   if (category !== 'all')       where.categoryId  = category
+  if (authorId)                 where.authorId    = authorId
   if (q) {
     where.OR = [
       { name:        { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
       { author:      { is: { name: { contains: q, mode: 'insensitive' } } } },
     ]
+  }
+
+  // Если фильтруем по автору — подгружаем его имя для баннера
+  let filterAuthorName = ''
+  if (authorId) {
+    const filterAuthor = await db.user.findUnique({
+      where: { id: authorId },
+      select: { name: true },
+    })
+    filterAuthorName = filterAuthor?.name ?? ''
   }
 
   const [products, total, categories] = await Promise.all([
@@ -51,19 +62,21 @@ export default async function AdminFamiliesPage({
   return (
     <AdminFamiliesClient
       products={products.map(p => ({
-        id:          p.id,
-        name:        p.name,
-        authorName:  p.author.name,
-        categoryId:  p.categoryId,
+        id:           p.id,
+        name:         p.name,
+        authorName:   p.author.name,
+        categoryId:   p.categoryId,
         categoryName: p.category.name,
-        price:       p.price,
-        isPublished: p.isPublished,
-        isNew:       p.isNew,
-        downloads:   p.downloads,
-        reviewCount: p._count.reviews,
-        salesCount:  p._count.orderItems,
-        createdAt:   p.createdAt.toISOString(),
-        emoji:       p.previewEmoji ?? '📦',
+        price:        p.price,
+        isPublished:  p.isPublished,
+        moderationStatus: p.moderationStatus,
+        isNew:        p.isNew,
+        downloads:    p.downloads,
+        reviewCount:  p._count.reviews,
+        salesCount:   p._count.orderItems,
+        createdAt:    p.createdAt.toISOString(),
+        emoji:        p.previewEmoji ?? '📦',
+        images:       p.images ?? [],
       }))}
       categories={categories.map(c => ({ id: c.id, name: c.name }))}
       total={total}
@@ -72,6 +85,8 @@ export default async function AdminFamiliesPage({
       currentStatus={status}
       currentCategory={category}
       currentQ={q}
+      currentAuthorId={authorId}
+      currentAuthorName={filterAuthorName}
     />
   )
 }

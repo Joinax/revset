@@ -21,8 +21,16 @@ export default async function EditProductPage({
 
   if (!product) notFound()
 
-  // Только автор товара может редактировать
+  // Только действующий автор этого товара может редактировать — проверка по
+  // одному authorId недостаточна: если статус автора отозван, доступ должен
+  // закрыться даже к собственным старым товарам
   if (product.authorId !== session.user.id) redirect('/account')
+
+  const user = await db.user.findUnique({
+    where:   { id: session.user.id },
+    include: { authorProfile: true },
+  })
+  if (!user || user.role !== 'author' || !user.authorProfile) redirect('/account')
 
   const categories = await db.category.findMany({ orderBy: { order: 'asc' } })
 
@@ -37,6 +45,7 @@ export default async function EditProductPage({
         categorySlug: product.category.slug,
         revitVersions: product.revitVersions,
         bimParams:    product.bimParams ?? '',
+        images:       product.images ?? [],
       }}
       categories={categories.map(c => ({ slug: c.slug, name: c.name }))}
     />

@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     if (!name || !fileKey) {
       return NextResponse.json({ error: 'Название и файл обязательны' }, { status: 400 })
     }
+    if (!revitVersions || revitVersions.length === 0) {
+      return NextResponse.json({ error: 'Выберите хотя бы одну версию Revit' }, { status: 400 })
+    }
 
     // Находим категорию
     const category = await db.category.findFirst({
@@ -37,14 +40,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Категория не найдена' }, { status: 400 })
     }
 
+    // Определяем статус модерации в зависимости от настройки автора
+    const moderationStatus = user.authorProfile.autoPublish ? 'APPROVED' : 'PENDING'
+    const isPublished = moderationStatus === 'APPROVED'
+
     // Создаём товар в БД
     const product = await db.product.create({
       data: {
         name,
         description:   description || null,
-        price:         price ? parseFloat(price) : null,
-        revitVersions: revitVersions || ['2022', '2023', '2024', '2025'],
-        isPublished:   true,
+        price:         price && parseFloat(price) > 0 ? parseFloat(price) : null,
+        revitVersions: revitVersions || [],
+        isPublished,
+        moderationStatus,
         isNew:         true,
         downloads:     0,
         categoryId:    category.id,

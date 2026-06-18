@@ -1,7 +1,16 @@
-import AdminSidebar from '@/components/admin/AdminSidebar'
-import AdminTopbar from '@/components/admin/AdminTopbar'
+// src/app/admin/layout.tsx
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import AdminAuthGate from '@/components/admin/AdminAuthGate'
+import AdminSWRProvider from '@/components/admin/AdminSWRProvider'
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth.api.getSession({ headers: await headers() })
+
+  const currentUser = session?.user
+    ? { name: session.user.name, email: session.user.email }
+    : null
+
   return (
     <>
       <style>{`
@@ -18,7 +27,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           --admin-warning: #FFA756;
           --admin-shadow:  0 6px 54px rgba(0,0,0,0.05);
           --admin-radius:  14px;
-
           font-family: var(--font-nunito), sans-serif;
         }
         .dark .admin-root {
@@ -35,34 +43,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           --admin-shadow:  0 6px 54px rgba(0,0,0,0.2);
           --admin-radius:  14px;
         }
-        /* Типографика по референсу */
         .admin-root h1 {
           font-family: var(--font-poppins), sans-serif;
           font-size: 32px; font-weight: 700;
-          color: var(--admin-text);
-          letter-spacing: -0.01em;
+          color: var(--admin-text); letter-spacing: -0.01em;
         }
         .admin-root h2 {
           font-family: var(--font-poppins), sans-serif;
-          font-size: 24px; font-weight: 700;
-          color: var(--admin-text);
+          font-size: 24px; font-weight: 700; color: var(--admin-text);
         }
         .admin-root h3 {
           font-family: var(--font-poppins), sans-serif;
-          font-size: 18px; font-weight: 700;
-          color: var(--admin-text);
+          font-size: 18px; font-weight: 700; color: var(--admin-text);
         }
       `}</style>
-      <div className="admin-root" style={{ display: 'flex', height: '100vh', background: 'var(--admin-bg-page)' }}>
-        <AdminSidebar />
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0 }}>
-          <AdminTopbar />
-          <main style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px' }}>
-              {children}
-            </div>
-          </main>
-        </div>
+
+      <div className="admin-root" style={{ background: 'var(--admin-bg-page)', minHeight: '100vh' }}>
+        <AdminSWRProvider>
+          <AdminAuthGate currentUser={currentUser}>{children}</AdminAuthGate>
+        </AdminSWRProvider>
       </div>
     </>
   )

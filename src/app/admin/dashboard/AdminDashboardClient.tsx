@@ -196,10 +196,11 @@ export default function AdminDashboardClient({ stats, chartData, recentOrders }:
         ) : (
           <div>
             {recentOrders.map((order, i) => (
-              <div key={order.id} className="admin-order-row" style={{
+              <Link key={order.id} href={`/admin/orders/${order.id}`} className="admin-order-row" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 20px',
                 borderBottom: i < recentOrders.length - 1 ? '1px solid var(--admin-border)' : 'none',
+                textDecoration: 'none', color: 'inherit',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   <div style={{
@@ -225,7 +226,7 @@ export default function AdminDashboardClient({ stats, chartData, recentOrders }:
                   <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--admin-text)' }}>{formatMoney(order.amount)}</div>
                   <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{formatDate(order.createdAt)}</div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

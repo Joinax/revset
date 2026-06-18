@@ -2,7 +2,7 @@
 import Link from 'next/link'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 
 type Product = {
   id: string
@@ -12,15 +12,20 @@ type Product = {
   categoryName: string
   price: number | null
   isPublished: boolean
+  moderationStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
   isNew: boolean
   downloads: number
   reviewCount: number
   salesCount: number
   createdAt: string
   emoji: string
+  images: string[]
 }
 
 type Category = { id: string; name: string }
+
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 
 type Props = {
   products: Product[]
@@ -31,32 +36,60 @@ type Props = {
   currentStatus: string
   currentCategory: string
   currentQ: string
+  currentAuthorId?: string
+  currentAuthorName?: string  // имя автора для баннера
 }
 
 const STATUSES = [
-  { value: 'all',         label: 'Все' },
-  { value: 'published',   label: 'Опубликованные' },
-  { value: 'unpublished', label: 'На модерации' },
+  { value: 'all',      label: 'Все' },
+  { value: 'DRAFT',    label: 'Черновики' },
+  { value: 'PENDING',  label: 'На модерации' },
+  { value: 'APPROVED', label: 'Опубликованные' },
+  { value: 'REJECTED', label: 'Отклонённые' },
 ]
+
+const MODERATION_COLORS: Record<string, { label: string; color: string; bg: string }> = {
+  DRAFT:    { label: 'Черновик',     color: 'var(--admin-muted)',   bg: 'var(--admin-bg2)' },
+  PENDING:  { label: 'На модерации', color: 'var(--admin-warning)', bg: 'rgba(255,167,86,0.1)' },
+  APPROVED: { label: 'Опубликовано', color: 'var(--admin-success)', bg: 'rgba(0,182,155,0.1)' },
+  REJECTED: { label: 'Отклонено',    color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
+}
 
 export default function AdminFamiliesClient({
   products, categories, total, currentPage, perPage,
   currentStatus, currentCategory, currentQ,
+  currentAuthorId = '', currentAuthorName = '',
 }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const [search, setSearch] = useState(currentQ)
 
+  useEffect(() => {
+    function onFocus() { router.refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
+
+  // Лёгкий polling — авторы могут отправить новую модель на модерацию в любой момент
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 20000)
+    return () => clearInterval(interval)
+  }, [router])
+
   const totalPages = Math.ceil(total / perPage)
+  const isFiltered = !!currentAuthorId
 
   function updateParams(updates: Record<string, string>) {
     const params = new URLSearchParams()
-    const merged = { status: currentStatus, category: currentCategory, q: currentQ, page: '1', ...updates }
+    const merged = { status: currentStatus, category: currentCategory, q: currentQ, page: '1', authorId: currentAuthorId, ...updates }
     if (merged.status   && merged.status   !== 'all') params.set('status',   merged.status)
     if (merged.category && merged.category !== 'all') params.set('category', merged.category)
     if (merged.q)    params.set('q',    merged.q)
     if (merged.page && merged.page !== '1') params.set('page', merged.page)
+    if (merged.authorId) params.set('authorId', merged.authorId)
     startTransition(() => router.push(params.toString() ? `${pathname}?${params}` : pathname))
   }
 
@@ -75,11 +108,68 @@ export default function AdminFamiliesClient({
         .role-tab:hover { color: var(--admin-accent) !important; }
       `}</style>
 
+      {/* Кнопка назад — показывается только при фильтрации по автору */}
+      {isFiltered && (
+        <div>
+          <Link
+            href={`/admin/users/${currentAuthorId}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              fontSize: '13px', color: 'var(--admin-muted)', textDecoration: 'none',
+            }}
+          >
+            <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
+            Назад к профилю
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--admin-text)' }}>Семейства</h1>
-        <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px' }}>Всего: {total.toLocaleString('ru-RU')}</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--admin-text)', margin: 0 }}>Семейства</h1>
+          <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '4px', marginBottom: 0 }}>
+            {isFiltered && currentAuthorName
+              ? `Семейства автора: ${currentAuthorName}`
+              : `Всего: ${total.toLocaleString('ru-RU')}`
+            }
+          </p>
+        </div>
+
+        {/* Кнопка сброса фильтра */}
+        {isFiltered && (
+          <Link
+            href="/admin/families"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '10px',
+              border: '1px solid var(--admin-border)',
+              background: 'var(--admin-bg)',
+              fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)',
+              textDecoration: 'none', flexShrink: 0,
+            }}
+          >
+            <i className="ti ti-x" style={{ fontSize: '13px' }} />
+            Снять фильтр
+          </Link>
+        )}
       </div>
+
+      {/* Баннер контекста */}
+      {isFiltered && currentAuthorName && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '12px 16px', borderRadius: '12px',
+          background: 'rgba(72,128,255,0.06)',
+          border: '1px solid rgba(72,128,255,0.2)',
+        }}>
+          <i className="ti ti-filter" style={{ fontSize: '16px', color: 'var(--admin-accent)', flexShrink: 0 }} />
+          <span style={{ fontSize: '13px', color: 'var(--admin-text)' }}>
+            Показаны семейства автора{' '}
+            <strong style={{ color: 'var(--admin-accent)' }}>{currentAuthorName}</strong>
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{
@@ -165,7 +255,9 @@ export default function AdminFamiliesClient({
           <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--admin-muted)', fontSize: '13px' }}>
             Семейства не найдены
           </div>
-        ) : products.map(p => (
+        ) : products.map(p => {
+          const statusInfo = MODERATION_COLORS[p.moderationStatus] ?? MODERATION_COLORS.DRAFT
+          return (
           <Link key={p.id} href={`/admin/families/${p.id}`} className="families-row" style={{
             display: 'grid', gridTemplateColumns: '3fr 1.5fr 1fr 1fr 1fr 1fr 1fr',
             padding: '14px 20px', borderBottom: '1px solid var(--admin-border)', alignItems: 'center',
@@ -177,9 +269,12 @@ export default function AdminFamiliesClient({
                 width: '36px', height: '36px', borderRadius: '10px',
                 background: 'var(--admin-bg2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '18px', flexShrink: 0,
+                fontSize: '18px', flexShrink: 0, overflow: 'hidden',
               }}>
-                {p.emoji}
+                {p.images.length > 0
+                  ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : p.emoji
+                }
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -208,10 +303,10 @@ export default function AdminFamiliesClient({
             <div>
               <span style={{
                 fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px',
-                color:       p.isPublished ? 'var(--admin-success)' : 'var(--admin-warning)',
-                background:  p.isPublished ? 'rgba(0,182,155,0.1)' : 'rgba(255,167,86,0.1)',
+                color:      statusInfo.color,
+                background: statusInfo.bg,
               }}>
-                {p.isPublished ? 'Опубликовано' : 'На модерации'}
+                {statusInfo.label}
               </span>
             </div>
 
@@ -223,7 +318,8 @@ export default function AdminFamiliesClient({
             {/* Date */}
             <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{formatDate(p.createdAt)}</div>
           </Link>
-        ))}
+          )
+        })}
 
         {/* Pagination */}
         {totalPages > 1 && (

@@ -43,6 +43,7 @@ export default function AdminOrderDetailClient({ order, user, items }: Props) {
   const [status, setStatus] = useState(order.status)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   const currentStatus = STATUSES.find(s => s.value === status)!
 
@@ -55,18 +56,33 @@ export default function AdminOrderDetailClient({ order, user, items }: Props) {
   async function saveStatus() {
     if (status === order.status) return
     setSaving(true)
-    await fetch('/api/admin/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId: order.id, status }),
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => { setSaved(false); router.refresh() }, 1500)
+    setError('')
+
+    try {
+      const res = await fetch('/api/admin/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, status }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Не удалось сохранить статус')
+        setSaving(false)
+        return
+      }
+
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => { setSaved(false); router.refresh() }, 1500)
+    } catch {
+      setError('Ошибка соединения с сервером')
+      setSaving(false)
+    }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '800px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Back */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.back()} style={{
@@ -209,7 +225,7 @@ export default function AdminOrderDetailClient({ order, user, items }: Props) {
         </div>
         <div style={{ padding: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {STATUSES.map(s => (
-            <button key={s.value} onClick={() => setStatus(s.value)}
+            <button key={s.value} onClick={() => { setStatus(s.value); setError('') }}
               style={{
                 padding: '8px 18px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
                 cursor: 'pointer', transition: 'all 0.15s',
@@ -222,6 +238,17 @@ export default function AdminOrderDetailClient({ order, user, items }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          fontSize: '13px', color: 'var(--admin-danger)',
+          background: 'rgba(239,56,38,0.08)', borderRadius: '10px',
+          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <i className="ti ti-alert-circle" style={{ fontSize: '15px' }} />{error}
+        </div>
+      )}
 
       {/* Save */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

@@ -1,7 +1,9 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
+import Link from 'next/link'
+import { useVerificationCount } from '@/hooks/useVerificationCount'
 
 type Author = {
   userId: string
@@ -26,13 +28,12 @@ type Props = {
   currentStatus: string
 }
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div onClick={() => !disabled && onChange(!checked)} style={{
-      width: '40px', height: '22px', borderRadius: '11px', cursor: disabled ? 'not-allowed' : 'pointer',
+    <div onClick={e => { e.preventDefault(); e.stopPropagation(); onChange(!checked) }} style={{
+      width: '40px', height: '22px', borderRadius: '11px', cursor: 'pointer',
       background: checked ? 'var(--admin-accent)' : 'var(--admin-border)',
       position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-      opacity: disabled ? 0.5 : 1,
     }}>
       <div style={{
         position: 'absolute', top: '3px',
@@ -50,15 +51,31 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const { mutate: mutateVerificationCount } = useVerificationCount()
   const [autoPublishMap, setAutoPublishMap] = useState<Record<string, boolean>>(
     Object.fromEntries(authors.map(a => [a.userId, a.autoPublish]))
   )
+
+  useEffect(() => {
+    function onFocus() { router.refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 20000)
+    return () => clearInterval(interval)
+  }, [router])
 
   function setStatus(status: string) {
     startTransition(() => router.push(`${pathname}?status=${status}`))
   }
 
-  async function handleAction(userId: string, action: 'approve' | 'reject') {
+  async function handleAction(e: React.MouseEvent, userId: string, action: 'approve' | 'reject') {
+    e.preventDefault()
+    e.stopPropagation()
     setLoadingId(userId)
     await fetch('/api/admin/verify', {
       method: 'POST',
@@ -66,6 +83,9 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
       body: JSON.stringify({ userId, action }),
     })
     setLoadingId(null)
+    // Инвалидируем кэш счётчика верификации — сайдбар обновится мгновенно,
+    // на всех страницах, использующих этот SWR-ключ
+    mutateVerificationCount()
     router.refresh()
   }
 
@@ -82,15 +102,15 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
     new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })
 
   const TABS = [
-    { value: 'pending',  label: 'Ожидают',         count: pendingCount  },
-    { value: 'verified', label: 'Верифицированы',   count: verifiedCount },
+    { value: 'pending',  label: 'Ожидают',       count: pendingCount  },
+    { value: 'verified', label: 'Верифицированы', count: verifiedCount },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <style>{`
-        .verify-card:hover { box-shadow: 0 4px 24px rgba(72,128,255,0.1) !important; }
-        .verify-card { transition: box-shadow 0.2s; }
+        .verify-card:hover { box-shadow: 0 4px 24px rgba(72,128,255,0.12) !important; border-color: var(--admin-accent) !important; }
+        .verify-card { transition: box-shadow 0.2s, border-color 0.2s; }
         .role-tab { transition: all 0.15s; cursor: pointer; border: none; }
       `}</style>
 
@@ -137,13 +157,14 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', opacity: isPending ? 0.6 : 1 }}>
           {authors.map(author => (
-            <div key={author.userId} className="verify-card" style={{
+            <Link key={author.userId} href={`/admin/users/${author.userId}?from=verification`} className="verify-card" style={{
               background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
               borderRadius: '14px', padding: '20px',
               boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              textDecoration: 'none', color: 'inherit', display: 'block',
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
-                {/* Avatar */}
+              {/* Top: avatar + info */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                 {author.image ? (
                   <img src={author.image} alt="" style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                 ) : (
@@ -157,8 +178,6 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
                     </span>
                   </div>
                 )}
-
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--admin-text)' }}>{author.name}</span>
@@ -187,12 +206,33 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
                     </span>
                   </div>
                 </div>
+              </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+              {/* Bottom: actions */}
+              <div style={{
+                paddingTop: '16px', borderTop: '1px solid var(--admin-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+              }}>
+                {/* Auto-publish (только для верифицированных) */}
+                {author.isVerified ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Toggle
+                      checked={autoPublishMap[author.userId] ?? false}
+                      onChange={v => handleAutoPublish(author.userId, v)}
+                    />
+                    <span style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Авто-публикация</span>
+                  </div>
+                ) : (
+                  <div />
+                )}
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '8px' }}>
                   {!author.isVerified ? (
                     <>
-                      <button onClick={() => handleAction(author.userId, 'approve')} disabled={loadingId === author.userId}
+                      <button
+                        onClick={e => handleAction(e, author.userId, 'approve')}
+                        disabled={loadingId === author.userId}
                         style={{
                           padding: '8px 20px', borderRadius: '10px', border: 'none',
                           background: 'var(--admin-success)', color: '#fff',
@@ -202,7 +242,9 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
                         }}>
                         <i className="ti ti-check" /> Подтвердить
                       </button>
-                      <button onClick={() => handleAction(author.userId, 'reject')} disabled={loadingId === author.userId}
+                      <button
+                        onClick={e => handleAction(e, author.userId, 'reject')}
+                        disabled={loadingId === author.userId}
                         style={{
                           padding: '8px 20px', borderRadius: '10px',
                           border: '1px solid var(--admin-border)',
@@ -215,7 +257,9 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => handleAction(author.userId, 'reject')} disabled={loadingId === author.userId}
+                    <button
+                      onClick={e => handleAction(e, author.userId, 'reject')}
+                      disabled={loadingId === author.userId}
                       style={{
                         padding: '8px 20px', borderRadius: '10px',
                         border: '1px solid var(--admin-border)',
@@ -228,27 +272,7 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
                   )}
                 </div>
               </div>
-
-              {/* Auto-publish toggle — только для верифицированных */}
-              {author.isVerified && (
-                <div style={{
-                  marginTop: '16px', paddingTop: '16px',
-                  borderTop: '1px solid var(--admin-border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Авто-публикация</div>
-                    <div style={{ fontSize: '12px', color: 'var(--admin-muted)', marginTop: '2px' }}>
-                      Семейства этого автора публикуются без модерации
-                    </div>
-                  </div>
-                  <Toggle
-                    checked={autoPublishMap[author.userId] ?? false}
-                    onChange={v => handleAutoPublish(author.userId, v)}
-                  />
-                </div>
-              )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

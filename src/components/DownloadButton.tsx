@@ -56,7 +56,15 @@ export default function DownloadButton({ productId, isFree, isPurchased }: Props
           {error}
         </div>
       )}
-      <style>{`.download-btn:hover:not(:disabled) { opacity: 0.88; }`}</style>
+      <style>{`
+        .download-btn { transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s; }
+        .download-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(72,128,255,0.35);
+          opacity: 0.96;
+        }
+        .download-btn:active:not(:disabled) { transform: translateY(0); }
+      `}</style>
     </div>
   )
 }

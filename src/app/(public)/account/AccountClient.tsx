@@ -1,9 +1,9 @@
 // src/app/account/AccountClient.tsx
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from '@/lib/auth-client'
 import { useAppSession } from '@/components/SessionProvider'
 import BecomeAuthorButton from '@/components/BecomeAuthorButton'
@@ -14,13 +14,15 @@ type OrderItem     = { id: string; price: number; product: Product }
 type Order         = { id: string; status: string; totalAmount: number; createdAt: string; items: OrderItem[] }
 type Favorite      = { id: string; product: Product & { price: number | null } }
 type Following     = { id: string; createdAt: string; following: { id: string; name: string | null; authorProfile: { bio: string | null; isVerified: boolean } | null; _count: { products: number } } }
+type ModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type AuthorProduct = {
   id: string; name: string; price: number | null; isPublished: boolean
-  isNew: boolean; downloads: number; previewEmoji: string; previewBg: string
+  moderationStatus: ModerationStatus; moderationComment?: string | null
+  isNew: boolean; downloads: number; previewEmoji: string; previewBg: string; images?: string[]
   category: string; createdAt: string; reviewCount: number; salesCount: number
 }
 type AuthorStats   = {
-  totalProducts: number; publishedCount: number
+  totalProducts: number; publishedCount: number; rejectedCount: number
   totalSales: number; totalRevenue: number; totalDownloads: number
 }
 type Pagination    = { currentPage: number; totalPages: number; perPage: number }
@@ -29,10 +31,22 @@ type User = {
   role: string; createdAt: string; isAuthor: boolean
   isVerified?: boolean; city?: string | null; bio?: string | null
 }
+type TopProductEntry = { id: string; name: string; previewEmoji: string; previewBg: string; value: number; images?: string[] }
+type AuthorSale = {
+  id: string; price: number; createdAt: string; orderStatus: string
+  buyerName: string
+  product: { id: string; name: string; previewEmoji: string; previewBg: string; images?: string[] }
+}
+type AuthorFilters = { status: string; price: string; sort: string; query: string }
+
 type Props = {
   followings?: Following[]
   user: User; orders: Order[]; favorites: Favorite[]
   authorProducts?: AuthorProduct[]; authorStats?: AuthorStats; authorPagination?: Pagination
+  authorTopProducts?: { bySales: TopProductEntry[]; byDownloads: TopProductEntry[] }
+  authorFilters?: AuthorFilters
+  authorSales?: AuthorSale[]; authorSalesPagination?: Pagination
+  hasPendingAuthorApplication?: boolean
 }
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
@@ -45,27 +59,35 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   REFUNDED:  { label: 'Возврат',        color: '#888680', bg: 'rgba(136,134,128,0.1)' },
 }
 
-function buildNav(isAuthor: boolean, productCount: number) {
+const MODERATION_LABELS: Record<ModerationStatus, { label: string; color: string; bg: string }> = {
+  DRAFT:    { label: 'Черновик',     color: 'var(--muted)',  bg: 'var(--bg3)' },
+  PENDING:  { label: 'На модерации', color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
+  APPROVED: { label: 'Опубликовано', color: '#1D9E75',       bg: 'rgba(29,158,117,0.1)' },
+  REJECTED: { label: 'Отклонено',    color: '#E24B4A',       bg: 'rgba(226,75,74,0.1)' },
+}
+
+function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number) {
   const base = [
-    { key: 'overview',  label: 'Обзор',        icon: 'ti-layout-dashboard', badge: null },
-    { key: 'orders',    label: 'Покупки',       icon: 'ti-shopping-bag',     badge: null },
-    { key: 'favorites',      label: 'Избранное',   icon: 'ti-heart',       badge: null },
-    { key: 'subscriptions', label: 'Подписки',    icon: 'ti-users',       badge: null },
-    { key: 'profile',   label: 'Профиль',       icon: 'ti-user',             badge: null },
-    { key: 'security',  label: 'Безопасность',  icon: 'ti-shield-lock',      badge: null },
+    { key: 'overview',  label: 'Обзор',        icon: 'ti-layout-dashboard', badge: null, badgeVariant: null },
+    { key: 'orders',    label: 'Покупки',       icon: 'ti-shopping-bag',     badge: null, badgeVariant: null },
+    { key: 'favorites',      label: 'Избранное',   icon: 'ti-heart',       badge: null, badgeVariant: null },
+    { key: 'subscriptions', label: 'Подписки',    icon: 'ti-users',       badge: null, badgeVariant: null },
+    { key: 'profile',   label: 'Профиль',       icon: 'ti-user',             badge: null, badgeVariant: null },
+    { key: 'security',  label: 'Безопасность',  icon: 'ti-shield-lock',      badge: null, badgeVariant: null },
   ]
   if (!isAuthor) return base
   return [
     ...base,
-    { key: 'divider',         label: '',              icon: '',             badge: null },
-    { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: null },
-    { key: 'author-upload',   label: 'Загрузить',     icon: 'ti-upload',    badge: null },
-    { key: 'author-stats',    label: 'Статистика',    icon: 'ti-chart-bar', badge: null },
+    { key: 'divider',         label: '',              icon: '',             badge: null, badgeVariant: null },
+    { key: 'author-stats',    label: 'Статистика',    icon: 'ti-chart-bar', badge: null, badgeVariant: null },
+    { key: 'author-sales',    label: 'Продажи',       icon: 'ti-receipt',   badge: null, badgeVariant: null },
+    { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: rejectedCount > 0 ? rejectedCount : null, badgeVariant: 'danger' as const },
+    { key: 'author-upload',   label: 'Загрузить',     icon: 'ti-upload',    badge: null, badgeVariant: null },
   ]
 }
 
 type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -109,14 +131,14 @@ function SubscriptionsTab({ followings }: { followings: Following[] }) {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
               {filtered.map(f => (
-                <a key={f.id} href={`/author/${f.following.id}`} style={{ textDecoration: 'none' }} className="author-card">
+                <a key={f.id} href={`/author/${f.following.id}?from=subscriptions`} style={{ textDecoration: 'none' }} className="author-card">
                   <div className="author-card-inner">
                     <div style={{
                       width: '64px', height: '64px', borderRadius: '50%',
                       background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: '22px', fontWeight: 700, color: '#fff',
-                      boxShadow: '0 4px 16px rgba(41,82,200,0.35)',
+                      boxShadow: '0 4px 16px rgba(72,128,255,0.35)',
                       marginBottom: '12px',
                     }}>
                       {(f.following.name ?? 'А')[0].toUpperCase()}
@@ -143,8 +165,28 @@ function SubscriptionsTab({ followings }: { followings: Following[] }) {
   )
 }
 
-export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination }: Props) {
-  const [activeTab,    setActiveTab]    = useState<Tab>('overview')
+export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false }: Props) {
+  const searchParams = useSearchParams()
+  const [activeTab,    setActiveTab]    = useState<Tab>(() => {
+    const tabParam = searchParams.get('tab') as Tab | null
+    const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'profile', 'security']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales']
+    const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
+    return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
+  })
+  const [ordersCollapsed,    setOrdersCollapsed]    = useState(false)
+  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
+  const [returnTab,    setReturnTab]    = useState<Tab>('overview')
+  const prevTabRef = useRef<Tab>('overview')
+
+  useEffect(() => {
+    // Запоминаем, откуда пришли, только если уходим НЕ из orders/favorites —
+    // иначе кнопка "Назад" внутри них перезапишет себя при повторном входе
+    if (prevTabRef.current !== 'orders' && prevTabRef.current !== 'favorites') {
+      setReturnTab(prevTabRef.current)
+    }
+    prevTabRef.current = activeTab
+  }, [activeTab])
 
   const [editMode,     setEditMode]     = useState(false)
   const [editName,     setEditName]     = useState(user.name)
@@ -162,19 +204,57 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [editASuccess, setEditASuccess] = useState(false)
   const [currentCity,  setCurrentCity]  = useState(user.city ?? '')
   const [currentBio,   setCurrentBio]   = useState(user.bio  ?? '')
-  const [search,       setSearch]       = useState('')
+  const [search,       setSearch]       = useState(authorFilters?.query ?? '')
   const [avatarUrl,    setAvatarUrl]    = useState(user.image ?? '')
   const [avatarLoading, setAvatarLoading] = useState(false)
 
   const router      = useRouter()
   const { refresh, updateUser } = useAppSession()
 
+  // Статус модерации/публикации могут поменять в другой вкладке (модератор) —
+  // подхватываем свежие данные при возврате на эту вкладку, без ручной перезагрузки
+  useEffect(() => {
+    function onFocus() { router.refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [router])
+
+  // Лёгкий polling для авторов — пока вкладка открыта и видима, раз в 20 секунд
+  // подтягиваем актуальный статус модерации, даже если человек не переключал фокус
+  useEffect(() => {
+    if (!user.isAuthor) return
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 20000)
+    return () => clearInterval(interval)
+  }, [router, user.isAuthor])
+
   const paidOrders  = orders.filter(o => o.status === 'PAID')
   const totalSpent  = paidOrders.reduce((s, o) => s + o.totalAmount, 0)
-  const lastOrders  = orders.slice(0, 3)
-  const lastFavs    = favorites.slice(0, 4)
-  const filteredAP  = authorProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-  const nav         = buildNav(user.isAuthor, authorStats?.totalProducts ?? 0)
+  const lastOrders  = orders.slice(0, 5)
+  const lastFavs    = favorites.slice(0, 5)
+  const apFilters = authorFilters ?? { status: 'all', price: 'all', sort: 'date', query: '' }
+
+  function updateApFilters(updates: Partial<AuthorFilters>) {
+    const merged = { ...apFilters, ...updates }
+    const params = new URLSearchParams()
+    params.set('tab', 'author-products')
+    if (merged.status !== 'all') params.set('apStatus', merged.status)
+    if (merged.price  !== 'all') params.set('apPrice',  merged.price)
+    if (merged.sort   !== 'date') params.set('apSort',  merged.sort)
+    if (merged.query) params.set('apQ', merged.query)
+    router.push(`/account?${params}#author-products`)
+  }
+
+  // Debounce поиска по моделям — обновляем URL через 400мс после остановки ввода
+  useEffect(() => {
+    if (search === apFilters.query) return
+    const timeout = setTimeout(() => updateApFilters({ query: search }), 400)
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  const filteredAP = authorProducts
+  const nav         = buildNav(user.isAuthor, authorStats?.totalProducts ?? 0, authorStats?.rejectedCount ?? 0)
   const stats       = authorStats
 
   useEffect(() => {
@@ -247,15 +327,15 @@ export default function AccountClient({ user, orders, favorites, followings = []
     return <div style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>{children}</div>
   }
 
-  function EmptyState({ icon, title, sub, href, cta }: { icon: string; title: string; sub: string; href: string; cta: string }) {
+  function EmptyState({ icon, title, sub, href, cta }: { icon: string; title: string; sub: string; href?: string; cta?: string }) {
     return (
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
         <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
           <i className={`ti ${icon}`} style={{ fontSize: '28px', opacity: 0.4 }} />
         </div>
         <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px', color: 'var(--text)' }}>{title}</p>
-        <p style={{ fontSize: '13px', marginBottom: '20px' }}>{sub}</p>
-        <Link href={href} className="btn-primary">{cta}</Link>
+        <p style={{ fontSize: '13px', marginBottom: href ? '20px' : 0 }}>{sub}</p>
+        {href && cta && <Link href={href} className="btn-primary">{cta}</Link>}
       </div>
     )
   }
@@ -308,7 +388,10 @@ export default function AccountClient({ user, orders, favorites, followings = []
           <nav className="sidebar-nav">
             {nav.map((item, i) => {
               if (item.key === 'divider') return (
-                <div key="divider" className="sidebar-section-label"><span>Для авторов</span></div>
+                <div key="divider" className="sidebar-section-label">
+                  <i className="ti ti-pencil" style={{ fontSize: '12px', marginRight: '6px' }} />
+                  <span>Для авторов</span>
+                </div>
               )
               const isActive = activeTab === item.key
               const isAuthorItem = authorNavKeys.includes(item.key)
@@ -322,7 +405,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                   <i className={`ti ${item.icon}`} style={{ fontSize: '18px', flexShrink: 0 }} />
                   <span className="sidebar-nav-label">{item.label}</span>
                   {item.badge && (
-                    <span className="sidebar-badge">{item.badge}</span>
+                    <span className={`sidebar-badge ${item.badgeVariant === 'danger' ? 'sidebar-badge--danger' : ''}`}>{item.badge}</span>
                   )}
                 </button>
               )
@@ -346,60 +429,56 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 260px))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                 {[
                   {
                     icon: 'ti-shopping-bag', label: 'Покупок',
                     value: paidOrders.length,
-                    gradient: 'linear-gradient(135deg, #2952C8 0%, #4F6EF7 100%)',
-                    shadow: '0 8px 24px rgba(41,82,200,0.25)',
+                    accent: 'var(--accent)', bg: 'rgba(72,128,255,0.1)',
                     tab: 'orders' as Tab,
                   },
                   {
                     icon: 'ti-heart', label: 'Избранного',
                     value: favorites.length,
-                    gradient: 'linear-gradient(135deg, #C23B3A 0%, #E24B4A 100%)',
-                    shadow: '0 8px 24px rgba(226,75,74,0.25)',
+                    accent: 'var(--danger)', bg: 'rgba(226,75,74,0.1)',
                     tab: 'favorites' as Tab,
                   },
                   {
                     icon: 'ti-currency-rubel', label: 'Потрачено',
                     value: `${totalSpent.toLocaleString('ru')} ₽`,
-                    gradient: 'linear-gradient(135deg, #0F7A5A 0%, #1D9E75 100%)',
-                    shadow: '0 8px 24px rgba(29,158,117,0.25)',
-                    tab: null,
+                    accent: 'var(--success)', bg: 'rgba(29,158,117,0.1)',
+                    tab: 'orders' as Tab,
                   },
                 ].map(s => (
                   <div
                     key={s.label}
                     onClick={() => s.tab && setActiveTab(s.tab)}
                     style={{
-                      background: s.gradient,
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
+                      borderLeft: `3px solid ${s.accent}`,
                       borderRadius: '16px',
-                      padding: '22px 24px',
-                      display: 'flex', alignItems: 'center', gap: '16px',
+                      padding: '20px 22px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
                       cursor: s.tab ? 'pointer' : 'default',
-                      boxShadow: s.shadow,
+                      boxShadow: 'var(--shadow-rest)',
                       transition: 'transform 0.15s, box-shadow 0.15s',
-                      position: 'relative', overflow: 'hidden',
                     }}
-                    className={s.tab ? 'stat-card' : ''}
+                    className={s.tab ? 'stat-card sales-card' : 'sales-card'}
                   >
-                    {/* Декоративный круг */}
-                    <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
-                    <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <i className={`ti ${s.icon}`} style={{ fontSize: '22px', color: '#fff' }} />
-                    </div>
                     <div>
-                      <div style={{ fontSize: '26px', fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.02em' }}>{s.value}</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginTop: '3px' }}>{s.label}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px', fontWeight: 600 }}>{s.label}</div>
+                      <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>{s.value}</div>
+                    </div>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={`ti ${s.icon}`} style={{ fontSize: '24px', color: s.accent }} />
                     </div>
                   </div>
                 ))}
               </div>
 
               {user.isAuthor && stats && (
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                   <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="ti ti-badge" style={{ fontSize: '15px', color: 'var(--accent)' }} />
@@ -409,10 +488,10 @@ export default function AccountClient({ user, orders, favorites, followings = []
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
                     {[
-                      { icon: 'ti-file-3d',       label: 'Моделей',    value: stats.totalProducts,                            accent: 'var(--accent)', bg: 'rgba(41,82,200,0.08)',  tab: 'author-products' as Tab },
-                      { icon: 'ti-download',       label: 'Скачиваний', value: stats.totalDownloads.toLocaleString('ru'),       accent: '#F59E0B',        bg: 'rgba(245,158,11,0.08)', tab: null },
-                      { icon: 'ti-shopping-bag',   label: 'Продаж',     value: stats.totalSales,                               accent: '#1D9E75',        bg: 'rgba(29,158,117,0.08)', tab: null },
-                      { icon: 'ti-currency-rubel', label: 'Выручка',    value: `${stats.totalRevenue.toLocaleString('ru')} ₽`, accent: '#1D9E75',        bg: 'rgba(29,158,117,0.08)', tab: null },
+                      { icon: 'ti-file-3d',       label: 'Моделей',    value: stats.totalProducts,                            accent: 'var(--accent)', bg: 'rgba(72,128,255,0.08)',  tab: 'author-products' as Tab },
+                      { icon: 'ti-download',       label: 'Скачиваний', value: stats.totalDownloads.toLocaleString('ru'),       accent: '#F59E0B',        bg: 'rgba(245,158,11,0.08)', tab: 'author-stats' as Tab },
+                      { icon: 'ti-shopping-bag',   label: 'Продаж',     value: stats.totalSales,                               accent: '#1D9E75',        bg: 'rgba(29,158,117,0.08)', tab: 'author-sales' as Tab },
+                      { icon: 'ti-currency-rubel', label: 'Выручка',    value: `${stats.totalRevenue.toLocaleString('ru')} ₽`, accent: '#1D9E75',        bg: 'rgba(29,158,117,0.08)', tab: 'author-sales' as Tab },
                     ].map((s, i, arr) => (
                       <div key={s.label} onClick={() => s.tab && setActiveTab(s.tab)} style={{ padding: '18px 20px', borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none', cursor: s.tab ? 'pointer' : 'default', transition: 'background 0.15s' }} className={s.tab ? 'author-stat-cell' : ''}>
                         <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
@@ -426,12 +505,18 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 </div>
               )}
 
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 600 }}>Последние покупки</span>
-                  {orders.length > 3 && <button onClick={() => setActiveTab('orders')} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}>Все покупки →</button>}
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
+                <div style={{ padding: '14px 20px', borderBottom: ordersCollapsed ? 'none' : '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={() => setOrdersCollapsed(c => !c)} aria-label={ordersCollapsed ? 'Развернуть' : 'Свернуть'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', display: 'flex' }}>
+                      <i className={`ti ti-chevron-${ordersCollapsed ? 'right' : 'down'}`} style={{ fontSize: '15px' }} />
+                    </button>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Последние покупки</span>
+                  </div>
+                  {orders.length > 0 && <button onClick={() => setActiveTab('orders')} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}>Все покупки →</button>}
                 </div>
-                {lastOrders.length === 0 ? (
+                {!ordersCollapsed && (lastOrders.length === 0 ? (
                   <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--muted)' }}>
                     <i className="ti ti-shopping-bag" style={{ fontSize: '32px', opacity: 0.3, display: 'block', marginBottom: '8px' }} />
                     <div style={{ fontSize: '13px' }}>Покупок пока нет</div>
@@ -445,7 +530,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                       <span style={{ fontSize: '13px', fontWeight: 700 }}>{order.totalAmount.toLocaleString('ru')} ₽</span>
                     </div>
                     {order.items.map(item => (
-                      <Link key={item.id} href={`/product/${item.product.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }} className="order-item-link">
+                      <Link key={item.id} href={`/product/${item.product.id}?from=overview`} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }} className="order-item-link">
                         <ProductThumb product={item.product} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product.name}</div>
@@ -455,40 +540,60 @@ export default function AccountClient({ user, orders, favorites, followings = []
                       </Link>
                     ))}
                   </div>
-                ))}
+                )))}
               </div>
 
               {lastFavs.length > 0 && (
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Избранное</span>
-                    {favorites.length > 4 && <button onClick={() => setActiveTab('favorites')} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}>Все {favorites.length} →</button>}
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
+                  <div style={{ padding: '14px 20px', borderBottom: favoritesCollapsed ? 'none' : '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button onClick={() => setFavoritesCollapsed(c => !c)} aria-label={favoritesCollapsed ? 'Развернуть' : 'Свернуть'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', display: 'flex' }}>
+                        <i className={`ti ti-chevron-${favoritesCollapsed ? 'right' : 'down'}`} style={{ fontSize: '15px' }} />
+                      </button>
+                      <span style={{ fontSize: '14px', fontWeight: 600 }}>Избранное</span>
+                    </div>
+                    {favorites.length > 0 && <button onClick={() => setActiveTab('favorites')} style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}>Все {favorites.length} →</button>}
                   </div>
-                  <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-                    {lastFavs.map(fav => (
-                      <Link key={fav.id} href={`/product/${fav.product.id}`} style={{ textDecoration: 'none', borderRadius: '12px', overflow: 'hidden', background: 'var(--bg)', border: '1px solid var(--border)', display: 'block', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }} className="fav-card">
-                        <div style={{ height: '90px', background: fav.product.previewBg, overflow: 'hidden' }}>
-                          {fav.product.images && fav.product.images.length > 0
-                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${fav.product.images[0]}`} alt={fav.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>{fav.product.previewEmoji}</div>}
-                        </div>
-                        <div style={{ padding: '8px 10px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '4px' }}>{fav.product.name}</div>
-                          {fav.product.price !== null ? <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)' }}>{fav.product.price} ₽</span> : <span style={{ fontSize: '10px', fontWeight: 700, color: '#1D9E75' }}>Бесплатно</span>}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+                  {!favoritesCollapsed && (
+                    <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                      {lastFavs.map(fav => (
+                        <Link key={fav.id} href={`/product/${fav.product.id}?from=overview`} style={{ textDecoration: 'none', borderRadius: '14px', overflow: 'hidden', background: 'var(--bg2)', border: '1px solid var(--border)', display: 'block', boxShadow: 'var(--shadow-rest)' }} className="fav-card">
+                          <div style={{ aspectRatio: '1 / 1', background: fav.product.previewBg, overflow: 'hidden' }}>
+                            {fav.product.images && fav.product.images.length > 0
+                              ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${fav.product.images[0]}`} alt={fav.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px' }}>{fav.product.previewEmoji}</div>}
+                          </div>
+                          <div style={{ padding: '10px 12px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '6px' }}>{fav.product.name}</div>
+                            {fav.product.price !== null ? <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent)' }}>{fav.product.price} ₽</span> : <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '2px 8px', borderRadius: '20px' }}>Бесплатно</span>}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {!user.isAuthor && (
-                <div style={{ background: 'rgba(41,82,200,0.06)', border: '1px solid rgba(41,82,200,0.15)', borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>Станьте автором</div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Загружайте BIM-семейства и зарабатывайте</div>
-                  </div>
-                  <BecomeAuthorButton />
+                <div style={{ background: 'rgba(72,128,255,0.06)', border: '1px solid rgba(72,128,255,0.15)', borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  {hasPendingAuthorApplication ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <i className="ti ti-clock-hour-4" style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '2px' }}>Заявка на рассмотрении</div>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Мы сообщим, когда модератор примет решение</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>Станьте автором</div>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Загружайте BIM-семейства и зарабатывайте</div>
+                      </div>
+                      <BecomeAuthorButton />
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -497,30 +602,36 @@ export default function AccountClient({ user, orders, favorites, followings = []
           {/* ── Покупки ── */}
           {activeTab === 'orders' && (
             <div>
+              <button onClick={() => setActiveTab(returnTab)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '16px' }} className="back-link">
+                <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} />
+                Назад
+              </button>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои покупки</div>
                 <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{paidOrders.length} {paidOrders.length === 1 ? 'покупка' : 'покупок'}</span>
               </div>
               {orders.length === 0 ? <EmptyState icon="ti-shopping-bag" title="Покупок пока нет" sub="Найдите нужные BIM-модели в каталоге" href="/catalog" cta="Перейти в каталог" /> : (
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                   {orders.flatMap((order, oi) =>
                     order.items.map((item, ii) => (
                       <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderBottom: (oi < orders.length - 1 || ii < order.items.length - 1) ? '1px solid var(--border)' : 'none' }} className="purchase-row">
-                        {/* Картинка */}
-                        <div style={{ width: '72px', height: '56px', borderRadius: '10px', background: item.product.previewBg, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                          {item.product.images && item.product.images.length > 0
-                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${item.product.images[0]}`} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : item.product.previewEmoji}
-                        </div>
-                        {/* Название + мета */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.product.name}
+                        <Link href={`/product/${item.product.id}?from=orders`} style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                          {/* Картинка */}
+                          <div style={{ width: '72px', height: '56px', borderRadius: '10px', background: item.product.previewBg, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                            {item.product.images && item.product.images.length > 0
+                              ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${item.product.images[0]}`} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : item.product.previewEmoji}
                           </div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                            {item.price.toLocaleString('ru')} ₽ · {new Date(order.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {/* Название + мета */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.product.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                              {item.price.toLocaleString('ru')} ₽ · {new Date(order.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </div>
                           </div>
-                        </div>
+                        </Link>
                         {/* Кнопка скачать — только для оплаченных */}
                         {order.status === 'PAID' && (
                           <a
@@ -549,17 +660,21 @@ export default function AccountClient({ user, orders, favorites, followings = []
           {/* ── Избранное ── */}
           {activeTab === 'favorites' && (
             <div>
+              <button onClick={() => setActiveTab(returnTab)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '16px' }} className="back-link">
+                <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} />
+                Назад
+              </button>
               <SectionTitle>Избранное</SectionTitle>
               {favorites.length === 0 ? <EmptyState icon="ti-heart" title="Избранное пусто" sub="Добавляйте понравившиеся модели" href="/catalog" cta="Перейти в каталог" /> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
                   {favorites.map(fav => (
-                    <Link key={fav.id} href={`/product/${fav.product.id}`} style={{ textDecoration: 'none', borderRadius: '14px', overflow: 'hidden', background: 'var(--bg)', border: '1px solid var(--border)', display: 'block', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }} className="fav-card">
-                      <div style={{ height: '130px', background: fav.product.previewBg, overflow: 'hidden' }}>
-                        {fav.product.images && fav.product.images.length > 0 ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${fav.product.images[0]}`} alt={fav.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>{fav.product.previewEmoji}</div>}
+                    <Link key={fav.id} href={`/product/${fav.product.id}?from=favorites`} style={{ textDecoration: 'none', borderRadius: '16px', overflow: 'hidden', background: 'var(--bg2)', border: '1px solid var(--border)', display: 'block', boxShadow: 'var(--shadow-rest)' }} className="fav-card">
+                      <div style={{ aspectRatio: '1 / 1', background: fav.product.previewBg, overflow: 'hidden' }}>
+                        {fav.product.images && fav.product.images.length > 0 ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${fav.product.images[0]}`} alt={fav.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px' }}>{fav.product.previewEmoji}</div>}
                       </div>
-                      <div style={{ padding: '12px 14px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fav.product.name}</div>
-                        {fav.product.price !== null ? <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>{fav.product.price} ₽</span> : <span style={{ fontSize: '11px', fontWeight: 700, color: '#1D9E75', background: 'rgba(29,158,117,0.1)', padding: '3px 8px', borderRadius: '20px' }}>Бесплатно</span>}
+                      <div style={{ padding: '14px 16px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fav.product.name}</div>
+                        {fav.product.price !== null ? <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent)' }}>{fav.product.price} ₽</span> : <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '3px 9px', borderRadius: '20px' }}>Бесплатно</span>}
                       </div>
                     </Link>
                   ))}
@@ -579,7 +694,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
             <div style={{ display: 'grid', gap: '12px', maxWidth: '580px' }}>
               <SectionTitle>Личные данные</SectionTitle>
               {editSuccess && <div style={{ background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', borderRadius: '12px', padding: '13px 16px', fontSize: '13px', color: '#1D9E75', display: 'flex', alignItems: 'center', gap: '10px' }}><i className="ti ti-circle-check" style={{ fontSize: '17px' }} />Профиль успешно обновлён</div>}
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '13px', fontWeight: 600 }}>Основная информация</span>
                   {!editMode && <button onClick={() => setEditMode(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '5px 12px', fontSize: '12px', color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}><i className="ti ti-pencil" style={{ fontSize: '13px', color: 'var(--accent)' }} />Изменить</button>}
@@ -609,7 +724,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                       { label: 'Дата регистрации', value: new Date(user.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' }), icon: 'ti-calendar', note: null },
                     ].map((row, i, arr) => (
                       <div key={row.label} style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(41,82,200,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(72,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <i className={`ti ${row.icon}`} style={{ fontSize: '15px', color: 'var(--accent)' }} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -624,7 +739,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
               </div>
 
               {user.isAuthor && (
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                   <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="ti ti-badge" style={{ fontSize: '15px', color: 'var(--accent)' }} />
@@ -669,7 +784,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                         { label: 'Статус', value: user.isVerified ? '✓ Верифицированный автор' : 'На проверке', icon: 'ti-badge' },
                       ].map((row, i, arr) => (
                         <div key={row.label} style={{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(41,82,200,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
+                          <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(72,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
                             <i className={`ti ${row.icon}`} style={{ fontSize: '15px', color: 'var(--accent)' }} />
                           </div>
                           <div style={{ flex: 1 }}>
@@ -689,7 +804,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 borderRadius: '16px', cursor: 'pointer',
                 fontSize: '14px', fontWeight: 500, color: '#E24B4A',
                 transition: 'background 0.15s', fontFamily: 'inherit',
-                boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+                boxShadow: 'var(--shadow-rest)',
               }} className="signout-btn">
                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(226,75,74,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <i className="ti ti-logout" style={{ fontSize: '18px', color: '#E24B4A' }} />
@@ -706,10 +821,10 @@ export default function AccountClient({ user, orders, favorites, followings = []
           {activeTab === 'security' && (
             <div style={{ display: 'grid', gap: '12px', maxWidth: '580px' }}>
               <SectionTitle>Безопасность</SectionTitle>
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}><span style={{ fontSize: '13px', fontWeight: 600 }}>Вход и пароль</span></div>
                 <Link href="/reset-password" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }} className="profile-action-row">
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(41,82,200,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(72,128,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className="ti ti-lock" style={{ fontSize: '18px', color: 'var(--accent)' }} />
                   </div>
                   <div style={{ flex: 1 }}>
@@ -719,7 +834,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                   <i className="ti ti-chevron-right" style={{ fontSize: '16px', color: 'var(--muted)' }} />
                 </Link>
               </div>
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px 20px', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                 <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>Активные сессии</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(29,158,117,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -736,8 +851,8 @@ export default function AccountClient({ user, orders, favorites, followings = []
           )}
 
           {/* ── Мои модели ── */}
-          {activeTab === 'author-products' && (
-            <div>
+          {activeTab === 'author-products' && user.isAuthor && (
+            <div id="author-products">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои модели</div>
                 <button onClick={() => setActiveTab('author-upload')} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
@@ -748,19 +863,61 @@ export default function AccountClient({ user, orders, favorites, followings = []
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
                 style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', color: 'var(--text)', fontSize: '13px', outline: 'none', marginBottom: '12px', boxSizing: 'border-box', fontFamily: 'inherit' }} />
 
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg2)', borderRadius: '10px', padding: '4px' }}>
+                  {([['all', 'Все'], ['DRAFT', 'Черновик'], ['PENDING', 'На модерации'], ['APPROVED', 'Опубликовано'], ['REJECTED', 'Отклонено']] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => updateApFilters({ status: val })} style={{
+                      padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                      background: apFilters.status === val ? 'var(--bg)' : 'transparent',
+                      color: apFilters.status === val ? 'var(--accent)' : 'var(--muted)',
+                      border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                      boxShadow: apFilters.status === val ? 'var(--shadow-rest)' : 'none',
+                    }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg2)', borderRadius: '10px', padding: '4px' }}>
+                  {([['all', 'Все'], ['paid', 'Платные'], ['free', 'Бесплатные']] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => updateApFilters({ price: val })} style={{
+                      padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                      background: apFilters.price === val ? 'var(--bg)' : 'transparent',
+                      color: apFilters.price === val ? 'var(--accent)' : 'var(--muted)',
+                      border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                      boxShadow: apFilters.price === val ? 'var(--shadow-rest)' : 'none',
+                    }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <select value={apFilters.sort} onChange={e => updateApFilters({ sort: e.target.value })} style={{
+                  marginLeft: 'auto', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '10px', padding: '8px 34px 8px 12px', fontSize: '12px', color: 'var(--text)',
+                  outline: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23848484' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")",
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
+                }}>
+                  <option value="date">По дате</option>
+                  <option value="sales">По продажам</option>
+                  <option value="downloads">По скачиваниям</option>
+                </select>
+              </div>
+
               {filteredAP.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
                   <i className="ti ti-file-3d" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.3 }} />
-                  <p style={{ marginBottom: '16px', fontSize: '14px' }}>{search ? 'Ничего не найдено' : 'У вас пока нет моделей'}</p>
-                  {!search && <button onClick={() => setActiveTab('author-upload')} className="btn-primary">Загрузить первую модель</button>}
+                  <p style={{ marginBottom: '16px', fontSize: '14px' }}>{search || apFilters.status !== 'all' || apFilters.price !== 'all' ? 'Ничего не найдено' : 'У вас пока нет моделей'}</p>
+                  {!search && apFilters.status === 'all' && apFilters.price === 'all' && <button onClick={() => setActiveTab('author-upload')} className="btn-primary">Загрузить первую модель</button>}
                 </div>
               ) : (
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                   {filteredAP.map((product, i) => (
-                    <div key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', borderBottom: i < filteredAP.length - 1 ? '1px solid var(--border)' : 'none' }} className="model-row">
+                    <div key={product.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 20px', borderBottom: i < filteredAP.length - 1 ? '1px solid var(--border)' : 'none' }} className="model-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       {/* Превью */}
                       <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: product.previewBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0, overflow: 'hidden' }}>
-                        {product.previewEmoji}
+                        {product.images && product.images.length > 0 ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${product.images[0]}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : product.previewEmoji}
                       </div>
 
                       {/* Название + мета */}
@@ -779,19 +936,32 @@ export default function AccountClient({ user, orders, favorites, followings = []
                       </span>
 
                       {/* Статус */}
-                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', flexShrink: 0, background: product.isPublished ? 'rgba(29,158,117,0.1)' : 'var(--bg3)', color: product.isPublished ? '#1D9E75' : 'var(--muted)', border: `1px solid ${product.isPublished ? 'rgba(29,158,117,0.25)' : 'var(--border)'}` }}>
-                        {product.isPublished ? 'Опубликовано' : 'Черновик'}
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', flexShrink: 0, background: MODERATION_LABELS[product.moderationStatus].bg, color: MODERATION_LABELS[product.moderationStatus].color, border: `1px solid ${MODERATION_LABELS[product.moderationStatus].color}40` }}>
+                        {MODERATION_LABELS[product.moderationStatus].label}
                       </span>
 
                       {/* Действия */}
-                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                        <Link href={`/product/${product.id}`} style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted)', textDecoration: 'none', padding: '5px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', transition: 'border-color 0.15s, color 0.15s' }} className="model-action-btn">
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <Link href={`/product/${product.id}?from=author-products`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', transition: 'border-color 0.15s, color 0.15s' }} className="model-action-btn">
+                          <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                           Просмотр
                         </Link>
-                        <Link href={`/author-dashboard/edit/${product.id}`} style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted)', textDecoration: 'none', padding: '5px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', transition: 'border-color 0.15s, color 0.15s' }} className="model-action-btn">
+                        <Link href={`/author-dashboard/edit/${product.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', transition: 'background 0.15s, box-shadow 0.15s, transform 0.15s' }} className="model-edit-btn">
+                          <i className="ti ti-pencil" style={{ fontSize: '14px' }} />
                           Изменить
                         </Link>
                       </div>
+                    </div>
+
+                    {product.moderationStatus === 'REJECTED' && product.moderationComment && (
+                      <div style={{ display: 'flex', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,56,38,0.06)', border: '1px solid rgba(239,56,38,0.2)', marginLeft: '58px' }}>
+                        <i className="ti ti-alert-triangle" style={{ fontSize: '15px', color: 'var(--danger)', flexShrink: 0, marginTop: '1px' }} />
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--danger)', marginBottom: '3px' }}>Модератор отклонил — нужно исправить</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{product.moderationComment}</div>
+                        </div>
+                      </div>
+                    )}
                     </div>
                   ))}
                 </div>
@@ -799,104 +969,165 @@ export default function AccountClient({ user, orders, favorites, followings = []
 
               {authorPagination && authorPagination.totalPages > 1 && (
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', padding: '20px 0' }}>
-                  {Array.from({ length: authorPagination.totalPages }, (_, i) => i + 1).map(p => (
-                    <a key={p} href={`/account?page=${p}`} style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${p === authorPagination.currentPage ? 'var(--accent)' : 'var(--border)'}`, background: p === authorPagination.currentPage ? 'var(--accent)' : 'var(--bg2)', color: p === authorPagination.currentPage ? '#fff' : 'var(--muted)', fontSize: '13px', fontWeight: p === authorPagination.currentPage ? 700 : 400, textDecoration: 'none' }}>{p}</a>
-                  ))}
+                  {Array.from({ length: authorPagination.totalPages }, (_, i) => i + 1).map(p => {
+                    const pageParams = new URLSearchParams()
+                    pageParams.set('tab', 'author-products')
+                    if (p !== 1) pageParams.set('page', String(p))
+                    if (apFilters.status !== 'all') pageParams.set('apStatus', apFilters.status)
+                    if (apFilters.price  !== 'all') pageParams.set('apPrice',  apFilters.price)
+                    if (apFilters.sort   !== 'date') pageParams.set('apSort',  apFilters.sort)
+                    if (apFilters.query) pageParams.set('apQ', apFilters.query)
+                    return (
+                      <a key={p} href={`/account?${pageParams}#author-products`} style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${p === authorPagination.currentPage ? 'var(--accent)' : 'var(--border)'}`, background: p === authorPagination.currentPage ? 'var(--accent)' : 'var(--bg2)', color: p === authorPagination.currentPage ? '#fff' : 'var(--muted)', fontSize: '13px', fontWeight: p === authorPagination.currentPage ? 700 : 400, textDecoration: 'none' }}>{p}</a>
+                    )
+                  })}
                 </div>
               )}
             </div>
           )}
 
           {/* ── Загрузить ── */}
-          {activeTab === 'author-upload' && (
+          {activeTab === 'author-upload' && user.isAuthor && (
             <div style={{ maxWidth: '580px' }}>
               <SectionTitle>Загрузить новую модель</SectionTitle>
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                 <UploadProductForm />
               </div>
             </div>
           )}
 
           {/* ── Статистика автора ── */}
-          {activeTab === 'author-stats' && (
+          {activeTab === 'author-stats' && user.isAuthor && (
             <div style={{ display: 'grid', gap: '16px' }}>
               <div style={{ fontSize: '18px', fontWeight: 700 }}>Статистика автора</div>
 
               {stats ? (
                 <>
-                  {/* 2 крупных показателя + 3 маленьких */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    {/* Выручка */}
-                    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <i className="ti ti-currency-rubel" style={{ fontSize: '13px', color: '#1D9E75' }} />
-                        Выручка
-                      </div>
-                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#1D9E75', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-                        {stats.totalRevenue.toLocaleString('ru')} ₽
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{stats.totalSales} продаж</div>
-                    </div>
-                    {/* Скачивания */}
-                    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <i className="ti ti-download" style={{ fontSize: '13px', color: '#F59E0B' }} />
-                        Скачиваний
-                      </div>
-                      <div style={{ fontSize: '32px', fontWeight: 800, color: '#F59E0B', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-                        {stats.totalDownloads.toLocaleString('ru')}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>за всё время</div>
-                    </div>
-                  </div>
-
-                  {/* 3 маленьких */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                     {[
-                      { icon: 'ti-file-3d',     label: 'Всего моделей',  value: stats.totalProducts,     color: 'var(--accent)',   bg: 'rgba(41,82,200,0.08)' },
-                      { icon: 'ti-eye',          label: 'Опубликовано',   value: stats.publishedCount,    color: 'var(--accent)',   bg: 'rgba(41,82,200,0.08)' },
-                      { icon: 'ti-shopping-bag', label: 'Продаж',         value: stats.totalSales,        color: '#1D9E75',         bg: 'rgba(29,158,117,0.08)' },
+                      { icon: 'ti-currency-rubel', label: 'Выручка',         value: `${stats.totalRevenue.toLocaleString('ru')} ₽`, accent: 'var(--success)', bg: 'rgba(29,158,117,0.1)', tab: 'author-sales' as Tab },
+                      { icon: 'ti-shopping-bag',    label: 'Продаж',          value: stats.totalSales,                                accent: 'var(--accent)',  bg: 'rgba(72,128,255,0.1)', tab: 'author-sales' as Tab },
+                      { icon: 'ti-file-3d',         label: 'Всего моделей',   value: stats.totalProducts,                             accent: 'var(--accent)',  bg: 'rgba(72,128,255,0.1)', tab: 'author-products' as Tab },
+                      { icon: 'ti-eye',             label: 'Опубликовано',    value: stats.publishedCount,                            accent: 'var(--accent)',  bg: 'rgba(72,128,255,0.1)', tab: 'author-products' as Tab },
                     ].map(s => (
-                      <div key={s.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <i className={`ti ${s.icon}`} style={{ fontSize: '18px', color: s.color }} />
-                        </div>
+                      <div key={s.label} onClick={() => s.tab && setActiveTab(s.tab)} style={{
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderLeft: `3px solid ${s.accent}`, borderRadius: '16px',
+                        padding: '20px 22px', boxShadow: 'var(--shadow-rest)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
+                        cursor: s.tab ? 'pointer' : 'default',
+                        transition: 'transform 0.15s, box-shadow 0.15s',
+                      }} className={s.tab ? 'stat-card sales-card' : 'sales-card'}>
                         <div>
-                          <div style={{ fontSize: '22px', fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{s.label}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px', fontWeight: 600 }}>{s.label}</div>
+                          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>{s.value}</div>
+                        </div>
+                        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <i className={`ti ${s.icon}`} style={{ fontSize: '22px', color: s.accent }} />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Блок с заглушкой графика — красивее */}
-                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }} className="content-card">
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600 }}>Продажи за 30 дней</span>
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Скоро</span>
+                  {/* Скачивания — отдельно, так как это не денежная метрика */}
+                  <div style={{
+                    background: 'var(--bg)', border: '1px solid var(--border)',
+                    borderRadius: '14px', padding: '16px 20px',
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                    boxShadow: 'var(--shadow-rest)',
+                  }} className="content-card sales-card">
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(72,128,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className="ti ti-download" style={{ fontSize: '17px', color: 'var(--accent)' }} />
                     </div>
-                    <div style={{ padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                      {/* Псевдо-график из SVG */}
-                      <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: '400px', opacity: 0.25 }}>
-                        <polyline
-                          points="0,60 30,50 60,55 90,40 120,45 150,30 180,35 210,25 240,30 270,20 300,28 330,18 360,22 400,15"
-                          fill="none"
-                          stroke="var(--accent)"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <polyline
-                          points="0,60 30,50 60,55 90,40 120,45 150,30 180,35 210,25 240,30 270,20 300,28 330,18 360,22 400,15 400,80 0,80"
-                          fill="rgba(41,82,200,0.15)"
-                          stroke="none"
-                        />
-                      </svg>
-                      <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Детальная аналитика появится в следующей версии</div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{stats.totalDownloads.toLocaleString('ru')} скачиваний за всё время</div>
                     </div>
+                  </div>
+
+                  {/* Топ моделей */}
+                  {authorTopProducts && (authorTopProducts.bySales.length > 0 || authorTopProducts.byDownloads.length > 0) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      {[
+                        { title: 'Топ по продажам',    list: authorTopProducts.bySales,      icon: 'ti-shopping-bag', accent: 'var(--accent)' },
+                        { title: 'Топ по скачиваниям', list: authorTopProducts.byDownloads,  icon: 'ti-download',     accent: '#F59E0B' },
+                      ].map(col => (
+                        <div key={col.title} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
+                          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className={`ti ${col.icon}`} style={{ fontSize: '15px', color: col.accent }} />
+                            <span style={{ fontSize: '13px', fontWeight: 600 }}>{col.title}</span>
+                          </div>
+                          {col.list.filter(p => p.value > 0).length === 0 ? (
+                            <div style={{ padding: '24px 18px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>Нет данных</div>
+                          ) : col.list.filter(p => p.value > 0).map((p, i) => (
+                            <Link key={p.id} href={`/product/${p.id}?from=author-stats`} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < col.list.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none' }} className="top-product-row">
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', width: '16px', flexShrink: 0 }}>{i + 1}</span>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: p.previewBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', overflow: 'hidden' }}>
+                                {p.images && p.images.length > 0 ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.previewEmoji}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0, fontSize: '13px', fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: col.accent, flexShrink: 0 }}>{p.value}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Заглушка детальной аналитики — честная, без фейкового графика */}
+                  <div style={{
+                    background: 'var(--bg2)', border: '1px dashed var(--border)',
+                    borderRadius: '14px', padding: '28px 20px',
+                    textAlign: 'center',
+                  }}>
+                    <i className="ti ti-chart-bar" style={{ fontSize: '28px', color: 'var(--muted)', opacity: 0.4, display: 'block', marginBottom: '10px' }} />
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>Детальная аналитика в разработке</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Графики продаж по дням появятся в следующей версии</div>
                   </div>
                 </>
               ) : null}
+            </div>
+          )}
+
+          {/* ── Продажи (полный список) ── */}
+          {activeTab === 'author-sales' && user.isAuthor && (
+            <div id="author-sales">
+              <button onClick={() => setActiveTab(returnTab)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '16px' }} className="back-link">
+                <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} />
+                Назад
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Продажи</div>
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{stats?.totalSales ?? 0} продаж · {stats?.totalRevenue.toLocaleString('ru') ?? 0} ₽</span>
+              </div>
+
+              {authorSales.length === 0 ? (
+                <EmptyState icon="ti-receipt" title="Продаж пока нет" sub="Как только кто-то купит вашу модель, она появится здесь" />
+              ) : (
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
+                  {authorSales.map((sale, i) => (
+                    <div key={sale.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', borderBottom: i < authorSales.length - 1 ? '1px solid var(--border)' : 'none' }} className="sale-row">
+                      <Link href={`/product/${sale.product.id}?from=author-sales`} style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: sale.product.previewBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', overflow: 'hidden' }}>
+                          {sale.product.images && sale.product.images.length > 0 ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${sale.product.images[0]}`} alt={sale.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : sale.product.previewEmoji}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sale.product.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Купил: {sale.buyerName} · {new Date(sale.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                        </div>
+                      </Link>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>+{sale.price.toLocaleString('ru')} ₽</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {authorSalesPagination && authorSalesPagination.totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
+                  {Array.from({ length: authorSalesPagination.totalPages }, (_, i) => i + 1).map(p => (
+                    <a key={p} href={`/account?tab=author-sales&salesPage=${p}#author-sales`} style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${p === authorSalesPagination.currentPage ? 'var(--accent)' : 'var(--border)'}`, background: p === authorSalesPagination.currentPage ? 'var(--accent)' : 'var(--bg2)', color: p === authorSalesPagination.currentPage ? '#fff' : 'var(--muted)', fontSize: '13px', fontWeight: p === authorSalesPagination.currentPage ? 700 : 400, textDecoration: 'none' }}>{p}</a>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -930,7 +1161,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
           background: transparent;
           display: flex;
           flex-direction: column;
-          padding: 20px 0 20px;
+          padding: 36px 0 20px;
           overflow-x: hidden;
           overflow-y: auto;
           box-sizing: border-box;
@@ -962,14 +1193,14 @@ export default function AccountClient({ user, orders, favorites, followings = []
           flex-shrink: 0;
         }
         .sidebar-avatar-img {
-          width: 72px; height: 72px; border-radius: 50%;
+          width: 84px; height: 84px; border-radius: 50%;
           background: linear-gradient(135deg, var(--accent), var(--accent2));
           color: #fff;
           display: flex; align-items: center; justify-content: center;
-          font-size: 26px; font-weight: 700;
+          font-size: 30px; font-weight: 700;
           position: relative; overflow: hidden;
           transition: opacity 0.18s;
-          box-shadow: 0 4px 16px rgba(41,82,200,0.3);
+          box-shadow: 0 4px 16px rgba(72,128,255,0.3);
         }
         .sidebar-avatar-overlay {
           position: absolute; inset: 0;
@@ -1000,12 +1231,13 @@ export default function AccountClient({ user, orders, favorites, followings = []
 
         /* Метка секции */
         .sidebar-section-label {
-          padding: 12px 12px 4px;
-          font-size: 10px; font-weight: 700;
-          color: var(--muted);
+          padding: 20px 12px 8px;
+          margin-top: 8px;
+          border-top: 1px solid var(--border);
+          font-size: 11px; font-weight: 700;
+          color: var(--accent);
           text-transform: uppercase; letter-spacing: 0.08em;
           white-space: nowrap;
-          opacity: 0.6;
         }
 
         /* Навигация */
@@ -1032,9 +1264,9 @@ export default function AccountClient({ user, orders, favorites, followings = []
           white-space: nowrap;
           font-family: inherit;
         }
-        .sidebar-nav-btn:hover { background: rgba(41,82,200,0.06); color: var(--text); }
+        .sidebar-nav-btn:hover { background: rgba(72,128,255,0.06); color: var(--text); }
         .sidebar-nav-btn.active {
-          background: rgba(41,82,200,0.09);
+          background: rgba(72,128,255,0.09);
           color: var(--accent);
           font-weight: 600;
         }
@@ -1047,11 +1279,15 @@ export default function AccountClient({ user, orders, favorites, followings = []
 
         .sidebar-badge {
           margin-left: auto;
-          background: rgba(41,82,200,0.12);
+          background: rgba(72,128,255,0.12);
           color: var(--accent);
           font-size: 10px; font-weight: 700;
           padding: 1px 6px; border-radius: 10px;
           flex-shrink: 0;
+        }
+        .sidebar-badge--danger {
+          background: var(--danger);
+          color: #fff;
         }
 
         /* Выйти */
@@ -1072,25 +1308,32 @@ export default function AccountClient({ user, orders, favorites, followings = []
         .sidebar-signout:hover { background: rgba(226,75,74,0.08); color: #E24B4A; }
 
         /* ── Вспомогательные ── */
-        .order-item-link:hover    { background: rgba(41,82,200,0.05) !important; }
-        .dark .order-item-link:hover { background: rgba(79,110,247,0.08) !important; }
-        .profile-action-row:hover { background: rgba(41,82,200,0.05) !important; }
-        .dark .profile-action-row:hover { background: rgba(79,110,247,0.08) !important; }
-        .purchase-row:hover       { background: rgba(41,82,200,0.05) !important; }
-        .dark .purchase-row:hover { background: rgba(79,110,247,0.08) !important; }
+        .order-item-link:hover    { background: rgba(72,128,255,0.05) !important; }
+        .dark .order-item-link:hover { background: rgba(72,128,255,0.08) !important; }
+        .profile-action-row:hover { background: rgba(72,128,255,0.05) !important; }
+        .dark .profile-action-row:hover { background: rgba(72,128,255,0.08) !important; }
+        .purchase-row:hover       { background: rgba(72,128,255,0.05) !important; }
+        .dark .purchase-row:hover { background: rgba(72,128,255,0.08) !important; }
+        .sale-row                 { transition: background 0.15s; }
+        .dark .sales-card         { background: #2C2D40 !important; border-top-color: rgba(255,255,255,0.12) !important; border-right-color: rgba(255,255,255,0.12) !important; border-bottom-color: rgba(255,255,255,0.12) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important; }
+        .sale-row:hover           { background: rgba(72,128,255,0.05) !important; }
+        .dark .sale-row:hover     { background: rgba(72,128,255,0.08) !important; }
         .dl-btn:hover             { border-color: var(--accent) !important; color: var(--accent) !important; }
-        .model-row:hover          { background: rgba(41,82,200,0.05) !important; }
-        .dark .model-row:hover     { background: rgba(79,110,247,0.08) !important; }
+        .model-row:hover          { background: rgba(72,128,255,0.05) !important; }
+        .dark .model-row:hover     { background: rgba(72,128,255,0.08) !important; }
+        .top-product-row:hover    { background: rgba(72,128,255,0.05) !important; }
         .model-action-btn:hover   { border-color: var(--accent) !important; color: var(--accent) !important; }
+        .model-edit-btn:hover     { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; box-shadow: 0 4px 12px rgba(72,128,255,0.35); transform: translateY(-1px); }
         .fav-card           { transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s; }
-        .fav-card:hover           { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(41,82,200,0.12); border-color: var(--accent) !important; }
-        .dark .fav-card:hover     { box-shadow: 0 8px 24px rgba(79,110,247,0.2); }
+        .fav-card:hover           { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(72,128,255,0.15) !important; border-color: var(--accent) !important; }
+        .dark .fav-card:hover     { box-shadow: 0 8px 20px rgba(72,128,255,0.2) !important; }
         .purchase-row             { transition: background 0.15s; }
         .model-row                { transition: background 0.15s; }
-        .stat-card:hover { transform: translateY(-2px); filter: brightness(1.05); }
-        .author-stat-cell:hover   { background: rgba(41,82,200,0.05) !important; }
-        .dark .author-stat-cell:hover { background: rgba(79,110,247,0.08) !important; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover) !important; }
+        .author-stat-cell:hover   { background: rgba(72,128,255,0.05) !important; }
+        .dark .author-stat-cell:hover { background: rgba(72,128,255,0.08) !important; }
         .author-follow-link:hover  { border-color: var(--accent) !important; color: var(--accent) !important; }
+        .back-link:hover { color: var(--accent) !important; }
         .author-card-inner {
           background: #fff;
           border: 1.5px solid #e8eaed;
@@ -1103,15 +1346,15 @@ export default function AccountClient({ user, orders, favorites, followings = []
         .author-card-inner:hover {
           border-color: var(--accent);
           transform: translateY(-3px);
-          box-shadow: 0 8px 24px rgba(41,82,200,0.12);
+          box-shadow: 0 8px 24px rgba(72,128,255,0.12);
         }
         .dark .author-card-inner {
           background: #1a1d2e;
           border-color: rgba(255,255,255,0.1);
         }
         .dark .author-card-inner:hover {
-          border-color: rgba(79,110,247,0.5);
-          box-shadow: 0 8px 24px rgba(79,110,247,0.15);
+          border-color: rgba(72,128,255,0.5);
+          box-shadow: 0 8px 24px rgba(72,128,255,0.15);
         }
         .sub-search { background: #fff !important; }
         .dark .sub-search { background: #1a1d2e !important; }

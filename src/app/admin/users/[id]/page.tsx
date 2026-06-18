@@ -40,6 +40,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         image:         user.image,
         role:          user.role,
         emailVerified: user.emailVerified,
+        isBanned:      (user as any).isBanned ?? false,
         createdAt:     user.createdAt.toISOString(),
         updatedAt:     user.updatedAt.toISOString(),
         ordersCount:   user._count.orders,

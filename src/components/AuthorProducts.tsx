@@ -77,25 +77,24 @@ export default function AuthorProducts({ products, authorName }: Props) {
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
 
-        {/* Кнопка фильтров — слева, акцентная */}
+        {/* Кнопка фильтров — слева, согласована с остальным тулбаром */}
         <button
           onClick={() => setFiltersOpen(o => !o)}
           className="filters-btn"
           style={{
             display: 'flex', alignItems: 'center', gap: '7px', flexShrink: 0,
-            background: 'var(--accent)',
-            border: 'none',
+            background: filtersOpen ? 'rgba(72,128,255,0.08)' : 'var(--bg)',
+            border: `1px solid ${filtersOpen || hasFilters ? 'var(--accent)' : 'var(--border)'}`,
             borderRadius: '10px', padding: '10px 18px',
-            fontSize: '13px', fontWeight: 700,
-            color: '#fff',
+            fontSize: '13px', fontWeight: 600,
+            color: filtersOpen || hasFilters ? 'var(--accent)' : 'var(--text)',
             cursor: 'pointer', fontFamily: 'inherit',
-            opacity: filtersOpen ? 0.85 : 1,
           }}
         >
           <i className="ti ti-adjustments-horizontal" style={{ fontSize: '15px' }} />
           Фильтры
           {hasFilters && (
-            <span style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '10px' }}>
+            <span style={{ background: 'var(--accent)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '10px' }}>
               {[category ? 1 : 0, priceType !== 'all' ? 1 : 0, versions.length].reduce((a, b) => a + b, 0)}
             </span>
           )}
@@ -197,19 +196,19 @@ export default function AuthorProducts({ products, authorName }: Props) {
       {hasFilters && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
           {category && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
               {category}
               <button onClick={() => setCategory('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, lineHeight: 1 }}>×</button>
             </span>
           )}
           {priceType !== 'all' && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
               {priceType === 'free' ? 'Бесплатные' : 'Платные'}
               <button onClick={() => setPriceType('all')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, lineHeight: 1 }}>×</button>
             </span>
           )}
           {versions.map(v => (
-            <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(41,82,200,0.08)', border: '1px solid rgba(41,82,200,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+            <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '20px', padding: '4px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
               Revit {v}
               <button onClick={() => toggleVersion(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, lineHeight: 1 }}>×</button>
             </span>
@@ -248,9 +247,8 @@ export default function AuthorProducts({ products, authorName }: Props) {
         .author-search-input:focus { border-color: var(--accent) !important; }
         .author-sort-select:hover  { border-color: var(--accent) !important; }
         .reset-filters-btn:hover   { border-color: var(--accent) !important; color: var(--accent) !important; }
-        .filters-btn { transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s !important; }
-        .filters-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(41,82,200,0.35) !important; opacity: 0.9; }
-        .filters-btn:active { transform: translateY(0); }
+        .filters-btn { transition: border-color 0.15s, background 0.15s, color 0.15s !important; }
+        .filters-btn:hover { border-color: var(--accent) !important; color: var(--accent) !important; }
         @media (max-width: 1024px) { .author-products-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px)  { .author-products-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 480px)  { .author-products-grid { grid-template-columns: 1fr; } }

@@ -2,6 +2,7 @@
 'use client'
 
 import Link from 'next/link'
+import type { JSX } from 'react'
 
 export type Category = {
   slug:   string
@@ -54,7 +55,10 @@ export default function CategoryGrid({ title = 'Популярные катег�
           {list.map(cat => (
             <Link key={cat.slug} href={`/catalog?category=${cat.slug}`} className="cat-card">
               <div className="cat-icon">{ICONS[cat.slug] ?? FALLBACK}</div>
-              <span className="cat-name">{cat.name}</span>
+              <div className="cat-text">
+                <span className="cat-name">{cat.name}</span>
+                {cat.count && <span className="cat-count">{cat.count}</span>}
+              </div>
             </Link>
           ))}
         </div>
@@ -91,9 +95,14 @@ export default function CategoryGrid({ title = 'Популярные катег�
         }
         .cat-icon svg { width: 100%; height: 100%; }
         .cat-card:hover .cat-icon { color: var(--accent); opacity: 1; }
+        .cat-text { display: flex; flex-direction: column; align-items: center; gap: 3px; }
         .cat-name {
           font-size: 11px; font-weight: 500; color: var(--text);
           text-align: center; line-height: 1.3; padding: 0 4px;
+        }
+        .cat-count {
+          font-size: 10px; font-weight: 500; color: var(--muted);
+          text-align: center; line-height: 1.2;
         }
 
         @media (max-width: 900px)  { .cats-row { grid-template-columns: repeat(4, 1fr); } }

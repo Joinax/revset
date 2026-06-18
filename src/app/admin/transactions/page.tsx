@@ -8,7 +8,7 @@ import AdminTransactionsClient from './AdminTransactionsClient'
 export default async function AdminTransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>
+  searchParams: Promise<{ status?: string; q?: string; page?: string; userId?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session || session.user.role !== 'admin') redirect('/')
@@ -16,16 +16,28 @@ export default async function AdminTransactionsPage({
   const params = await searchParams
   const status = params.status ?? 'all'
   const q      = params.q      ?? ''
+  const userId = params.userId ?? ''
   const page   = Math.max(1, Number(params.page ?? 1))
   const PER_PAGE = 15
 
   const where: any = {}
   if (status !== 'all') where.status = status
+  if (userId) where.userId = userId
   if (q) {
     where.OR = [
       { user: { name:  { contains: q, mode: 'insensitive' } } },
       { user: { email: { contains: q, mode: 'insensitive' } } },
     ]
+  }
+
+  // Если фильтруем по пользователю — подгружаем его имя для баннера
+  let filterUserName = ''
+  if (userId) {
+    const filterUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    })
+    filterUserName = filterUser?.name ?? ''
   }
 
   const [orders, total, stats] = await Promise.all([
@@ -65,6 +77,8 @@ export default async function AdminTransactionsPage({
       perPage={PER_PAGE}
       currentStatus={status}
       currentQ={q}
+      currentUserId={userId}
+      currentUserName={filterUserName}
       totalRevenue={stats._sum.totalAmount ?? 0}
       totalPaid={stats._count.id}
     />

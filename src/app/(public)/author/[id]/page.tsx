@@ -1,4 +1,5 @@
 // src/app/author/[id]/page.tsx
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
@@ -6,8 +7,9 @@ import { db } from '@/lib/db'
 import AuthorProducts from '@/components/AuthorProducts'
 import AuthorSubscribeButton from '@/components/AuthorSubscribeButton'
 
-export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AuthorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = await params
+  const { from } = await searchParams
 
   const [author, session] = await Promise.all([
     db.user.findUnique({
@@ -29,7 +31,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
     auth.api.getSession({ headers: await headers() }),
   ])
 
-  if (!author || author.role !== 'author') notFound()
+  if (!author || !author.authorProfile) notFound()
 
   let isFollowing = false
   if (session?.user && session.user.id !== id) {
@@ -40,6 +42,15 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   }
 
   const memberSince = new Date(author.createdAt).toLocaleDateString('ru', { month: 'long', year: 'numeric' })
+    .replace(/^[а-яё]+/, w => {
+      // toLocaleDateString даёт именительный падеж ("июнь"), а нужен родительный ("июня")
+      const MONTHS_GENITIVE: Record<string, string> = {
+        'январь': 'января', 'февраль': 'февраля', 'март': 'марта', 'апрель': 'апреля',
+        'май': 'мая', 'июнь': 'июня', 'июль': 'июля', 'август': 'августа',
+        'сентябрь': 'сентября', 'октябрь': 'октября', 'ноябрь': 'ноября', 'декабрь': 'декабря',
+      }
+      return MONTHS_GENITIVE[w] ?? w
+    })
 
   const mappedProducts = author.products.map(p => ({
     id:            p.id,
@@ -65,6 +76,12 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
 
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '20px 48px 0' }}>
+          {from && (
+            <Link href={`/account?tab=${from}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--muted)', textDecoration: 'none', marginBottom: '12px' }} className="back-to-account-link">
+              <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} />
+              Назад в личный кабинет
+            </Link>
+          )}
           <div className="author-hero">
             <div className="author-hero-pattern" />
             <div className="author-hero-overlay" />
@@ -90,7 +107,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                       {author.name}
                     </h1>
                     {author.authorProfile?.isVerified && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#1D9E75', background: 'rgba(29,158,117,0.15)', border: '1px solid rgba(29,158,117,0.3)', padding: '3px 10px', borderRadius: '20px', fontWeight: 700 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--success)', background: 'rgba(29,158,117,0.15)', border: '1px solid rgba(29,158,117,0.3)', padding: '3px 10px', borderRadius: '20px', fontWeight: 700 }}>
                         <i className="ti ti-circle-check-filled" style={{ fontSize: '13px' }} />
                         Проверенный автор
                       </span>
@@ -156,6 +173,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
           width: 100%; padding: 40px 48px;
         }
         .dark .author-hero { box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.6); }
+        .back-to-account-link:hover { color: var(--accent) !important; }
 
         @media (max-width: 768px) {
           .author-hero-inner { padding: 28px 16px 36px; }

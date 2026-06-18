@@ -16,6 +16,7 @@ type User = {
   totalRevenue: number
   ordersCount: number
   productsCount: number
+  isBanned: boolean
 }
 
 type Props = {
@@ -32,6 +33,7 @@ const ROLES = [
   { value: 'user',   label: 'Покупатели' },
   { value: 'author', label: 'Авторы' },
   { value: 'admin',  label: 'Админы' },
+  { value: 'banned', label: 'Заблокированные' },
 ]
 
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -145,12 +147,12 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
         {/* Table header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr',
+          gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr 1fr',
           padding: '12px 20px',
           borderBottom: '1px solid var(--admin-border)',
           background: 'var(--admin-bg2)',
         }}>
-          {['Пользователь', 'Email', 'Роль', 'Заказы', 'Семейства', 'Дата'].map(h => (
+          {['Пользователь', 'Email', 'Роль', 'Статус', 'Заказы', 'Семейства', 'Дата'].map(h => (
             <span key={h} style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {h}
             </span>
@@ -168,7 +170,7 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
             return (
               <Link key={user.id} href={`/admin/users/${user.id}`} className="users-row" style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr',
+                gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr 1fr',
                 padding: '14px 20px',
                 borderBottom: '1px solid var(--admin-border)',
                 alignItems: 'center',
@@ -214,6 +216,18 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
                     padding: '3px 10px', borderRadius: '20px',
                   }}>
                     {roleInfo.label}
+                  </span>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <span style={{
+                    fontSize: '12px', fontWeight: 600,
+                    padding: '3px 10px', borderRadius: '20px',
+                    color:       user.isBanned ? '#EF3826' : '#00B69B',
+                    background:  user.isBanned ? 'rgba(239,56,38,0.1)' : 'rgba(0,182,155,0.1)',
+                  }}>
+                    {user.isBanned ? 'Заблокирован' : 'Активен'}
                   </span>
                 </div>
 

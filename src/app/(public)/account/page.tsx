@@ -1,21 +1,30 @@
-// src/app/account/page.tsx
+// src/app/(public)/account/page.tsx
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import AccountClient from './AccountClient'
 
+type ModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; apStatus?: string; apPrice?: string; apSort?: string; apQ?: string; salesPage?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect('/login')
 
-  const { page: pageParam } = await searchParams
+  const { page: pageParam, apStatus, apPrice, apSort, apQ, salesPage: salesPageParam } = await searchParams
+  const salesPage = Math.max(1, parseInt(salesPageParam ?? '1', 10))
+  const salesPerPage = 15
   const page    = Math.max(1, parseInt(pageParam ?? '1', 10))
   const perPage = 10
+
+  const status: 'all' | ModerationStatus = apStatus ? (apStatus as ModerationStatus) : 'all'
+  const price:  'all' | 'free' | 'paid'   = (apPrice as 'free' | 'paid') || 'all'
+  const sort:   'date' | 'sales' | 'downloads' = (apSort as 'sales' | 'downloads') || 'date'
+  const query   = apQ || ''
 
   const [user, orders, favorites, followings] = await Promise.all([
     db.user.findUnique({
@@ -50,40 +59,102 @@ export default async function AccountPage({
 
   if (!user) redirect('/login')
 
-  const isAuthor = !!user.authorProfile
+  const isAuthor = user.role === 'author' && !!user.authorProfile
+  // Профиль создан (форма "Стать автором" отправлена), но роль ещё не подтверждена админом
+  const hasPendingAuthorApplication = !!user.authorProfile && user.role !== 'author'
 
-  const [authorProducts, authorProductsTotal, authorStats] = isAuthor
-    ? await Promise.all([
-        db.product.findMany({
-          where:   { authorId: user.id },
-          orderBy: { createdAt: 'desc' },
-          skip:    (page - 1) * perPage,
-          take:    perPage,
-        }),
-        db.product.count({ where: { authorId: user.id } }),
-        db.product.aggregate({
-          where: { authorId: user.id },
-          _count: { id: true },
-          _sum:   { downloads: true },
-        }).then(async agg => {
-          const published = await db.product.count({
-            where: { authorId: user.id, isPublished: true },
-          })
-          const salesData = await db.orderItem.aggregate({
-            where:  { product: { authorId: user.id }, order: { status: 'PAID' } },
-            _count: { id: true },
-            _sum:   { price: true },
-          })
-          return {
-            totalProducts:  agg._count.id,
-            publishedCount: published,
-            totalDownloads: agg._sum.downloads ?? 0,
-            totalSales:     salesData._count.id,
-            totalRevenue:   salesData._sum.price ?? 0,
-          }
-        }),
-      ])
-    : [[], 0, null]
+  let authorProducts: any[] = []
+  let authorProductsTotal = 0
+  let authorStats: any = null
+  let allAuthorProductsForTop: any[] = []  // для блока "Топ моделей" в статистике — без пагинации
+  let authorSales: any[] = []
+  let authorSalesTotal = 0
+
+  if (isAuthor) {
+    const where: any = { authorId: user.id }
+    if (status !== 'all') where.moderationStatus = status
+    if (price === 'free')  where.price = null
+    if (price === 'paid')  where.price = { not: null }
+    if (query) where.name = { contains: query, mode: 'insensitive' }
+
+    const [productsRaw, agg, published, rejectedCount, salesData, salesByProduct] = await Promise.all([
+      // Сортировка по дате — можно сделать прямо в БД; по продажам/скачиваниям — после подгрузки всех подходящих товаров
+      sort === 'downloads'
+        ? db.product.findMany({ where, orderBy: { downloads: 'desc' } })
+        : db.product.findMany({ where, orderBy: { createdAt: 'desc' } }),
+      db.product.aggregate({
+        where: { authorId: user.id },
+        _count: { id: true },
+        _sum:   { downloads: true },
+      }),
+      db.product.count({ where: { authorId: user.id, isPublished: true } }),
+      db.product.count({ where: { authorId: user.id, moderationStatus: 'REJECTED' } }),
+      db.orderItem.aggregate({
+        where:  { product: { authorId: user.id }, order: { status: 'PAID' } },
+        _count: { id: true },
+        _sum:   { price: true },
+      }),
+      db.orderItem.groupBy({
+        by:     ['productId'],
+        where:  { product: { authorId: user.id }, order: { status: 'PAID' } },
+        _count: { id: true },
+      }),
+    ])
+
+    const salesCountMap = new Map(salesByProduct.map(s => [s.productId, s._count.id]))
+
+    let productsWithSales = productsRaw.map(p => ({ ...p, salesCount: salesCountMap.get(p.id) ?? 0 }))
+
+    if (sort === 'sales') {
+      productsWithSales = [...productsWithSales].sort((a, b) => b.salesCount - a.salesCount)
+    }
+
+    authorProductsTotal = productsWithSales.length
+    allAuthorProductsForTop = productsWithSales  // полный список (после фильтров, без пагинации) — для топов в статистике
+    authorProducts = productsWithSales.slice((page - 1) * perPage, page * perPage)
+
+    authorStats = {
+      totalProducts:  agg._count.id,
+      publishedCount: published,
+      rejectedCount,
+      totalDownloads: agg._sum.downloads ?? 0,
+      totalSales:     salesData._count.id,
+      totalRevenue:   salesData._sum.price ?? 0,
+    }
+
+    // Полный список продаж — все OrderItem по товарам этого автора, где заказ оплачен
+    const [salesRaw, salesTotal] = await Promise.all([
+      db.orderItem.findMany({
+        where:   { product: { authorId: user.id }, order: { status: 'PAID' } },
+        orderBy: { order: { createdAt: 'desc' } },
+        skip:    (salesPage - 1) * salesPerPage,
+        take:    salesPerPage,
+        include: {
+          product: { select: { id: true, name: true, previewEmoji: true, previewBg: true, images: true } },
+          order:   { select: { createdAt: true, status: true, user: { select: { name: true } } } },
+        },
+      }),
+      db.orderItem.count({
+        where: { product: { authorId: user.id }, order: { status: 'PAID' } },
+      }),
+    ])
+
+    authorSales = salesRaw.map(s => ({
+      id:          s.id,
+      price:       s.price,
+      createdAt:   s.order.createdAt.toISOString(),
+      orderStatus: s.order.status,
+      buyerName:   s.order.user.name ?? 'Без имени',
+      product: {
+        id:           s.product.id,
+        name:         s.product.name,
+        previewEmoji: s.product.previewEmoji ?? '📦',
+        previewBg:    s.product.previewBg    ?? '#141420',
+        images:       s.product.images       ?? [],
+      },
+    }))
+    authorSalesTotal = salesTotal
+  }
 
   return (
     <AccountClient
@@ -99,6 +170,7 @@ export default async function AccountPage({
         city:       user.authorProfile?.city       ?? null,
         bio:        user.authorProfile?.bio        ?? null,
       }}
+      hasPendingAuthorApplication={hasPendingAuthorApplication}
       orders={orders.map(o => ({
         id:          o.id,
         status:      o.status,
@@ -138,24 +210,42 @@ export default async function AccountPage({
         },
       }))}
       authorProducts={isAuthor ? authorProducts.map(p => ({
-        id:           p.id,
-        name:         p.name,
-        price:        p.price,
-        isPublished:  p.isPublished,
-        isNew:        p.isNew,
-        downloads:    p.downloads,
-        previewEmoji: p.previewEmoji ?? '📦',
-        previewBg:    p.previewBg    ?? '#141420',
-        category:     p.category,
-        createdAt:    p.createdAt.toISOString(),
-        reviewCount:  0,
-        salesCount:   0,
+        id:               p.id,
+        name:             p.name,
+        price:            p.price,
+        isPublished:      p.isPublished,
+        moderationStatus: p.moderationStatus,
+        moderationComment: p.moderationComment ?? null,
+        isNew:            p.isNew,
+        downloads:        p.downloads,
+        previewEmoji:     p.previewEmoji ?? '📦',
+        previewBg:        p.previewBg    ?? '#141420',
+        images:           p.images       ?? [],
+        category:         p.category,
+        createdAt:        p.createdAt.toISOString(),
+        reviewCount:      0,
+        salesCount:       p.salesCount,
       })) : []}
+      authorTopProducts={isAuthor ? {
+        bySales: [...allAuthorProductsForTop].sort((a, b) => b.salesCount - a.salesCount).slice(0, 5).map(p => ({
+          id: p.id, name: p.name, previewEmoji: p.previewEmoji ?? '📦', previewBg: p.previewBg ?? '#141420', value: p.salesCount, images: p.images ?? [],
+        })),
+        byDownloads: [...allAuthorProductsForTop].sort((a, b) => b.downloads - a.downloads).slice(0, 5).map(p => ({
+          id: p.id, name: p.name, previewEmoji: p.previewEmoji ?? '📦', previewBg: p.previewBg ?? '#141420', value: p.downloads, images: p.images ?? [],
+        })),
+      } : undefined}
       authorStats={authorStats ?? undefined}
+      authorFilters={{ status, price, sort, query }}
       authorPagination={isAuthor ? {
         currentPage: page,
         totalPages:  Math.ceil(authorProductsTotal / perPage),
         perPage,
+      } : undefined}
+      authorSales={authorSales}
+      authorSalesPagination={isAuthor ? {
+        currentPage: salesPage,
+        totalPages:  Math.ceil(authorSalesTotal / salesPerPage),
+        perPage:     salesPerPage,
       } : undefined}
     />
   )

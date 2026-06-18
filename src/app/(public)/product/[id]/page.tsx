@@ -6,8 +6,15 @@ import { db } from '@/lib/db'
 import ProductClient from './ProductClient'
 export { generateMetadata } from './metadata'
 
-export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string }>
+}) {
   const { id } = await params
+  const { from } = await searchParams
 
   const [product, session] = await Promise.all([
     db.product.findUnique({
@@ -57,6 +64,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       isFavorited={isFavorited}
       isInCart={isInCart}
       isOwnProduct={isOwnProduct}
+      cameFromAccount={from}
     />
   )
 }

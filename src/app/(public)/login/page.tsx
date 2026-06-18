@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { signIn } from '@/lib/auth-client'
+import { signIn, sendVerificationEmail } from '@/lib/auth-client'
 import { useAppSession } from '@/components/SessionProvider'
 
 export default function LoginPage() {
@@ -14,22 +14,46 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setNeedsVerification(false)
+    setResendState('idle')
     setLoading(true)
 
     const { error } = await signIn.email({ email, password, callbackURL: '/' })
 
     if (error) {
       setLoading(false)
-      setError('Неверный email или пароль')
+      // better-auth отдаёт 403 и для бана (наш хук, текст уже на русском),
+      // и для неподтверждённой почты (текст "Email not verified" на английском) —
+      // различаем по самому сообщению
+      if (error.message === 'Email not verified') {
+        setError('Email не подтверждён. Проверьте почту или запросите письмо повторно.')
+        setNeedsVerification(true)
+      } else if (error.status === 403 && error.message) {
+        setError(error.message)
+      } else {
+        setError('Неверный email или пароль')
+      }
       return
     }
 
     await refresh()   // ← обновляем сессию в провайдере
     router.push('/')
+  }
+
+  async function handleResend() {
+    setResendState('sending')
+    try {
+      await sendVerificationEmail({ email, callbackURL: '/' })
+      setResendState('sent')
+    } catch {
+      setResendState('idle')
+    }
   }
 
   return (
@@ -64,6 +88,19 @@ export default function LoginPage() {
               <div style={{ background: 'rgba(226,75,74,0.1)', border: '1px solid rgba(226,75,74,0.3)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: 'var(--danger)' }}>
                 {error}
               </div>
+            )}
+
+            {needsVerification && (
+              resendState === 'sent' ? (
+                <div style={{ fontSize: '12px', color: 'var(--accent)' }}>
+                  Письмо отправлено повторно. Проверьте почту (и папку «Спам»).
+                </div>
+              ) : (
+                <button type="button" onClick={handleResend} disabled={resendState === 'sending'}
+                  style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: 'var(--accent)', cursor: resendState === 'sending' ? 'not-allowed' : 'pointer', textAlign: 'left', fontWeight: 600 }}>
+                  {resendState === 'sending' ? 'Отправляем...' : 'Отправить письмо повторно'}
+                </button>
+              )
             )}
 
             <button type="submit" disabled={loading}

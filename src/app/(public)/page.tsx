@@ -8,10 +8,17 @@ import { auth }         from '@/lib/auth'
 import { headers }      from 'next/headers'
 import Link             from 'next/link'
 
+function pluralizeModels(n: number) {
+  const mod10 = n % 10, mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return `${n} модель`
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return `${n} модели`
+  return `${n} моделей`
+}
+
 export default async function HomePage() {
   const session = await auth.api.getSession({ headers: await headers() })
 
-  const [categories, products, , , favorites] = await Promise.all([
+  const [categories, products, , , favorites, categoryCounts] = await Promise.all([
     db.category.findMany({ orderBy: { order: 'asc' } }),
     db.product.findMany({
       where:   { isPublished: true },
@@ -29,7 +36,14 @@ export default async function HomePage() {
       where:  { userId: session.user.id },
       select: { productId: true },
     }) : Promise.resolve([]),
+    db.product.groupBy({
+      by:     ['categoryId'],
+      where:  { isPublished: true },
+      _count: { id: true },
+    }),
   ])
+
+  const categoryCountMap = new Map(categoryCounts.map(c => [c.categoryId, c._count.id]))
 
   const favoriteIds = new Set(favorites.map(f => f.productId))
 
@@ -52,7 +66,7 @@ export default async function HomePage() {
   const mappedCategories = categories.map(c => ({
     slug:   c.slug,
     name:   c.name,
-    count:  '',
+    count:  categoryCountMap.has(c.id) ? pluralizeModels(categoryCountMap.get(c.id)!) : '',
     emoji:  c.emoji  ?? '📦',
     iconBg: c.iconBg ?? '#1C1C28',
   }))

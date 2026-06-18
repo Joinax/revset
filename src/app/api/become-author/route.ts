@@ -1,6 +1,7 @@
 // src/app/api/become-author/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
@@ -25,23 +26,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Вы уже являетесь автором' }, { status: 400 })
     }
 
+    if (user.authorProfile) {
+      return NextResponse.json({ error: 'Заявка уже отправлена и ожидает рассмотрения' }, { status: 400 })
+    }
+
     const { bio, city } = await req.json()
 
-    // Меняем роль и создаём профиль автора
-    await db.user.update({
-      where: { id: session.user.id },
+    // Роль НЕ меняем сразу — только создаём профиль-заявку.
+    // Роль 'author' выдаёт администратор после проверки в /admin/verification.
+    await db.authorProfile.create({
       data: {
-        role: 'author',
-        authorProfile: {
-          create: {
-            bio:          bio  || null,
-            city:         city || null,
-            isVerified:   false,
-            acceptOrders: false,
-          },
-        },
+        userId:       session.user.id,
+        bio:          bio  || null,
+        city:         city || null,
+        isVerified:   false,
+        acceptOrders: false,
       },
     })
+
+    revalidatePath('/admin/verification')
 
     return NextResponse.json({ ok: true })
 

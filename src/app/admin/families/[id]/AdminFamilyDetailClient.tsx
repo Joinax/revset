@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useModerationCount } from '@/hooks/useModerationCount'
+
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 
 type Product = {
   id: string
@@ -12,6 +16,8 @@ type Product = {
   categorySlug: string
   revitVersions: string[]
   isPublished: boolean
+  moderationStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  moderationComment: string | null
   isNew: boolean
   downloads: number
   reviewCount: number
@@ -19,6 +25,7 @@ type Product = {
   avgRating: number | null
   createdAt: string
   bimParams: string
+  images: string[]
   emoji: string
   authorId: string
   authorName: string
@@ -68,6 +75,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function AdminFamilyDetailClient({ product, categories }: Props) {
   const router = useRouter()
+  const { mutate: mutateModerationCount } = useModerationCount()
   const [name,          setName]          = useState(product.name)
   const [description,   setDescription]   = useState(product.description)
   const [price,         setPrice]         = useState(product.price)
@@ -75,6 +83,28 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
   const [versions,      setVersions]      = useState(product.revitVersions)
   const [isPublished,   setIsPublished]   = useState(product.isPublished)
   const [isNew,         setIsNew]         = useState(product.isNew)
+  const [comment,       setComment]       = useState(product.moderationComment ?? '')
+  const [fileDownloading, setFileDownloading] = useState(false)
+  const [fileError,       setFileError]       = useState('')
+
+  const bimFileName = (() => {
+    try { return JSON.parse(product.bimParams)?.fileName ?? '' } catch { return '' }
+  })()
+
+  async function handleDownloadFile() {
+    setFileDownloading(true)
+    setFileError('')
+    try {
+      const res = await fetch(`/api/download/${product.id}`)
+      const data = await res.json()
+      if (!res.ok) { setFileError(data.error ?? 'Не удалось получить файл'); return }
+      window.open(data.downloadUrl, '_blank')
+    } catch {
+      setFileError('Ошибка соединения')
+    } finally {
+      setFileDownloading(false)
+    }
+  }
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
   const [error,         setError]         = useState('')
@@ -86,6 +116,7 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
   async function handleSave() {
     if (!name.trim()) { setError('Укажите название'); return }
     if (versions.length === 0) { setError('Выберите хотя бы одну версию Revit'); return }
+    if (!isPublished && !comment.trim()) { setError('Укажите причину отклонения — автор должен понимать, что исправить'); return }
 
     setSaving(true)
     setError('')
@@ -100,6 +131,8 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
         revitVersions: versions,
         isPublished,
         isNew,
+        asAdmin: true,
+        moderationComment: comment.trim() || null,
       }),
     })
 
@@ -109,6 +142,8 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
     if (!res.ok) { setError(data.error ?? 'Ошибка сохранения'); return }
 
     setSaved(true)
+    // Инвалидируем счётчик модерации в сайдбаре — статус isPublished мог измениться
+    mutateModerationCount()
     setTimeout(() => { setSaved(false); router.refresh() }, 1500)
   }
 
@@ -119,7 +154,7 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
     p ? Number(p).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }) : 'Бесплатно'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '800px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Back */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.back()} style={{
@@ -148,9 +183,12 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
           width: '56px', height: '56px', borderRadius: '14px',
           background: 'var(--admin-bg2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '28px', flexShrink: 0,
+          fontSize: '28px', flexShrink: 0, overflow: 'hidden',
         }}>
-          {product.emoji}
+          {product.images.length > 0
+            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${product.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : product.emoji
+          }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--admin-text)', margin: '0 0 4px' }}>{product.name}</h1>
@@ -186,6 +224,53 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
           }}>
             Профиль <i className="ti ti-arrow-right" style={{ fontSize: '14px' }} />
           </Link>
+        </div>
+      </Section>
+
+      {/* Материалы на проверку */}
+      <Section title="Материалы на проверку">
+        <div>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>
+            Фото ({product.images.length})
+          </label>
+          {product.images.length === 0 ? (
+            <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Автор не приложил фото</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+              {product.images.map((img, i) => (
+                <a key={img + i} href={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} target="_blank" rel="noreferrer"
+                  style={{ display: 'block', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
+                  <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>RFA файл</label>
+          {!bimFileName ? (
+            <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Файл не найден</p>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px', borderRadius: '10px', background: 'var(--admin-bg2)', border: '1px solid var(--admin-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <i className="ti ti-file-3d" style={{ fontSize: '18px', color: 'var(--admin-accent)', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bimFileName}</span>
+              </div>
+              <button onClick={handleDownloadFile} disabled={fileDownloading} style={{
+                display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+                padding: '8px 16px', borderRadius: '8px', border: 'none',
+                background: 'var(--admin-accent)', color: '#fff', fontSize: '13px', fontWeight: 600,
+                cursor: fileDownloading ? 'not-allowed' : 'pointer', opacity: fileDownloading ? 0.7 : 1,
+              }}>
+                <i className="ti ti-download" style={{ fontSize: '14px' }} />
+                {fileDownloading ? 'Получаем ссылку...' : 'Скачать для проверки'}
+              </button>
+            </div>
+          )}
+          {fileError && (
+            <div style={{ fontSize: '12px', color: 'var(--admin-danger)', marginTop: '8px' }}>{fileError}</div>
+          )}
         </div>
       </Section>
 
@@ -246,6 +331,20 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
             </div>
             <Toggle checked={isPublished} onChange={setIsPublished} />
           </div>
+
+          {!isPublished && (
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-danger)', display: 'block', marginBottom: '6px' }}>
+                Причина отклонения — видна автору
+              </label>
+              <textarea
+                style={{ ...inputStyle, resize: 'vertical', minHeight: '70px', borderColor: !comment.trim() ? 'rgba(239,56,38,0.4)' : 'var(--admin-border)' }}
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Например: замените фото на скрин из Revit, без водяных знаков; уточните описание категории применения"
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Новинка</div>

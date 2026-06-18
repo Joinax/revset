@@ -41,7 +41,7 @@ function FavoriteButton({ productId, isFavorited = false }: { productId: string;
       onClick={handleClick}
       style={{
         position: 'absolute', top: '10px', right: '10px',
-        background: faved ? 'rgba(41,82,200,0.9)' : 'rgba(255,255,255,0.85)',
+        background: faved ? 'rgba(72,128,255,0.9)' : 'rgba(255,255,255,0.85)',
         backdropFilter: 'blur(8px)',
         border: 'none', cursor: 'pointer',
         color: faved ? '#fff' : '#888',
@@ -96,15 +96,7 @@ export function ProductCard({ product }: CardProps) {
         }} />
 
         {isNew && (
-          <span style={{
-            position: 'absolute', top: '10px', left: '10px',
-            background: 'var(--accent)', color: '#fff',
-            fontSize: '10px', fontWeight: 700,
-            padding: '3px 8px', borderRadius: '20px',
-            letterSpacing: '0.04em',
-          }}>
-            Новинка
-          </span>
+          <span className="badge-new">Новинка</span>
         )}
 
         <FavoriteButton productId={id} isFavorited={isFavorited} />
@@ -128,11 +120,7 @@ export function ProductCard({ product }: CardProps) {
               fontSize: '14px', fontWeight: 700, color: 'var(--accent)',
             }}>{price} ₽</span>
           ) : (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: 'var(--success)',
-              background: 'rgba(29,158,117,0.1)',
-              padding: '3px 8px', borderRadius: '20px',
-            }}>Бесплатно</span>
+            <span className="badge-free--soft">Бесплатно</span>
           )}
           {(rating || reviewCount > 0) && (
             <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -145,10 +133,10 @@ export function ProductCard({ product }: CardProps) {
 
       <style>{`
         .product-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
-        .product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(41,82,200,0.18); border-color: rgba(41,82,200,0.6) !important; }
+        .product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(72,128,255,0.18); border-color: rgba(72,128,255,0.6) !important; }
         .product-card:hover .product-card-img { transform: scale(1.04); }
         .product-card:hover .product-card-overlay { opacity: 1; }
-        .dark .product-card:hover { box-shadow: 0 8px 32px rgba(79,110,247,0.15); border-color: rgba(79,110,247,0.4) !important; }
+        .dark .product-card:hover { box-shadow: 0 8px 32px rgba(72,128,255,0.15); border-color: rgba(72,128,255,0.4) !important; }
       `}</style>
     </Link>
   )

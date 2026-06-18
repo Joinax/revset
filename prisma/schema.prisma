@@ -15,6 +15,7 @@ model User {
   createdAt     DateTime
   updatedAt     DateTime
   role          String    @default("user")
+  isBanned      Boolean   @default(false)
 
   authorProfile AuthorProfile?
   products      Product[]
@@ -26,6 +27,9 @@ model User {
   following     Follow[]  @relation("Follower")
   followers     Follow[]  @relation("Following")
   cart          Cart?
+  auditLogs     AdminAuditLog[] @relation("AdminAuditLogs")
+  notifications Notification[]
+  
 
   @@map("user")
 }
@@ -100,32 +104,41 @@ model Category {
   products Product[]
 }
 
+enum ModerationStatus {
+  DRAFT     // черновик — автор сам не опубликовал
+  PENDING   // ожидает проверки админом
+  APPROVED  // одобрено и опубликовано
+  REJECTED  // отклонено админом
+}
+
 model Product {
-  id            String      @id @default(cuid())
-  name          String
-  description   String?
-  price         Float?
-  priceOld      Float?
-  previewEmoji  String?
-  previewBg     String?
-  revitVersions String[]
-  fileSize      String?
-  dimensions    String?
-  bimParams     String?
-  images        String[]    @default([])
-  isPublished   Boolean     @default(false)
-  isNew         Boolean     @default(false)
-  downloads     Int         @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  categoryId    String
-  category      Category    @relation(fields: [categoryId], references: [id])
-  authorId      String
-  author        User        @relation(fields: [authorId], references: [id])
-  orderItems    OrderItem[]
-  favorites     Favorite[]
-  reviews       Review[]
-  cartItems     CartItem[]
+  id                String           @id @default(cuid())
+  name              String
+  description       String?
+  price             Float?
+  priceOld          Float?
+  previewEmoji      String?
+  previewBg         String?
+  revitVersions     String[]
+  fileSize          String?
+  dimensions        String?
+  bimParams         String?
+  images            String[]         @default([])
+  isPublished       Boolean          @default(false)
+  moderationStatus  ModerationStatus @default(DRAFT)
+  moderationComment String?          @db.Text
+  isNew             Boolean          @default(false)
+  downloads         Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  categoryId        String
+  category          Category         @relation(fields: [categoryId], references: [id])
+  authorId          String
+  author            User             @relation(fields: [authorId], references: [id])
+  orderItems        OrderItem[]
+  favorites         Favorite[]
+  reviews           Review[]
+  cartItems         CartItem[]
 }
 
 model Order {
@@ -214,4 +227,37 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("setting")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: Cascade)
+  action     String   // например: 'user.ban', 'order.status_change', 'verification.approve'
+  targetType String   // 'User' | 'Product' | 'Order' | 'Category' | 'Setting'
+  targetId   String?  // id затронутой записи (если применимо)
+  details    Json?    // произвольные доп. данные: { from, to, ... }
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("admin_audit_log")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // например: 'author_application_approved', 'author_application_rejected', 'product_approved', 'product_rejected'
+  title     String
+  message   String
+  link      String?  // куда вести по клику, например /account?tab=author-products
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notification")
 }

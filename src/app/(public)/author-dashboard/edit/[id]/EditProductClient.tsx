@@ -6,11 +6,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import FileUpload from '@/components/FileUpload'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+
 type Props = {
   product: {
     id: string; name: string; description: string
     price: string; isPublished: boolean; categorySlug: string
-    revitVersions: string[]; bimParams: string
+    revitVersions: string[]; bimParams: string; images: string[]
   }
   categories: { slug: string; name: string }[]
 }
@@ -25,6 +28,7 @@ export default function EditProductClient({ product, categories }: Props) {
   const [price,       setPrice]       = useState(product.price)
   const [category,    setCategory]    = useState(product.categorySlug)
   const [versions,    setVersions]    = useState<string[]>(product.revitVersions)
+  const [images,      setImages]      = useState<string[]>(product.images)
   const [isPublished, setIsPublished] = useState(product.isPublished)
   const [fileKey,     setFileKey]     = useState(() => {
     try { return JSON.parse(product.bimParams)?.fileKey ?? '' } catch { return '' }
@@ -61,6 +65,7 @@ export default function EditProductClient({ product, categories }: Props) {
           isPublished,
           fileKey,
           fileName,
+          images,
         }),
       })
 
@@ -127,6 +132,31 @@ export default function EditProductClient({ product, categories }: Props) {
                   <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="Бесплатно" min="0"
                     style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }} />
                 </div>
+              </div>
+
+              {/* Загруженные фото */}
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>
+                  Фото ({images.length})
+                </label>
+                {images.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>Фото не загружены</p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '8px' }}>
+                    {images.map((img, i) => (
+                      <div key={img + i} style={{ position: 'relative', aspectRatio: '1 / 1', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                        <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        <button type="button" onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ position: 'absolute', top: '4px', right: '4px', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                          <i className="ti ti-x" style={{ fontSize: '12px' }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                  Крестик удаляет фото после нажатия «Сохранить». Загрузка новых фото здесь пока не поддержана.
+                </p>
               </div>
 
               {/* Версии Revit */}

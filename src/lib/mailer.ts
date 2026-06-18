@@ -25,14 +25,14 @@ function emailTemplate(content: string) {
     .container { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e5e5; }
     .header { background: #0A0A0F; padding: 24px; text-align: center; }
     .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
-    .logo-rev { color: #4169E1; }
+    .logo-rev { color: #4880FF; }
     .logo-set { color: #F0EFE8; }
     .body { padding: 32px 28px; }
     .footer { padding: 16px 28px; background: #F5F5F2; text-align: center; font-size: 12px; color: #888; }
-    .btn { display: inline-block; background: #4169E1; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; margin: 20px 0; }
+    .btn { display: inline-block; background: #4880FF; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; margin: 20px 0; }
     h2 { color: #1A1A1A; font-size: 20px; margin: 0 0 12px; }
     p { color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 12px; }
-    .code { background: #F0F0F8; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #4169E1; margin: 20px 0; }
+    .code { background: #F0F0F8; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #4880FF; margin: 20px 0; }
   </style>
 </head>
 <body>
@@ -64,7 +64,7 @@ export async function sendVerificationEmail(to: string, name: string, url: strin
       <h2>Добро пожаловать, ${name}!</h2>
       <p>Для завершения регистрации подтвердите ваш email адрес.</p>
       <div style="text-align: center;">
-        <a href="${url}" class="btn">Подтвердить email</a>
+        <a href="${url}" class="btn" style="display:inline-block;background-color:#4880FF;color:#ffffff !important;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin:20px 0;font-family:Arial,sans-serif;">Подтвердить email</a>
       </div>
       <p style="font-size: 12px; color: #999;">Ссылка действительна 24 часа. Если вы не регистрировались на REVSET — просто проигнорируйте это письмо.</p>
     `),
@@ -81,7 +81,7 @@ export async function sendPasswordResetEmail(to: string, name: string, url: stri
       <h2>Сброс пароля</h2>
       <p>Привет, ${name}! Мы получили запрос на сброс пароля для вашего аккаунта.</p>
       <div style="text-align: center;">
-        <a href="${url}" class="btn">Сбросить пароль</a>
+        <a href="${url}" class="btn" style="display:inline-block;background-color:#4880FF;color:#ffffff !important;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin:20px 0;font-family:Arial,sans-serif;">Сбросить пароль</a>
       </div>
       <p style="font-size: 12px; color: #999;">Ссылка действительна 1 час. Если вы не запрашивали сброс пароля — просто проигнорируйте это письмо.</p>
     `),
@@ -108,7 +108,7 @@ export async function sendSaleNotificationEmail(
       </div>
       <div style="background:#F0F0F8;border-radius:8px;padding:16px;margin:16px 0;">
         <div style="font-size:13px;color:#888;margin-bottom:4px;">Ваш заработок (80%)</div>
-        <div style="font-size:22px;font-weight:700;color:#4169E1;">${Math.round(amount * 0.8)} ₽</div>
+        <div style="font-size:22px;font-weight:700;color:#4880FF;">${Math.round(amount * 0.8)} ₽</div>
       </div>
       <p style="font-size:12px;color:#999;">Выплата поступит на ваш счёт в ближайшую дату выплат.</p>
     `),

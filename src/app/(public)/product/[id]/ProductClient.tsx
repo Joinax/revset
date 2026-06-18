@@ -26,6 +26,7 @@ type Props = {
   isFavorited: boolean
   isInCart: boolean
   isOwnProduct: boolean
+  cameFromAccount?: string | null
 }
 
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
@@ -47,7 +48,7 @@ const SPEC_ICONS: Record<string, string> = {
   'Обновлено':    'ti-calendar-check',
 }
 
-export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct }: Props) {
+export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct, cameFromAccount }: Props) {
   const { avgRating } = product
   const [activeImg, setActiveImg] = useState(0)
   const [activeTab, setActiveTab] = useState<'desc' | 'params' | 'reviews'>('desc')
@@ -102,6 +103,16 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
 
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 48px' }}>
 
+          {/* Назад в личный кабинет — если пришли оттуда */}
+          {cameFromAccount && (
+            <div style={{ padding: '16px 0 0' }}>
+              <Link href={`/account?tab=${cameFromAccount}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--muted)', textDecoration: 'none' }} className="back-to-account-link">
+                <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} />
+                Назад в личный кабинет
+              </Link>
+            </div>
+          )}
+
           {/* Хлебные крошки */}
           <nav style={{ padding: '16px 0', fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             {[
@@ -137,7 +148,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                       background: img ? 'var(--bg2)' : (product.previewBg ?? '#141420'),
                       transition: 'all .18s',
                       boxShadow: activeImg === i
-                        ? '0 0 0 3px rgba(41,82,200,0.18), 0 2px 10px rgba(0,0,0,0.1)'
+                        ? '0 0 0 3px rgba(72,128,255,0.18), 0 2px 10px rgba(0,0,0,0.1)'
                         : '0 1px 4px rgba(0,0,0,0.07)',
                       outline: 'none',
                     }} className="thumb-btn">
@@ -150,7 +161,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                 </div>
 
                 {/* Главное фото */}
-                <div style={{
+                <div className="product-image-box" style={{
                   position: 'relative', borderRadius: '18px', overflow: 'hidden',
                   background: imgs ? 'var(--bg2)' : (product.previewBg ?? '#141420'),
                   aspectRatio: '4/3', cursor: imgs ? 'zoom-in' : 'default',
@@ -162,7 +173,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                   }
 
                   {product.isNew && (
-                    <span style={{ position: 'absolute', top: '14px', left: '14px', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px', letterSpacing: '0.03em' }}>
+                    <span className="badge-new" style={{ position: 'absolute', top: '14px', left: '14px', fontSize: '13px', padding: '6px 14px', borderRadius: '8px', letterSpacing: '0.02em' }}>
                       Новинка
                     </span>
                   )}
@@ -328,10 +339,10 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                         {product.price.toLocaleString('ru')} ₽
                       </span>
                     ) : (
-                      <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '26px', fontWeight: 700, color: '#1D9E75' }}>Бесплатно</span>
+                      <span style={{ fontFamily: 'var(--font-unbounded)', fontSize: '26px', fontWeight: 700, color: 'var(--success)' }}>Бесплатно</span>
                     )}
                     {product.priceOld && <span style={{ fontSize: '16px', color: 'var(--muted)', textDecoration: 'line-through' }}>{product.priceOld.toLocaleString('ru')} ₽</span>}
-                    {discount && <span style={{ background: 'rgba(226,75,74,0.1)', color: '#E24B4A', fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '7px', border: '1px solid rgba(226,75,74,0.15)' }}>−{discount}%</span>}
+                    {discount && <span style={{ background: 'rgba(226,75,74,0.1)', color: 'var(--danger)', fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '7px', border: '1px solid rgba(226,75,74,0.15)' }}>−{discount}%</span>}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <i className="ti ti-license" style={{ fontSize: '12px' }} />
@@ -341,20 +352,20 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
 
                 {/* Кнопки */}
                 <div style={{ display: 'grid', gap: '8px' }}>
-                  {product.price !== null ? (
-                    isOwnProduct ? (
-                      <div style={{ padding: '13px', borderRadius: '11px', background: 'rgba(41,82,200,0.06)', border: '1.5px solid rgba(41,82,200,0.2)', fontSize: '13px', fontWeight: 600, color: 'var(--accent)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
-                        <i className="ti ti-user-check" style={{ fontSize: '15px' }} />
-                        Это ваш товар
-                      </div>
-                    ) : isPurchased ? (
+                  {isOwnProduct ? (
+                    <div style={{ padding: '13px', borderRadius: '11px', background: 'rgba(72,128,255,0.06)', border: '1.5px solid rgba(72,128,255,0.2)', fontSize: '13px', fontWeight: 600, color: 'var(--accent)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
+                      <i className="ti ti-user-check" style={{ fontSize: '15px' }} />
+                      Это ваша модель
+                    </div>
+                  ) : product.price !== null ? (
+                    isPurchased ? (
                       <DownloadButton productId={product.id} isFree={false} isPurchased={true} />
                     ) : (
                       <>
                         <BuyButton productId={product.id} price={product.price} name={product.name} />
                         <button onClick={toggleCart} disabled={cartLoading} className="cart-btn" style={{
                           width: '100%', padding: '12px',
-                          background: inCart ? 'rgba(41,82,200,0.1)' : 'transparent',
+                          background: inCart ? 'rgba(72,128,255,0.1)' : 'transparent',
                           color: 'var(--accent)',
                           border: '1.5px solid var(--accent)',
                           borderRadius: '11px', fontSize: '13px', fontWeight: 600,
@@ -370,18 +381,20 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                   ) : (
                     <DownloadButton productId={product.id} isFree={true} isPurchased={false} />
                   )}
-                  <button onClick={toggleFav} className="fav-btn" style={{
-                    width: '100%', padding: '12px',
-                    background: inFavs ? 'rgba(41,82,200,0.08)' : 'transparent',
-                    color: inFavs ? 'var(--accent)' : 'var(--muted)',
-                    border: `1.5px solid ${inFavs ? 'rgba(41,82,200,0.3)' : 'var(--border)'}`,
-                    borderRadius: '11px', fontSize: '13px', fontWeight: 600,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                    transition: 'all .18s', fontFamily: 'inherit',
-                  }}>
-                    <i className={`ti ${inFavs ? 'ti-heart-filled' : 'ti-heart'}`} style={{ fontSize: '16px' }} />
-                    {inFavs ? 'В избранном' : 'В избранное'}
-                  </button>
+                  {!isOwnProduct && (
+                    <button onClick={toggleFav} className="fav-btn" style={{
+                      width: '100%', padding: '12px',
+                      background: inFavs ? 'rgba(72,128,255,0.08)' : 'transparent',
+                      color: inFavs ? 'var(--accent)' : 'var(--muted)',
+                      border: `1.5px solid ${inFavs ? 'rgba(72,128,255,0.3)' : 'var(--border)'}`,
+                      borderRadius: '11px', fontSize: '13px', fontWeight: 600,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                      transition: 'all .18s', fontFamily: 'inherit',
+                    }}>
+                      <i className={`ti ${inFavs ? 'ti-heart-filled' : 'ti-heart'}`} style={{ fontSize: '16px' }} />
+                      {inFavs ? 'В избранном' : 'В избранное'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -424,7 +437,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '14px', fontWeight: 700 }}>{product.author.name}</span>
                       {product.author.authorProfile?.isVerified && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#1D9E75', background: 'rgba(29,158,117,0.1)', padding: '2px 7px', borderRadius: '20px', fontWeight: 700, border: '1px solid rgba(29,158,117,0.2)', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '2px 7px', borderRadius: '20px', fontWeight: 700, border: '1px solid rgba(29,158,117,0.2)', whiteSpace: 'nowrap' }}>
                           <i className="ti ti-circle-check-filled" style={{ fontSize: '10px' }} />
                           Проверен
                         </span>
@@ -441,14 +454,14 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                 {product.author.authorProfile?.bio && (
                   <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.65, margin: '0 0 14px' }}>{product.author.authorProfile.bio}</p>
                 )}
-                <Link href={`/author/${product.author.id}`} style={{
+                <Link href={isOwnProduct ? '/account' : `/author/${product.author.id}`} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                   padding: '10px', borderRadius: '10px',
                   background: 'transparent', border: '1px solid var(--border)',
                   color: 'var(--text)', fontSize: '12px', fontWeight: 600,
                   textDecoration: 'none', transition: 'all .15s',
                 }} className="author-btn">
-                  Профиль автора
+                  {isOwnProduct ? 'Личный кабинет' : 'Профиль автора'}
                   <i className="ti ti-arrow-right" style={{ fontSize: '13px' }} />
                 </Link>
               </div>
@@ -489,9 +502,12 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
         @media (min-width: 641px) { .bottom-spacer { display: none; } }
 
         .bc-link:hover    { color: var(--text) !important; }
+        .back-to-account-link:hover { color: var(--accent) !important; }
         .author-btn:hover { border-color: var(--accent) !important; color: var(--accent) !important; }
         .thumb-btn:hover  { transform: scale(1.04); }
         .main-img:hover   { transform: scale(1.02); }
+        .product-image-box { transition: box-shadow 0.25s; }
+        .product-image-box:hover { box-shadow: var(--shadow-hover); }
         .fav-btn:hover    { border-color: var(--accent) !important; color: var(--accent) !important; }
         .cart-btn:hover   { border-color: var(--accent) !important; color: var(--accent) !important; }
 

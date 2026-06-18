@@ -29,13 +29,15 @@ export async function GET(
       },
     })
 
-    // Бесплатные товары можно скачать без оплаты
+    // Бесплатные товары можно скачать без оплаты; админ — для проверки на модерации
     const product = await db.product.findUnique({ where: { id: productId } })
     if (!product) {
       return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
     }
 
-    if (product.price !== null && !order) {
+    const isAdmin = session.user.role === 'admin'
+
+    if (product.price !== null && !order && !isAdmin) {
       return NextResponse.json({ error: 'Необходимо купить товар' }, { status: 403 })
     }
 
@@ -57,6 +59,15 @@ export async function GET(
     })
 
     const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
+
+    // Увеличиваем счётчик скачиваний товара — используется в статистике автора.
+    // Не делаем этого для админа: это просмотр на модерации, а не реальное скачивание покупателем.
+    if (!isAdmin) {
+      db.product.update({
+        where: { id: productId },
+        data:  { downloads: { increment: 1 } },
+      }).catch(err => console.error('Failed to increment downloads counter:', err))
+    }
 
     return NextResponse.json({ downloadUrl })
 
