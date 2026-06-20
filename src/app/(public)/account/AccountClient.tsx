@@ -617,7 +617,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                       <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderBottom: (oi < orders.length - 1 || ii < order.items.length - 1) ? '1px solid var(--border)' : 'none' }} className="purchase-row">
                         <Link href={`/product/${item.product.id}?from=orders`} style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0, textDecoration: 'none' }}>
                           {/* Картинка */}
-                          <div style={{ width: '72px', height: '56px', borderRadius: '10px', background: item.product.previewBg, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                          <div style={{ width: '56px', height: '56px', borderRadius: '10px', background: item.product.previewBg, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
                             {item.product.images && item.product.images.length > 0
                               ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${item.product.images[0]}`} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               : item.product.previewEmoji}

@@ -240,7 +240,7 @@ export default function AuthorProducts({ products, authorName }: Props) {
       <style>{`
         .author-products-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 16px;
           padding-bottom: 64px;
         }
@@ -249,7 +249,8 @@ export default function AuthorProducts({ products, authorName }: Props) {
         .reset-filters-btn:hover   { border-color: var(--accent) !important; color: var(--accent) !important; }
         .filters-btn { transition: border-color 0.15s, background 0.15s, color 0.15s !important; }
         .filters-btn:hover { border-color: var(--accent) !important; color: var(--accent) !important; }
-        @media (max-width: 1024px) { .author-products-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 1200px) { .author-products-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 900px)  { .author-products-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px)  { .author-products-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 480px)  { .author-products-grid { grid-template-columns: 1fr; } }
       `}</style>

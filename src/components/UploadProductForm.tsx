@@ -22,7 +22,7 @@ export default function UploadProductForm() {
   const [description, setDescription] = useState('')
   const [price,       setPrice]       = useState('')
   const [category,    setCategory]    = useState('furniture')
-  const [versions,    setVersions]    = useState<string[]>(['2022', '2023', '2024', '2025'])
+  const [versions,    setVersions]    = useState<string[]>([])
   const [fileKey,     setFileKey]     = useState('')
   const [fileName,    setFileName]    = useState('')
   const [images,      setImages]      = useState<{fileKey: string; url: string; name: string}[]>([])
