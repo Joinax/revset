@@ -4,6 +4,8 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
+const MAX_REVIEW_LENGTH = 2000
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() })
@@ -13,16 +15,33 @@ export async function POST(req: NextRequest) {
 
     const { productId, rating, text } = await req.json()
 
-    if (!productId || !rating) {
-      return NextResponse.json({ error: 'productId и rating обязательны' }, { status: 400 })
+    if (!productId || typeof productId !== 'string') {
+      return NextResponse.json({ error: 'productId обязателен' }, { status: 400 })
     }
-    if (rating < 1 || rating > 5) {
-      return NextResponse.json({ error: 'Рейтинг должен быть от 1 до 5' }, { status: 400 })
+
+    // rating должен быть целым числом от 1 до 5
+    const ratingNum = Number(rating)
+    if (!rating || !Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      return NextResponse.json({ error: 'Рейтинг должен быть целым числом от 1 до 5' }, { status: 400 })
+    }
+
+    if (text !== undefined && text !== null) {
+      if (typeof text !== 'string') {
+        return NextResponse.json({ error: 'Некорректный текст отзыва' }, { status: 400 })
+      }
+      if (text.length > MAX_REVIEW_LENGTH) {
+        return NextResponse.json({ error: `Отзыв не должен превышать ${MAX_REVIEW_LENGTH} символов` }, { status: 400 })
+      }
     }
 
     const product = await db.product.findUnique({ where: { id: productId } })
     if (!product) {
       return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
+    }
+
+    // Автор не может оставить отзыв на свой товар
+    if (product.authorId === session.user.id) {
+      return NextResponse.json({ error: 'Нельзя оставить отзыв на собственный товар' }, { status: 403 })
     }
 
     // Платный товар — только после покупки
@@ -35,7 +54,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Проверяем что отзыв ещё не оставлен
     const existing = await db.review.findUnique({
       where: { userId_productId: { userId: session.user.id, productId } },
     })
@@ -44,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const review = await db.review.create({
-      data: { userId: session.user.id, productId, rating, text: text || null },
+      data: { userId: session.user.id, productId, rating: ratingNum, text: text?.trim() || null },
       include: { user: { select: { name: true } } },
     })
 

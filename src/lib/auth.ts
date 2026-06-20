@@ -11,8 +11,6 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
   }),
 
-  // Основной домен и поддомен админки — у каждого свой cookie сессии,
-  // better-auth должен доверять обоим как валидным источникам запросов
   trustedOrigins: [
     'http://revset.test:3000',
     'http://admin.revset.test:3000',
@@ -48,28 +46,35 @@ export const auth = betterAuth({
     },
   },
 
-  // Защита от брутфорса — особенно важно для /admin/login
   rateLimit: {
     enabled: true,
-    window:  60,   // окно в секундах
-    max:     100,  // лимит по умолчанию для всех auth-эндпоинтов
+    window:  60,
+    max:     100,
 
     customRules: {
-      // Вход — самый чувствительный эндпоинт, ужесточаем
+      // Вход — самый чувствительный эндпоинт
       '/sign-in/email': {
         window: 60,
-        max:    5,   // 5 попыток входа в минуту с одного IP
+        max:    5,   // 5 попыток в минуту с одного IP
       },
-      // Запрос сброса пароля — защита от спама письмами
+      // Регистрация — защита от массового создания аккаунтов ботами
+      '/sign-up/email': {
+        window: 3600, // 1 час
+        max:    5,    // 5 регистраций в час с одного IP
+      },
+      // Сброс пароля — защита от спама письмами
       '/forget-password': {
         window: 60,
         max:    3,
       },
+      // Повторная отправка письма верификации — защита от спама
+      '/send-verification-email': {
+        window: 60,
+        max:    2,
+      },
     },
   },
 
-  // Блокируем вход для забаненных пользователей — до этого isBanned
-  // сохранялся в БД, но никак не проверялся при логине
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path === '/sign-in/email') {

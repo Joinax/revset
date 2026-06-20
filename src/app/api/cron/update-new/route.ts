@@ -2,10 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+function checkSecret(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET
+  // Если переменная не задана — блокируем все запросы,
+  // иначе любой запрос с заголовком 'undefined' пройдёт проверку
+  if (!cronSecret) return false
+  return req.headers.get('x-cron-secret') === cronSecret
+}
+
 export async function POST(req: NextRequest) {
-  // Проверяем секретный ключ
-  const secret = req.headers.get('x-cron-secret')
-  if (secret !== process.env.CRON_SECRET) {
+  if (!checkSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -29,10 +35,8 @@ export async function POST(req: NextRequest) {
   })
 }
 
-// GET для ручной проверки (без секрета не работает)
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-cron-secret')
-  if (secret !== process.env.CRON_SECRET) {
+  if (!checkSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

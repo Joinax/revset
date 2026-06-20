@@ -6,6 +6,11 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
 
+const ALLOWED_REVIT_VERSIONS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026']
+const MAX_IMAGES = 10
+const MAX_NAME_LENGTH = 200
+const MAX_DESCRIPTION_LENGTH = 5000
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,7 +23,6 @@ export async function PATCH(
 
     const { id } = await params
 
-    // Проверяем что товар принадлежит этому автору, либо это администратор
     const [product, currentUser] = await Promise.all([
       db.product.findUnique({ where: { id } }),
       db.user.findUnique({ where: { id: session.user.id }, select: { role: true } }),
@@ -32,9 +36,6 @@ export async function PATCH(
     // отзыв статуса автора администратором без повторного входа пользователя
     const currentRole = currentUser?.role ?? session.user.role
 
-    // Помимо совпадения authorId, требуем актуальную роль 'author' — если статус
-    // автора был отозван администратором, доступ к редактированию своих старых
-    // товаров тоже должен закрыться, а не только UI вкладок в /account
     const isOwner = product.authorId === session.user.id && currentRole === 'author'
     const isAdmin = currentRole === 'admin'
 
@@ -42,33 +43,96 @@ export async function PATCH(
       return NextResponse.json({ error: 'Нет доступа' }, { status: 403 })
     }
 
-    const { name, description, price, categorySlug, revitVersions, isPublished, isNew, fileKey, fileName, asAdmin, moderationComment, images } = await req.json()
+    const body = await req.json()
+    const {
+      name, description, price, categorySlug, revitVersions,
+      isPublished, isNew, fileKey, fileName, asAdmin, moderationComment, images,
+    } = body
 
-    // Находим категорию
-    const category = await db.category.findUnique({ where: { slug: categorySlug } })
+    // --- Валидация ---
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return NextResponse.json({ error: 'Название не может быть пустым' }, { status: 400 })
+      }
+      if (name.trim().length > MAX_NAME_LENGTH) {
+        return NextResponse.json({ error: `Название не должно превышать ${MAX_NAME_LENGTH} символов` }, { status: 400 })
+      }
+    }
+
+    if (description !== undefined && description !== null) {
+      if (typeof description !== 'string') {
+        return NextResponse.json({ error: 'Некорректное описание' }, { status: 400 })
+      }
+      if (description.length > MAX_DESCRIPTION_LENGTH) {
+        return NextResponse.json({ error: `Описание не должно превышать ${MAX_DESCRIPTION_LENGTH} символов` }, { status: 400 })
+      }
+    }
+
+    if (price !== undefined && price !== null && price !== '') {
+      const priceNum = parseFloat(price)
+      if (isNaN(priceNum) || priceNum < 0 || priceNum > 1_000_000) {
+        return NextResponse.json({ error: 'Некорректная цена' }, { status: 400 })
+      }
+    }
+
+    if (categorySlug !== undefined) {
+      if (!categorySlug || typeof categorySlug !== 'string' || categorySlug.trim().length === 0) {
+        return NextResponse.json({ error: 'Категория обязательна' }, { status: 400 })
+      }
+    }
+
+    if (revitVersions !== undefined) {
+      if (!Array.isArray(revitVersions) || revitVersions.length === 0) {
+        return NextResponse.json({ error: 'Выберите хотя бы одну версию Revit' }, { status: 400 })
+      }
+      if (!revitVersions.every((v: unknown) => typeof v === 'string' && ALLOWED_REVIT_VERSIONS.includes(v))) {
+        return NextResponse.json({ error: 'Недопустимая версия Revit' }, { status: 400 })
+      }
+    }
+
+    if (images !== undefined) {
+      if (!Array.isArray(images) || images.length > MAX_IMAGES) {
+        return NextResponse.json({ error: `Максимум ${MAX_IMAGES} изображений` }, { status: 400 })
+      }
+      if (!images.every((k: unknown) => typeof k === 'string')) {
+        return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
+      }
+    }
+
+    // asAdmin может выставить только реальный администратор — автор не должен
+    // иметь возможности обойти модерацию, передав asAdmin: true
+    if (asAdmin === true && !isAdmin) {
+      return NextResponse.json({ error: 'Нет доступа' }, { status: 403 })
+    }
+
+    // moderationComment может устанавливать только администратор
+    if (moderationComment !== undefined && !isAdmin) {
+      return NextResponse.json({ error: 'Нет доступа' }, { status: 403 })
+    }
+
+    // --- Конец валидации ---
+
+    const category = categorySlug
+      ? await db.category.findUnique({ where: { slug: categorySlug.trim() } })
+      : await db.category.findUnique({ where: { id: product.categoryId } })
+
     if (!category) {
       return NextResponse.json({ error: 'Категория не найдена' }, { status: 400 })
     }
 
-    // Запоминаем старое значение публикации — для лога, если меняет админ
     const wasPublished = product.isPublished
-    const willBePublished = isPublished ?? true
+    const willBePublished = isPublished ?? product.isPublished
 
-    // Запрос пришёл из админ-панели и пользователь реально админ — это решение модератора,
-    // даже если админ оказался автором этого же товара (тогда isOwner тоже true)
     const adminActing = isAdmin && asAdmin === true
 
-    // Определяем moderationStatus в зависимости от того, кто меняет публикацию
     let moderationStatus = product.moderationStatus
     if (adminActing) {
-      // Админ явно решает — одобряет или отклоняет
       moderationStatus = willBePublished ? 'APPROVED' : 'REJECTED'
     } else if (isOwner) {
       if (!willBePublished) {
-        // Автор сам снял с публикации — это черновик, не отклонение
         moderationStatus = 'DRAFT'
       } else {
-        // Автор пытается опубликовать — смотрим на autoPublish
         const authorProfile = await db.authorProfile.findUnique({
           where: { userId: session.user.id },
           select: { autoPublish: true },
@@ -77,37 +141,35 @@ export async function PATCH(
       }
     }
 
-    // Реальная публикация на сайте — только если статус APPROVED
     const actuallyPublished = moderationStatus === 'APPROVED'
 
-    // Комментарий модератора имеет смысл только при отклонении — при любом
-    // другом статусе старый комментарий устарел и его нужно убрать
     const nextModerationComment = moderationStatus === 'REJECTED'
       ? (moderationComment ?? product.moderationComment ?? null)
       : null
 
-    // Обновляем товар
+    const parsedPrice = price !== undefined && price !== null && price !== ''
+      ? parseFloat(price)
+      : undefined
+
     const updated = await db.product.update({
       where: { id },
       data: {
-        name,
-        description:   description || null,
-        price:         price && parseFloat(price) > 0 ? parseFloat(price) : null,
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description?.trim() || null }),
+        ...(parsedPrice !== undefined && { price: parsedPrice > 0 ? parsedPrice : null }),
         categoryId:    category.id,
-        revitVersions: revitVersions || [],
+        ...(revitVersions !== undefined && { revitVersions }),
         ...(images !== undefined && { images }),
         isPublished:   actuallyPublished,
         moderationStatus,
         moderationComment: nextModerationComment,
-        ...(isNew !== undefined && { isNew }),
-        // Обновляем файл только если загрузили новый
+        ...(isNew !== undefined && { isNew: Boolean(isNew) }),
         ...(fileKey && {
-          bimParams: JSON.stringify({ fileKey, fileName }),
+          bimParams: JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null }),
         }),
       },
     })
 
-    // Логируем действия администратора над товаром через админ-панель
     if (adminActing) {
       if (wasPublished !== actuallyPublished) {
         await logAdminAction({
@@ -127,7 +189,6 @@ export async function PATCH(
         })
       }
 
-      // Уведомляем автора только если решение по статусу реально изменилось
       if (product.moderationStatus !== moderationStatus && (moderationStatus === 'APPROVED' || moderationStatus === 'REJECTED')) {
         await db.notification.create({
           data: {
@@ -145,9 +206,6 @@ export async function PATCH(
       }
     }
 
-    // Инвалидируем кэш страниц, где отображается статус/публикация товара —
-    // иначе при навигации (особенно "назад") Next.js Router Cache может
-    // показать старые данные ещё до истечения staleTime
     revalidatePath('/admin/families')
     revalidatePath(`/admin/families/${id}`)
     revalidatePath(`/product/${id}`)

@@ -14,8 +14,12 @@ export async function POST(request: NextRequest) {
   const { userId, role, isBanned } = await request.json()
   if (!userId) return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
 
-  // Читаем текущие значения — нужны для лога (старое → новое) и чтобы
-  // не писать в лог изменения, которых на самом деле не было
+  // Нельзя изменить собственную роль или заблокировать самого себя —
+  // иначе администратор может случайно лишить себя доступа к системе
+  if (userId === session.user.id) {
+    return NextResponse.json({ error: 'Нельзя изменить собственный аккаунт' }, { status: 400 })
+  }
+
   const before = await db.user.findUnique({
     where: { id: userId },
     select: { role: true, isBanned: true },
@@ -24,18 +28,23 @@ export async function POST(request: NextRequest) {
 
   const data: any = {}
   if (role !== undefined && ['user', 'author', 'admin'].includes(role)) data.role = role
-  if (isBanned !== undefined) data.isBanned = isBanned
+  if (isBanned !== undefined) data.isBanned = Boolean(isBanned)
 
   await db.user.update({ where: { id: userId }, data })
 
-  // При бане отзываем все активные сессии — иначе пользователь, уже залогиненный
-  // в браузере, продолжит пользоваться сайтом до естественного истечения сессии
-  if (data.isBanned === true) {
+  // При бане — отзываем все активные сессии, иначе забаненный пользователь
+  // продолжит работу до естественного истечения сессии.
+  // При смене роли — тоже отзываем: роль в сессии может быть закэширована,
+  // и пользователь продолжит действовать со старой ролью (например, автор
+  // после отзыва статуса продолжит видеть авторские вкладки и вызывать API).
+  const roleChanged = data.role !== undefined && data.role !== before.role
+  const bannedNow = data.isBanned === true
+
+  if (bannedNow || roleChanged) {
     await db.session.deleteMany({ where: { userId } })
   }
 
-  // Логируем смену роли
-  if (data.role !== undefined && data.role !== before.role) {
+  if (roleChanged) {
     await logAdminAction({
       adminId: session.user.id,
       action: 'user.role_change',
@@ -45,7 +54,6 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // Логируем бан/разбан
   if (data.isBanned !== undefined && data.isBanned !== before.isBanned) {
     await logAdminAction({
       adminId: session.user.id,

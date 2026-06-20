@@ -20,38 +20,58 @@ export async function GET(
 
     const { productId } = await params
 
-    // Проверяем что товар куплен
-    const order = await db.order.findFirst({
-      where: {
-        userId: session.user.id,
-        status: 'PAID',
-        items:  { some: { productId } },
-      },
+    // Роль берём из БД, а не из сессии — сессия может содержать устаревшую роль.
+    // Это критично: если пользователь подделал или перехватил сессию с чужой ролью
+    // admin, он получит доступ к скачиванию без оплаты
+    const currentUser = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true, isBanned: true },
     })
 
-    // Бесплатные товары можно скачать без оплаты; админ — для проверки на модерации
+    if (!currentUser || currentUser.isBanned) {
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
+    }
+
+    const isAdmin = currentUser.role === 'admin'
+
     const product = await db.product.findUnique({ where: { id: productId } })
     if (!product) {
       return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
     }
 
-    const isAdmin = session.user.role === 'admin'
+    // Бесплатные товары (price === null) доступны без оплаты
+    // Платные товары — только после PAID заказа, либо для администратора
+    if (product.price !== null && !isAdmin) {
+      const order = await db.order.findFirst({
+        where: {
+          userId: session.user.id,
+          status: 'PAID',
+          items:  { some: { productId } },
+        },
+      })
 
-    if (product.price !== null && !order && !isAdmin) {
-      return NextResponse.json({ error: 'Необходимо купить товар' }, { status: 403 })
+      if (!order) {
+        return NextResponse.json({ error: 'Необходимо купить товар' }, { status: 403 })
+      }
     }
 
     if (!product.bimParams) {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
-    // fileKey хранится в поле bimParams
-    const { fileKey } = JSON.parse(product.bimParams)
+    let parsed: { fileKey?: string; fileName?: string }
+    try {
+      parsed = JSON.parse(product.bimParams)
+    } catch {
+      return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
+    }
+
+    const { fileKey } = parsed
     if (!fileKey) {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
-    // Генерируем временную ссылку на скачивание — действует 5 минут
+    // Генерируем временную ссылку — действует 5 минут
     const command = new GetObjectCommand({
       Bucket:                     S3_BUCKET,
       Key:                        fileKey,
@@ -60,8 +80,8 @@ export async function GET(
 
     const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
 
-    // Увеличиваем счётчик скачиваний товара — используется в статистике автора.
-    // Не делаем этого для админа: это просмотр на модерации, а не реальное скачивание покупателем.
+    // Увеличиваем счётчик скачиваний — только для реальных покупателей,
+    // не для администратора (его скачивание — проверка на модерации)
     if (!isAdmin) {
       db.product.update({
         where: { id: productId },
