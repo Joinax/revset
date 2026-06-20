@@ -1,4 +1,4 @@
-// src/app/author-dashboard/edit/[id]/page.tsx
+// src/app/(public)/product-edit/[id]/page.tsx
 import { notFound, redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
@@ -37,15 +37,15 @@ export default async function EditProductPage({
   return (
     <EditProductClient
       product={{
-        id:           product.id,
-        name:         product.name,
-        description:  product.description ?? '',
-        price:        product.price?.toString() ?? '',
-        isPublished:  product.isPublished,
-        categorySlug: product.category.slug,
+        id:            product.id,
+        name:          product.name,
+        description:   product.description ?? '',
+        price:         product.price?.toString() ?? '',
+        isPublished:   product.isPublished,
+        categorySlug:  product.category.slug,
         revitVersions: product.revitVersions,
-        bimParams:    product.bimParams ?? '',
-        images:       product.images ?? [],
+        bimParams:     product.bimParams ?? '',
+        images:        product.images ?? [],
       }}
       categories={categories.map(c => ({ slug: c.slug, name: c.name }))}
     />

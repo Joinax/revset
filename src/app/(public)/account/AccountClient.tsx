@@ -946,7 +946,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
                           <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                           Просмотр
                         </Link>
-                        <Link href={`/author-dashboard/edit/${product.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', transition: 'background 0.15s, box-shadow 0.15s, transform 0.15s' }} className="model-edit-btn">
+                        <Link href={`/product-edit/${product.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', transition: 'background 0.15s, box-shadow 0.15s, transform 0.15s' }} className="model-edit-btn">
                           <i className="ti ti-pencil" style={{ fontSize: '14px' }} />
                           Изменить
                         </Link>

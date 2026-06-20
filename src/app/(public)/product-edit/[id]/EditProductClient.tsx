@@ -1,4 +1,4 @@
-// src/app/author-dashboard/edit/[id]/EditProductClient.tsx
+// src/app/(public)/product-edit/[id]/EditProductClient.tsx
 'use client'
 
 import { useState } from 'react'
