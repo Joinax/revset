@@ -26,7 +26,7 @@ export default async function AccountPage({
   const sort:   'date' | 'sales' | 'downloads' = (apSort as 'sales' | 'downloads') || 'date'
   const query   = apQ || ''
 
-  const [user, orders, favorites, followings] = await Promise.all([
+  const [user, orders, favorites, followings, myReviews] = await Promise.all([
     db.user.findUnique({
       where:   { id: session.user.id },
       include: { authorProfile: true },
@@ -55,11 +55,56 @@ export default async function AccountPage({
         },
       },
     }),
+    db.review.findMany({
+      where:   { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      include: { product: { select: { id: true, name: true, previewEmoji: true, previewBg: true, images: true } } },
+    }),
   ])
+
+
 
   if (!user) redirect('/login')
 
   const isAuthor = user.role === 'author' && !!user.authorProfile
+
+  // Отзывы на товары автора — загружаем только если пользователь автор
+  let authorReviews: any[] = []
+  if (isAuthor) {
+    const rawAuthorReviews = await db.review.findMany({
+      where:   { product: { authorId: user.id }, moderationStatus: 'APPROVED' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user:    { select: { name: true } },
+        product: { select: { id: true, name: true, previewEmoji: true, previewBg: true, images: true } },
+        comments: {
+          where:   { authorId: user.id },
+          select:  { id: true, text: true, moderationStatus: true, moderationComment: true },
+          take: 1,
+        },
+        likes: { select: { authorId: true } },
+      },
+    })
+    authorReviews = rawAuthorReviews.map(r => ({
+      id:               r.id,
+      rating:           r.rating,
+      text:             r.text,
+      moderationStatus: r.moderationStatus,
+      createdAt:        r.createdAt.toISOString(),
+      reviewer:  { name: r.user.name },
+      product: {
+        id:           r.product.id,
+        name:         r.product.name,
+        previewEmoji: r.product.previewEmoji ?? '📦',
+        previewBg:    r.product.previewBg    ?? '#141420',
+        images:       r.product.images       ?? [],
+      },
+      myComment: r.comments[0] ? { ...r.comments[0] } : null,
+      isLikedByAuthor: r.likes.some((l: any) => l.authorId === user.id),
+      likesCount: r.likes.length,
+    }))
+  }
+
   // Профиль создан (форма "Стать автором" отправлена), но роль ещё не подтверждена админом
   const hasPendingAuthorApplication = !!user.authorProfile && user.role !== 'author'
 
@@ -171,6 +216,22 @@ export default async function AccountPage({
         bio:        user.authorProfile?.bio        ?? null,
       }}
       hasPendingAuthorApplication={hasPendingAuthorApplication}
+      authorReviews={authorReviews}
+      myReviews={myReviews.map(r => ({
+        id:                r.id,
+        rating:            r.rating,
+        text:              r.text,
+        moderationStatus:  r.moderationStatus,
+        moderationComment: r.moderationComment ?? null,
+        createdAt:         r.createdAt.toISOString(),
+        product: {
+          id:           r.product.id,
+          name:         r.product.name,
+          previewEmoji: r.product.previewEmoji ?? '📦',
+          previewBg:    r.product.previewBg    ?? '#141420',
+          images:       r.product.images       ?? [],
+        },
+      }))}
       orders={orders.map(o => ({
         id:          o.id,
         status:      o.status,

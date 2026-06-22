@@ -57,17 +57,36 @@ export async function POST(req: NextRequest) {
     const existing = await db.review.findUnique({
       where: { userId_productId: { userId: session.user.id, productId } },
     })
+
+    // Если отзыв уже существует:
+    // - APPROVED/PENDING — нельзя отправить повторно
+    // - REJECTED — разрешаем обновить и отправить на повторную модерацию
     if (existing) {
-      return NextResponse.json({ error: 'Вы уже оставили отзыв' }, { status: 400 })
+      if (existing.moderationStatus !== 'REJECTED') {
+        return NextResponse.json({ error: 'Вы уже оставили отзыв' }, { status: 400 })
+      }
+
+      const review = await db.review.update({
+        where: { id: existing.id },
+        data:  { rating: ratingNum, text: text?.trim() || null, moderationStatus: 'PENDING', moderationComment: null },
+        include: { user: { select: { name: true } } },
+      })
+
+      return NextResponse.json({
+        id: review.id, rating: review.rating, text: review.text,
+        moderationStatus: review.moderationStatus,
+        createdAt: review.createdAt, user: { name: review.user.name },
+      }, { status: 200 })
     }
 
     const review = await db.review.create({
-      data: { userId: session.user.id, productId, rating: ratingNum, text: text?.trim() || null },
+      data: { userId: session.user.id, productId, rating: ratingNum, text: text?.trim() || null, moderationStatus: 'PENDING' },
       include: { user: { select: { name: true } } },
     })
 
-    return NextResponse.json({
+return NextResponse.json({
       id: review.id, rating: review.rating, text: review.text,
+      moderationStatus: review.moderationStatus,
       createdAt: review.createdAt, user: { name: review.user.name },
     }, { status: 201 })
 

@@ -1,15 +1,25 @@
 // src/app/admin/layout.tsx
 import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
 import AdminAuthGate from '@/components/admin/AdminAuthGate'
 import AdminSWRProvider from '@/components/admin/AdminSWRProvider'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) redirect('/admin/login')
 
-  const currentUser = session?.user
-    ? { name: session.user.name, email: session.user.email }
-    : null
+  // Роль и бан проверяем из БД — сессия может содержать устаревшую роль.
+  // Это главный рубеж защиты всей админки — proxy.ts проверяет только cookie.
+  const currentUser = await db.user.findUnique({
+    where:  { id: session.user.id },
+    select: { role: true, isBanned: true, name: true, email: true },
+  })
+
+  if (!currentUser || currentUser.isBanned || currentUser.role !== 'admin') {
+    redirect('/admin/login')
+  }
 
   return (
     <>

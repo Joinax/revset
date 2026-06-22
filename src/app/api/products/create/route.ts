@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         categoryId:    category.id,
         authorId:      session.user.id,
         images:        imageKeys ?? [],
-        bimParams:     JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null }),
+        bimParams:     JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null, uploadedAt: new Date().toISOString() }),
       },
     })
 

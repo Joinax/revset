@@ -165,7 +165,7 @@ export async function PATCH(
         moderationComment: nextModerationComment,
         ...(isNew !== undefined && { isNew: Boolean(isNew) }),
         ...(fileKey && {
-          bimParams: JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null }),
+          bimParams: JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null, uploadedAt: new Date().toISOString() }),
         }),
       },
     })

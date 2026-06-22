@@ -10,7 +10,7 @@ type Product = {
   id: string; name: string; author: string; price: number | null
   rating: number | null; reviewCount: number; isNew: boolean
   emoji: string; previewBg: string; revitVersions: string[]; categorySlug: string
-  isFavorited?: boolean; images?: string[]
+  isFavorited?: boolean; isInCart?: boolean; isPurchased?: boolean; images?: string[]
 }
 type Category = { slug: string; name: string; emoji: string; iconBg: string; id: string }
 type CurrentParams = {

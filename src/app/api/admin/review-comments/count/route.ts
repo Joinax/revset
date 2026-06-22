@@ -1,4 +1,4 @@
-// src/app/api/admin/verification-count/route.ts
+// src/app/api/admin/review-comments/count/route.ts
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
@@ -10,18 +10,15 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Роль и бан проверяем из БД — сессия может содержать устаревшую роль
   const currentUser = await db.user.findUnique({
     where:  { id: session.user.id },
     select: { role: true, isBanned: true },
   })
+
   if (!currentUser || currentUser.isBanned || currentUser.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const count = await db.authorProfile.count({
-    where: { isVerified: false },
-  })
-
+  const count = await db.reviewComment.count({ where: { moderationStatus: 'PENDING' } })
   return NextResponse.json({ count })
 }

@@ -13,10 +13,11 @@ type Props = {
   productId:   string
   isFree:      boolean
   isPurchased: boolean
+  existingReviewStatus?: string | null
   onReviewAdded: (review: Review) => void
 }
 
-export default function ReviewForm({ productId, isFree, isPurchased, onReviewAdded }: Props) {
+export default function ReviewForm({ productId, isFree, isPurchased, existingReviewStatus, onReviewAdded }: Props) {
   const { user } = useAppSession()
   const [rating,  setRating]  = useState(0)
   const [hover,   setHover]   = useState(0)
@@ -34,6 +35,11 @@ export default function ReviewForm({ productId, isFree, isPurchased, onReviewAdd
     )
   }
 
+  // Если отзыв одобрен или ждёт модерации — скрываем форму
+  if (existingReviewStatus === 'APPROVED' || existingReviewStatus === 'PENDING') {
+    return null
+  }
+
   if (!isFree && !isPurchased) {
     return (
       <div style={{ padding: '16px', background: 'var(--bg3)', borderRadius: '10px', fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
@@ -44,9 +50,9 @@ export default function ReviewForm({ productId, isFree, isPurchased, onReviewAdd
 
   if (success) {
     return (
-      <div style={{ padding: '16px', background: 'rgba(29,158,117,0.1)', border: '1px solid rgba(29,158,117,0.3)', borderRadius: '10px', fontSize: '13px', color: '#1D9E75', textAlign: 'center' }}>
-        <i className="ti ti-circle-check" style={{ marginRight: '6px' }} />
-        Отзыв опубликован. Спасибо!
+      <div style={{ padding: '16px', background: 'rgba(72,128,255,0.08)', border: '1px solid rgba(72,128,255,0.2)', borderRadius: '10px', fontSize: '13px', color: 'var(--accent)', textAlign: 'center' }}>
+        <i className="ti ti-clock" style={{ marginRight: '6px' }} />
+        Отзыв отправлен на модерацию. Спасибо!
       </div>
     )
   }
@@ -79,6 +85,12 @@ export default function ReviewForm({ productId, isFree, isPurchased, onReviewAdd
 
   return (
     <form onSubmit={handleSubmit} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', marginBottom: '12px' }}>
+      {existingReviewStatus === 'REJECTED' && (
+        <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(226,75,74,0.08)', border: '1px solid rgba(226,75,74,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--danger)' }}>
+          <i className="ti ti-alert-circle" style={{ marginRight: '5px' }} />
+          Ваш предыдущий отзыв был отклонён. Вы можете исправить и отправить повторно.
+        </div>
+      )}
       <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>Ваш отзыв</div>
 
       {/* Звёздочки */}
@@ -120,7 +132,7 @@ export default function ReviewForm({ productId, isFree, isPurchased, onReviewAdd
 
       <button type="submit" disabled={loading}
         style={{ background: loading ? 'var(--bg3)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
-        {loading ? 'Публикуем...' : 'Опубликовать отзыв'}
+        {loading ? 'Публикуем...' : existingReviewStatus === 'REJECTED' ? 'Отправить повторно' : 'Опубликовать отзыв'}
       </button>
     </form>
   )

@@ -64,7 +64,7 @@ export default async function CatalogPage({
     sort === 'expensive' ? { price: 'desc'     } :
                            { downloads: 'desc' }
 
-  const [products, total, categories, favorites] = await Promise.all([
+  const [products, total, categories, favorites, cart, purchasedItems] = await Promise.all([
     db.product.findMany({
       where, orderBy,
       skip:    (page - 1) * PER_PAGE,
@@ -81,9 +81,19 @@ export default async function CatalogPage({
       where:  { userId: session.user.id },
       select: { productId: true },
     }) : Promise.resolve([]),
+    session?.user ? db.cart.findFirst({
+      where:  { userId: session.user.id },
+      select: { items: { select: { productId: true } } },
+    }) : Promise.resolve(null),
+    session?.user ? db.orderItem.findMany({
+      where:  { order: { userId: session.user.id, status: 'PAID' } },
+      select: { productId: true },
+    }) : Promise.resolve([]),
   ])
 
-  const favoriteIds = new Set(favorites.map(f => f.productId))
+  const favoriteIds  = new Set(favorites.map(f => f.productId))
+  const cartIds      = new Set((cart?.items ?? []).map(i => i.productId))
+  const purchasedIds = new Set(purchasedItems.map(i => i.productId))
 
   const mappedProducts = products.map(p => ({
     id:            p.id,
@@ -100,6 +110,8 @@ export default async function CatalogPage({
     revitVersions: p.revitVersions,
     categorySlug:  p.categoryId,
     isFavorited:   favoriteIds.has(p.id),
+    isInCart:      cartIds.has(p.id),
+    isPurchased:   purchasedIds.has(p.id),
     images: p.images ?? [],
   }))
 

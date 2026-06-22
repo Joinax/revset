@@ -14,7 +14,9 @@ export type Product = {
   emoji:       string
   previewBg:   string
   isFavorited?: boolean
-  images?:     string[]
+  isInCart?:    boolean
+  isPurchased?: boolean
+  images?:      string[]
 }
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
@@ -56,12 +58,120 @@ function FavoriteButton({ productId, isFavorited = false }: { productId: string;
   )
 }
 
+
+// Кнопка действия в инфо-блоке карточки:
+// - куплен или бесплатный → скачать
+// - платный, в корзине    → убрать из корзины
+// - платный, не в корзине → добавить в корзину
+function ActionButton({
+  productId, price, isInCart = false, isPurchased = false,
+}: {
+  productId: string; price: number | null; isInCart?: boolean; isPurchased?: boolean
+}) {
+  const [inCart, setInCart] = useState(isInCart)
+  const [loading, setLoading] = useState(false)
+
+  const isFree = price === null
+  const canDownload = isFree || isPurchased
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/download/${productId}`)
+      const data = await res.json()
+      if (data.downloadUrl) {
+        const a = document.createElement('a')
+        a.href = data.downloadUrl
+        a.click()
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCartToggle(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (loading) return
+    setLoading(true)
+    if (inCart) {
+      const res = await fetch('/api/cart', {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ productId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setInCart(false)
+        window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: data.count } }))
+      }
+    } else {
+      const res = await fetch('/api/cart', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ productId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setInCart(true)
+        window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: data.count } }))
+      }
+    }
+    setLoading(false)
+  }
+
+  const btnBase: React.CSSProperties = {
+    border: '1px solid', borderRadius: '50%',
+    width: '28px', height: '28px', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    lineHeight: 1, transition: 'all 0.2s',
+    cursor: loading ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.6 : 1,
+  }
+
+  if (canDownload) {
+    return (
+      <button
+        aria-label="Скачать"
+        onClick={handleDownload}
+        disabled={loading}
+        style={{
+          ...btnBase,
+          background: 'rgba(0,182,155,0.12)',
+          borderColor: 'rgba(0,182,155,0.3)',
+          color: '#00B69B',
+        }}
+      >
+        <i className="ti ti-download" style={{ fontSize: '14px' }} />
+      </button>
+    )
+  }
+
+  return (
+    <button
+      aria-label={inCart ? 'Убрать из корзины' : 'Добавить в корзину'}
+      onClick={handleCartToggle}
+      disabled={loading}
+      style={{
+        ...btnBase,
+        background: inCart ? 'var(--accent)' : 'rgba(72,128,255,0.08)',
+        borderColor: inCart ? 'var(--accent)' : 'rgba(72,128,255,0.2)',
+        color: inCart ? '#fff' : 'var(--accent)',
+      }}
+    >
+      <i className={inCart ? 'ti ti-shopping-cart-check' : 'ti ti-shopping-cart-plus'} style={{ fontSize: '14px' }} />
+    </button>
+  )
+}
+
 type CardProps = {
   product: Product
 }
 
 export function ProductCard({ product }: CardProps) {
-  const { id, name, author, price, rating, reviewCount, isNew, emoji, previewBg, isFavorited, images } = product
+  const { id, name, author, price, rating, reviewCount, isNew, emoji, previewBg, isFavorited, isInCart, isPurchased, images } = product
 
   const hasImage = images && images.length > 0
   const imageUrl = hasImage ? `${S3_ENDPOINT}/${S3_BUCKET}/${images[0]}` : null
@@ -114,20 +224,23 @@ export function ProductCard({ product }: CardProps) {
         </div>
         <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>{author}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {price !== null ? (
-            <span style={{
-              fontFamily: 'var(--font-unbounded), sans-serif',
-              fontSize: '14px', fontWeight: 700, color: 'var(--accent)',
-            }}>{price} ₽</span>
-          ) : (
-            <span className="badge-free--soft">Бесплатно</span>
-          )}
-          {(rating || reviewCount > 0) && (
-            <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-              <span style={{ color: '#F59E0B' }}>★</span>
-              {rating ? `${rating}` : '—'} <span style={{ opacity: 0.6 }}>({reviewCount})</span>
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {price !== null ? (
+              <span style={{
+                fontFamily: 'var(--font-unbounded), sans-serif',
+                fontSize: '14px', fontWeight: 700, color: 'var(--accent)',
+              }}>{price} ₽</span>
+            ) : (
+              <span className="badge-free--soft">Бесплатно</span>
+            )}
+            {(rating || reviewCount > 0) && (
+              <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <span style={{ color: '#F59E0B' }}>★</span>
+                {rating ? `${rating}` : '—'} <span style={{ opacity: 0.6 }}>({reviewCount})</span>
+              </span>
+            )}
+          </div>
+          <ActionButton productId={id} price={price} isInCart={isInCart} isPurchased={isPurchased} />
         </div>
       </div>
 

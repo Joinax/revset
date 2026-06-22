@@ -7,7 +7,16 @@ import { logAdminAction } from '@/lib/audit-log'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || session.user.role !== 'admin') {
+  if (!session) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Роль и бан проверяем из БД — сессия может содержать устаревшую роль
+  const currentUser = await db.user.findUnique({
+    where:  { id: session.user.id },
+    select: { role: true, isBanned: true },
+  })
+  if (!currentUser || currentUser.isBanned || currentUser.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

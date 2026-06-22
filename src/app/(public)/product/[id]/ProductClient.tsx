@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import BuyButton from '@/components/BuyButton'
 import DownloadButton from '@/components/DownloadButton'
 import ReviewForm from '@/components/ReviewForm'
+import ReviewActions from '@/components/ReviewActions'
 
 const S3  = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const BKT = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
@@ -20,10 +22,17 @@ type Props = {
     createdAt?: Date; updatedAt?: Date
     category: { name: string; slug: string }
     author: { id: string; name: string | null; image: string | null; authorProfile: { bio: string | null; city: string | null; isVerified: boolean; totalSales: number } | null }
-    reviews: { id: string; rating: number; text: string | null; createdAt: Date; user: { name: string | null } }[]
+    reviews: {
+      id: string; rating: number; text: string | null; createdAt: Date
+      moderationStatus: string; moderationComment?: string | null; userId?: string
+      user: { name: string | null }
+      comments: { id: string; text: string; moderationStatus: string; author: { name: string | null; image: string | null } }[]
+      likes: { authorId: string }[]
+    }[]
   }
   isPurchased: boolean
   isFavorited: boolean
+  currentUserId?: string | null
   isInCart: boolean
   isOwnProduct: boolean
   cameFromAccount?: string | null
@@ -48,10 +57,26 @@ const SPEC_ICONS: Record<string, string> = {
   'Обновлено':    'ti-calendar-check',
 }
 
-export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct, cameFromAccount }: Props) {
+export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct, cameFromAccount, currentUserId }: Props) {
   const { avgRating } = product
+  const router = useRouter()
   const [activeImg, setActiveImg] = useState(0)
   const [activeTab, setActiveTab] = useState<'desc' | 'params' | 'reviews'>('desc')
+
+  // Автообновление на вкладке отзывов — статус отзыва может измениться после модерации
+  useEffect(() => {
+    if (activeTab !== 'reviews') return
+    function onFocus() { router.refresh() }
+    window.addEventListener('focus', onFocus)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 15000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      clearInterval(interval)
+    }
+  }, [activeTab, router])
+
   const [inFavs,    setInFavs]    = useState(isFavorited)
   const [inCart,    setInCart]    = useState(initialInCart)
   const [cartLoading, setCartLoading] = useState(false)
@@ -211,7 +236,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                 {([
                   { key: 'desc',    label: 'Описание'                           },
                   { key: 'params',  label: 'Характеристики'                     },
-                  { key: 'reviews', label: `Отзывы (${product.reviews.length})` },
+                  { key: 'reviews', label: `Отзывы (${product.reviews.filter(r => r.moderationStatus === 'APPROVED').length})` },
                 ] as const).map(tab => (
                   <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
                     padding: '12px 24px', fontSize: '14px',
@@ -266,15 +291,23 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
               {/* Отзывы */}
               {activeTab === 'reviews' && (
                 <div style={{ display: 'grid', gap: '16px' }}>
-                  <ReviewForm productId={product.id} isFree={product.price === null} isPurchased={isPurchased} onReviewAdded={() => window.location.reload()} />
-                  {product.reviews.length === 0 ? (
+                  <ReviewForm productId={product.id} isFree={product.price === null} isPurchased={isPurchased} existingReviewStatus={product.reviews.find(r => r.userId === currentUserId)?.moderationStatus ?? null} onReviewAdded={() => { router.refresh() }} />
+                  {product.reviews.filter(r => r.moderationStatus === 'APPROVED' || r.moderationStatus === 'PENDING').length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '56px 0', color: 'var(--muted)' }}>
                       <i className="ti ti-message-circle" style={{ fontSize: '40px', display: 'block', marginBottom: '14px', opacity: 0.2 }} />
                       <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '6px', marginTop: 0 }}>Отзывов пока нет</p>
                       <p style={{ fontSize: '13px', margin: 0 }}>Будьте первым, кто оставит отзыв на это семейство</p>
                     </div>
                   ) : product.reviews.map(r => (
-                    <div key={r.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '18px 20px' }}>
+                    <div key={r.id} style={{
+                      background: 'var(--bg2)', borderRadius: '16px', padding: '18px 20px',
+                      border: r.moderationStatus === 'PENDING'
+                        ? '1px solid rgba(72,128,255,0.3)'
+                        : r.moderationStatus === 'REJECTED'
+                          ? '1px solid rgba(239,56,38,0.3)'
+                          : '1px solid var(--border)',
+                      opacity: r.moderationStatus === 'REJECTED' ? 0.8 : 1,
+                    }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                           {(r.user.name ?? 'А')[0].toUpperCase()}
@@ -283,11 +316,44 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                           <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>{r.user.name ?? 'Аноним'}</div>
                           <Stars rating={r.rating} size={13} />
                         </div>
-                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                          {new Date(r.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                            {new Date(r.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          {r.moderationStatus === 'PENDING' && (
+                            <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--accent)', background: 'rgba(72,128,255,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
+                              На модерации
+                            </span>
+                          )}
+                          {r.moderationStatus === 'REJECTED' && (
+                            <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--danger)', background: 'rgba(239,56,38,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
+                              Отклонён
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {r.text && <p style={{ fontSize: '13px', lineHeight: 1.7, color: 'var(--text)', margin: 0 }}>{r.text}</p>}
+                      {r.moderationStatus === 'REJECTED' && r.moderationComment && (
+                        <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(239,56,38,0.06)', borderRadius: '8px', fontSize: '12px', color: 'var(--danger)' }}>
+                          <i className="ti ti-alert-circle" style={{ marginRight: '5px' }} />
+                          {r.moderationComment}
+                        </div>
+                      )}
+
+                      {/* Лайк и ответ автора — только для одобренных отзывов */}
+                      {r.moderationStatus === 'APPROVED' && (
+                        <ReviewActions
+                          reviewId={r.id}
+                          isProductAuthor={isOwnProduct}
+                          isLiked={r.likes.some(l => l.authorId === product.author.id)}
+                          likesCount={r.likes.length}
+                          comment={r.comments[0] ?? null}
+                          currentUserId={currentUserId}
+                          productAuthorId={product.author.id}
+                          productAuthorName={product.author.name}
+                          productAuthorImage={product.author.image}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -311,7 +377,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                     <>
                       <Stars rating={avgRating} size={15} />
                       <span style={{ fontSize: '13px', fontWeight: 700 }}>{avgRating.toFixed(1)}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>({product.reviews.length} {product.reviews.length === 1 ? 'отзыв' : 'отзывов'})</span>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>({product.reviews.filter(r => r.moderationStatus === 'APPROVED').length} {product.reviews.filter(r => r.moderationStatus === 'APPROVED').length === 1 ? 'отзыв' : 'отзывов'})</span>
                     </>
                   ) : (
                     <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Нет отзывов</span>

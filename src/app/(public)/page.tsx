@@ -18,7 +18,7 @@ function pluralizeModels(n: number) {
 export default async function HomePage() {
   const session = await auth.api.getSession({ headers: await headers() })
 
-  const [categories, products, , , favorites, categoryCounts] = await Promise.all([
+  const [categories, products, , , favorites, cart, purchasedItems, categoryCounts] = await Promise.all([
     db.category.findMany({ orderBy: { order: 'asc' } }),
     db.product.findMany({
       where:   { isPublished: true },
@@ -36,6 +36,14 @@ export default async function HomePage() {
       where:  { userId: session.user.id },
       select: { productId: true },
     }) : Promise.resolve([]),
+    session?.user ? db.cart.findFirst({
+      where:  { userId: session.user.id },
+      select: { items: { select: { productId: true } } },
+    }) : Promise.resolve(null),
+    session?.user ? db.orderItem.findMany({
+      where:  { order: { userId: session.user.id, status: 'PAID' } },
+      select: { productId: true },
+    }) : Promise.resolve([]),
     db.product.groupBy({
       by:     ['categoryId'],
       where:  { isPublished: true },
@@ -46,6 +54,8 @@ export default async function HomePage() {
   const categoryCountMap = new Map(categoryCounts.map(c => [c.categoryId, c._count.id]))
 
   const favoriteIds = new Set(favorites.map(f => f.productId))
+  const cartIds      = new Set((cart?.items ?? []).map(i => i.productId))
+  const purchasedIds = new Set(purchasedItems.map(i => i.productId))
 
   const mappedProducts = products.map(p => ({
     id:          p.id,
@@ -60,6 +70,8 @@ export default async function HomePage() {
     emoji:       p.previewEmoji ?? '📦',
     previewBg:   p.previewBg   ?? '#141420',
     isFavorited: favoriteIds.has(p.id),
+    isInCart:    cartIds.has(p.id),
+    isPurchased: purchasedIds.has(p.id),
     images:      p.images ?? [],
   }))
 

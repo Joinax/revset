@@ -73,6 +73,73 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 }
 
+
+function FileBlock({
+  bimFileName, bimUploadedAt, productCreatedAt, fileDownloading, fileError, onDownload,
+}: {
+  bimFileName: string
+  bimUploadedAt: string | null
+  productCreatedAt: string
+  fileDownloading: boolean
+  fileError: string
+  onDownload: () => void
+}) {
+  const uploadedDate = bimUploadedAt ? new Date(bimUploadedAt) : null
+  const createdDate  = new Date(productCreatedAt)
+  // Файл считается обновлённым если загружен более чем через 60 сек после создания товара
+  const isNewFile = uploadedDate
+    ? (uploadedDate.getTime() - createdDate.getTime()) > 60_000
+    : false
+
+  return (
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: '12px', padding: '12px 16px', borderRadius: '10px',
+        background: isNewFile ? 'rgba(72,128,255,0.06)' : 'var(--admin-bg2)',
+        border: `1px solid ${isNewFile ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <i className="ti ti-file-3d" style={{ fontSize: '18px', color: isNewFile ? 'var(--admin-accent)' : 'var(--admin-muted)', flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <span style={{ fontSize: '13px', color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+              {bimFileName}
+            </span>
+            {uploadedDate && (
+              <span style={{ fontSize: '11px', color: isNewFile ? 'var(--admin-accent)' : 'var(--admin-muted)' }}>
+                Загружен: {uploadedDate.toLocaleString('ru', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+        </div>
+        <button onClick={onDownload} disabled={fileDownloading} style={{
+          display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+          padding: '8px 16px', borderRadius: '8px', border: 'none',
+          background: 'var(--admin-accent)', color: '#fff', fontSize: '13px', fontWeight: 600,
+          cursor: fileDownloading ? 'not-allowed' : 'pointer', opacity: fileDownloading ? 0.7 : 1,
+        }}>
+          <i className="ti ti-download" style={{ fontSize: '14px' }} />
+          {fileDownloading ? 'Получаем ссылку...' : 'Скачать для проверки'}
+        </button>
+      </div>
+      {isNewFile && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          marginTop: '8px', padding: '8px 12px',
+          background: 'rgba(72,128,255,0.08)', borderRadius: '8px',
+          fontSize: '12px', color: 'var(--admin-accent)', fontWeight: 600,
+        }}>
+          <i className="ti ti-refresh-alert" style={{ fontSize: '14px' }} />
+          Автор загрузил новый файл — требует повторной проверки
+        </div>
+      )}
+      {fileError && (
+        <div style={{ fontSize: '12px', color: 'var(--admin-danger)', marginTop: '8px' }}>{fileError}</div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminFamilyDetailClient({ product, categories }: Props) {
   const router = useRouter()
   const { mutate: mutateModerationCount } = useModerationCount()
@@ -87,9 +154,9 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
   const [fileDownloading, setFileDownloading] = useState(false)
   const [fileError,       setFileError]       = useState('')
 
-  const bimFileName = (() => {
-    try { return JSON.parse(product.bimParams)?.fileName ?? '' } catch { return '' }
-  })()
+  const bimParams    = (() => { try { return JSON.parse(product.bimParams) } catch { return null } })()
+  const bimFileName   = (bimParams?.fileName  as string | undefined) ?? ''
+  const bimUploadedAt = (bimParams?.uploadedAt as string | undefined) ?? null
 
   async function handleDownloadFile() {
     setFileDownloading(true)
@@ -252,25 +319,16 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
           {!bimFileName ? (
             <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Файл не найден</p>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px', borderRadius: '10px', background: 'var(--admin-bg2)', border: '1px solid var(--admin-border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                <i className="ti ti-file-3d" style={{ fontSize: '18px', color: 'var(--admin-accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bimFileName}</span>
-              </div>
-              <button onClick={handleDownloadFile} disabled={fileDownloading} style={{
-                display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
-                padding: '8px 16px', borderRadius: '8px', border: 'none',
-                background: 'var(--admin-accent)', color: '#fff', fontSize: '13px', fontWeight: 600,
-                cursor: fileDownloading ? 'not-allowed' : 'pointer', opacity: fileDownloading ? 0.7 : 1,
-              }}>
-                <i className="ti ti-download" style={{ fontSize: '14px' }} />
-                {fileDownloading ? 'Получаем ссылку...' : 'Скачать для проверки'}
-              </button>
-            </div>
+            <FileBlock
+              bimFileName={bimFileName ?? ""}
+              bimUploadedAt={bimUploadedAt}
+              productCreatedAt={product.createdAt}
+              fileDownloading={fileDownloading}
+              fileError={fileError}
+              onDownload={handleDownloadFile}
+            />
           )}
-          {fileError && (
-            <div style={{ fontSize: '12px', color: 'var(--admin-danger)', marginTop: '8px' }}>{fileError}</div>
-          )}
+
         </div>
       </Section>
 

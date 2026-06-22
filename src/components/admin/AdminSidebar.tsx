@@ -6,13 +6,17 @@ import { useState } from 'react'
 import { authClient } from '@/lib/auth-client'
 import { useVerificationCount } from '@/hooks/useVerificationCount'
 import { useModerationCount } from '@/hooks/useModerationCount'
+import { useReviewsCount } from '@/hooks/useReviewsCount'
+import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
 
 const links = [
   { href: '/admin/dashboard',    icon: 'ti-layout-dashboard', label: 'Дашборд' },
   { href: '/admin/families',     icon: 'ti-box',              label: 'Семейства' },
   { href: '/admin/users',        icon: 'ti-users',            label: 'Пользователи' },
   { href: '/admin/verification', icon: 'ti-shield-check',     label: 'Верификация' },
-  { href: '/admin/transactions', icon: 'ti-credit-card',      label: 'Транзакции' },
+  { href: '/admin/transactions',    icon: 'ti-credit-card',    label: 'Транзакции' },
+  { href: '/admin/reviews',          icon: 'ti-message-star',   label: 'Отзывы' },
+  { href: '/admin/review-comments',  icon: 'ti-message-reply',  label: 'Ответы авторов' },
   { href: '/admin/logs',         icon: 'ti-history',          label: 'Журнал' },
   { href: '/admin/settings',     icon: 'ti-settings',         label: 'Настройки' },
 ]
@@ -25,19 +29,25 @@ export default function AdminSidebar() {
   const [loggingOut, setLoggingOut] = useState(false)
 
   const { count: verificationCount, isLoading: vLoading } = useVerificationCount()
-  const { count: moderationCount,   isLoading: mLoading } = useModerationCount()
+  const { count: moderationCount,     isLoading: mLoading } = useModerationCount()
+  const { count: reviewsCount,         isLoading: rLoading } = useReviewsCount()
+  const { count: reviewCommentsCount,  isLoading: rcLoading } = useReviewCommentsCount()
 
   // Карта badge-счётчиков по href — легко добавлять новые в будущем
   const badgeCounts: Record<string, number> = {
     '/admin/verification': verificationCount,
-    '/admin/families':     moderationCount,
+    '/admin/families':          moderationCount,
+    '/admin/reviews':           reviewsCount,
+    '/admin/review-comments':  reviewCommentsCount,
   }
 
   // До первой загрузки SWR не показываем бейдж вообще —
   // иначе на долю секунды мигнёт "0" перед реальным значением
   const badgeLoading: Record<string, boolean> = {
     '/admin/verification': vLoading,
-    '/admin/families':     mLoading,
+    '/admin/families':          mLoading,
+    '/admin/reviews':           rLoading,
+    '/admin/review-comments':  rcLoading,
   }
 
   const W = expanded ? 240 : 72

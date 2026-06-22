@@ -39,6 +39,29 @@ type AuthorSale = {
 }
 type AuthorFilters = { status: string; price: string; sort: string; query: string }
 
+type AuthorReview = {
+  id: string
+  rating: number
+  text: string | null
+  moderationStatus: string
+  createdAt: string
+  reviewer: { name: string | null }
+  product: { id: string; name: string; previewEmoji: string; previewBg: string; images: string[] }
+  myComment: { id: string; text: string; moderationStatus: string; moderationComment?: string | null } | null
+  isLikedByAuthor: boolean
+  likesCount: number
+}
+
+type UserReview = {
+  id: string
+  rating: number
+  text: string | null
+  moderationStatus: string
+  moderationComment: string | null
+  createdAt: string
+  product: { id: string; name: string; previewEmoji: string; previewBg: string; images: string[] }
+}
+
 type Props = {
   followings?: Following[]
   user: User; orders: Order[]; favorites: Favorite[]
@@ -47,7 +70,11 @@ type Props = {
   authorFilters?: AuthorFilters
   authorSales?: AuthorSale[]; authorSalesPagination?: Pagination
   hasPendingAuthorApplication?: boolean
+  myReviews?: UserReview[]
+  authorReviews?: AuthorReview[]
 }
+
+import ReviewActions from '@/components/ReviewActions'
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
@@ -72,6 +99,7 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     { key: 'orders',    label: 'Покупки',       icon: 'ti-shopping-bag',     badge: null, badgeVariant: null },
     { key: 'favorites',      label: 'Избранное',   icon: 'ti-heart',       badge: null, badgeVariant: null },
     { key: 'subscriptions', label: 'Подписки',    icon: 'ti-users',       badge: null, badgeVariant: null },
+    { key: 'my-reviews', label: 'Мои отзывы',  icon: 'ti-message-star', badge: null, badgeVariant: null },
     { key: 'profile',   label: 'Профиль',       icon: 'ti-user',             badge: null, badgeVariant: null },
     { key: 'security',  label: 'Безопасность',  icon: 'ti-shield-lock',      badge: null, badgeVariant: null },
   ]
@@ -80,14 +108,15 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     ...base,
     { key: 'divider',         label: '',              icon: '',             badge: null, badgeVariant: null },
     { key: 'author-stats',    label: 'Статистика',    icon: 'ti-chart-bar', badge: null, badgeVariant: null },
+    { key: 'author-reviews',  label: 'Отзывы',        icon: 'ti-message-star', badge: null, badgeVariant: null },
     { key: 'author-sales',    label: 'Продажи',       icon: 'ti-receipt',   badge: null, badgeVariant: null },
     { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: rejectedCount > 0 ? rejectedCount : null, badgeVariant: 'danger' as const },
     { key: 'author-upload',   label: 'Загрузить',     icon: 'ti-upload',    badge: null, badgeVariant: null },
   ]
 }
 
-type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales'
+type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -165,12 +194,133 @@ function SubscriptionsTab({ followings }: { followings: Following[] }) {
   )
 }
 
-export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false }: Props) {
+
+function AuthorReviewsTab({ reviews, user }: { reviews: AuthorReview[]; user: User }) {
+  const [filter, setFilter] = useState<'all' | 'unanswered' | 'answered'>('all')
+
+  const filtered = reviews.filter(r => {
+    if (filter === 'unanswered') return !r.myComment
+    if (filter === 'answered')   return !!r.myComment
+    return true
+  })
+
+  const unansweredCount = reviews.filter(r => !r.myComment).length
+
+  return (
+    <div style={{ display: 'grid', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text)' }}>Отзывы на мои товары</h3>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {([['all', 'Все'], ['unanswered', 'Без ответа'], ['answered', 'Отвечено']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setFilter(key)} style={{
+              padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
+              border: `1px solid ${filter === key ? 'var(--accent)' : 'var(--border)'}`,
+              background: filter === key ? 'rgba(72,128,255,0.08)' : 'transparent',
+              color: filter === key ? 'var(--accent)' : 'var(--muted)',
+              cursor: 'pointer',
+            }}>
+              {label}
+              {key === 'unanswered' && unansweredCount > 0 && (
+                <span style={{ marginLeft: '4px', background: 'var(--accent)', color: '#fff', borderRadius: '10px', padding: '0 5px', fontSize: '10px' }}>
+                  {unansweredCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
+          <i className="ti ti-message-circle" style={{ fontSize: '32px', display: 'block', marginBottom: '10px', opacity: 0.2 }} />
+          <p style={{ fontSize: '13px', margin: 0 }}>
+            {filter === 'unanswered' ? 'Все отзывы уже получили ответ' : filter === 'answered' ? 'Нет отвеченных отзывов' : 'Отзывов пока нет'}
+          </p>
+        </div>
+      ) : filtered.map(r => {
+        const img = r.product.images[0]
+        const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+          PENDING:  { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+          APPROVED: { label: 'Опубликован',  color: '#1D9E75', bg: 'rgba(29,158,117,0.1)' },
+          REJECTED: { label: 'Отклонён',     color: '#E24B4A', bg: 'rgba(226,75,74,0.1)'  },
+        }
+        const st = statusMap[r.moderationStatus] ?? statusMap.PENDING
+
+        return (
+          <div key={r.id} style={{
+            background: 'var(--bg)', border: '1px solid var(--border)',
+            borderRadius: '12px', padding: '12px 14px',
+          }}>
+            {/* Строка 1: превью + название + дата + статус */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <a href={`/product/${r.product.id}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0,
+                  background: img ? '#f5f5f5' : r.product.previewBg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {img
+                    ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: '16px' }}>{r.product.previewEmoji}</span>
+                  }
+                </div>
+              </a>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <a href={`/product/${r.product.id}`} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                  {r.product.name}
+                </a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{r.reviewer.name ?? 'Покупатель'}</span>
+                  <span style={{ color: 'var(--border)', fontSize: '10px' }}>·</span>
+                  {[1,2,3,4,5].map(s => <span key={s} style={{ fontSize: '11px', color: s <= r.rating ? '#F59E0B' : 'var(--border)' }}>★</span>)}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+                <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                  {new Date(r.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short' })}
+                </span>
+                <span style={{ fontSize: '10px', fontWeight: 600, color: st.color, background: st.bg, padding: '1px 7px', borderRadius: '10px' }}>
+                  {st.label}
+                </span>
+              </div>
+            </div>
+
+            {/* Текст отзыва */}
+            {r.text && (
+              <p style={{ fontSize: '12px', color: 'var(--text)', margin: '0 0 8px', lineHeight: 1.5, paddingLeft: '46px' }}>
+                {r.text}
+              </p>
+            )}
+
+            {/* Лайк и ответ */}
+            {r.moderationStatus === 'APPROVED' && (
+              <div style={{ paddingLeft: '46px' }}>
+                <ReviewActions
+                  reviewId={r.id}
+                  isProductAuthor={true}
+                  isLiked={r.isLikedByAuthor}
+                  likesCount={r.likesCount}
+                  comment={r.myComment ? { id: r.myComment.id, text: r.myComment.text, moderationStatus: r.myComment.moderationStatus, moderationComment: r.myComment.moderationComment ?? null, author: { name: user.name, image: user.image ?? null } } : null}
+                  currentUserId={user.id}
+                  productAuthorId={user.id}
+                  productAuthorName={user.name}
+                  productAuthorImage={user.image ?? null}
+                />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [] }: Props) {
   const searchParams = useSearchParams()
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
-    const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'profile', 'security']
-    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales']
+    const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
   })
@@ -687,6 +837,91 @@ export default function AccountClient({ user, orders, favorites, followings = []
           {/* ── Подписки ── */}
           {activeTab === 'subscriptions' && (
             <SubscriptionsTab followings={followings ?? []} />
+          )}
+
+
+          {/* ── Мои отзывы ── */}
+          {activeTab === 'my-reviews' && (
+            <div style={{ display: 'grid', gap: '12px' }}>
+              <SectionTitle>Мои отзывы</SectionTitle>
+              {myReviews.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '56px 0', color: 'var(--muted)' }}>
+                  <i className="ti ti-message-circle" style={{ fontSize: '40px', display: 'block', marginBottom: '14px', opacity: 0.2 }} />
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '6px', marginTop: 0 }}>Отзывов пока нет</p>
+                  <p style={{ fontSize: '13px', margin: 0 }}>Вы ещё не оставляли отзывов</p>
+                </div>
+              ) : myReviews.map(r => {
+                const img = r.product.images[0]
+                const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+                  PENDING:  { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+                  APPROVED: { label: 'Опубликован',  color: '#1D9E75', bg: 'rgba(29,158,117,0.1)' },
+                  REJECTED: { label: 'Отклонён',     color: '#E24B4A', bg: 'rgba(226,75,74,0.1)'  },
+                }
+                const st = statusMap[r.moderationStatus] ?? statusMap.PENDING
+                return (
+                  <div key={r.id} style={{
+                    background: 'var(--bg)', border: `1px solid ${r.moderationStatus === 'REJECTED' ? 'rgba(226,75,74,0.3)' : 'var(--border)'}`,
+                    borderRadius: '16px', padding: '16px', display: 'flex', gap: '14px',
+                  }}>
+                    <a href={`/product/${r.product.id}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                      <div style={{
+                        width: '48px', height: '48px', borderRadius: '10px', overflow: 'hidden',
+                        background: img ? '#f5f5f5' : r.product.previewBg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {img
+                          ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <span style={{ fontSize: '22px' }}>{r.product.previewEmoji}</span>
+                        }
+                      </div>
+                    </a>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                        <div>
+                          <a href={`/product/${r.product.id}`} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', textDecoration: 'none' }}>
+                            {r.product.name}
+                          </a>
+                          <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
+                            {[1,2,3,4,5].map(s => (
+                              <span key={s} style={{ fontSize: '12px', color: s <= r.rating ? '#F59E0B' : 'var(--border)' }}>★</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                            {new Date(r.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: 600, color: st.color, background: st.bg, padding: '2px 8px', borderRadius: '10px' }}>
+                            {st.label}
+                          </span>
+                        </div>
+                      </div>
+                      {r.text && (
+                        <p style={{ fontSize: '13px', color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>{r.text}</p>
+                      )}
+                      {r.moderationStatus === 'REJECTED' && (
+                        <div style={{ marginTop: '8px', padding: '8px 12px', background: 'rgba(226,75,74,0.06)', borderRadius: '8px', fontSize: '12px', color: 'var(--danger)' }}>
+                          <i className="ti ti-alert-circle" style={{ marginRight: '5px' }} />
+                          {r.moderationComment
+                            ? r.moderationComment
+                            : 'Отзыв отклонён модератором. Вы можете исправить и отправить повторно на странице товара.'
+                          }
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+
+          {/* ── Отзывы на мои товары ── */}
+          {activeTab === 'author-reviews' && (
+            <AuthorReviewsTab
+              reviews={authorReviews}
+              user={user}
+            />
           )}
 
           {/* ── Профиль ── */}

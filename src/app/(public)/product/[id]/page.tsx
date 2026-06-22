@@ -22,7 +22,17 @@ export default async function ProductPage({
       include: {
         author:   { select: { id: true, name: true, image: true, authorProfile: true } },
         category: { select: { name: true, slug: true } },
-        reviews:  { include: { user: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
+        reviews: {
+          include: {
+            user:     { select: { name: true } },
+            comments: {
+              where:   { moderationStatus: 'APPROVED' },
+              include: { author: { select: { name: true, image: true } } },
+            },
+            likes: { select: { authorId: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     }),
     auth.api.getSession({ headers: await headers() }),
@@ -53,18 +63,28 @@ export default async function ProductPage({
     isInCart    = !!cartItem
   }
 
-  const avgRating = product.reviews.length > 0
-    ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length
+  // Показываем только одобренные отзывы + отзыв текущего пользователя (в любом статусе)
+  const visibleReviews = product.reviews.filter(r =>
+    r.moderationStatus === 'APPROVED' ||
+    (session?.user && r.userId === session.user.id)
+  )
+
+  // Комментарий автора к отзывам (включая на модерации — для самого автора)
+  const productAuthorId = product.author.id
+
+  const avgRating = product.reviews.filter(r => r.moderationStatus === 'APPROVED').length > 0
+    ? product.reviews.filter(r => r.moderationStatus === 'APPROVED').reduce((sum, r) => sum + r.rating, 0) / product.reviews.filter(r => r.moderationStatus === 'APPROVED').length
     : null
 
   return (
     <ProductClient
-      product={{ ...product, avgRating }}
+      product={{ ...product, reviews: visibleReviews, avgRating }}
       isPurchased={isPurchased}
       isFavorited={isFavorited}
       isInCart={isInCart}
       isOwnProduct={isOwnProduct}
       cameFromAccount={from}
+      currentUserId={session?.user?.id ?? null}
     />
   )
 }

@@ -28,8 +28,9 @@ model User {
   followers     Follow[]  @relation("Following")
   cart          Cart?
   auditLogs     AdminAuditLog[] @relation("AdminAuditLogs")
-  notifications Notification[]
-  
+  notifications     Notification[]
+  reviewComments    ReviewComment[]  @relation("ReviewComments")
+  reviewLikes       ReviewLike[]     @relation("ReviewLikes")
 
   @@map("user")
 }
@@ -181,15 +182,43 @@ model Favorite {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  rating    Int
-  text      String?
-  createdAt DateTime @default(now())
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating            Int
+  text              String?
+  moderationStatus  ModerationStatus @default(PENDING)
+  moderationComment String?
+  createdAt         DateTime         @default(now())
+  comments          ReviewComment[]
+  likes             ReviewLike[]
   @@unique([userId, productId])
+}
+
+model ReviewComment {
+  id               String           @id @default(cuid())
+  reviewId         String
+  review           Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User             @relation("ReviewComments", fields: [authorId], references: [id], onDelete: Cascade)
+  text             String
+  moderationStatus ModerationStatus @default(PENDING)
+  moderationComment String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @default(now()) @updatedAt
+  @@unique([reviewId, authorId])
+}
+
+model ReviewLike {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("ReviewLikes", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([reviewId, authorId])
 }
 
 model Follow {
