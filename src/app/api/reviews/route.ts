@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const product = await db.product.findUnique({ where: { id: productId } })
-    if (!product) {
+    if (!product || !product.isPublished) {
       return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
     }
 

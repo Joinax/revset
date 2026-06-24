@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   await db.notification.create({
     data: {
       userId:  comment.authorId,
-      type:    moderationStatus === 'APPROVED' ? 'product_approved' : 'product_rejected',
+      type:    moderationStatus === 'APPROVED' ? 'review_comment_approved' : 'review_comment_rejected',
       title:   moderationStatus === 'APPROVED' ? 'Ответ на отзыв опубликован' : 'Ответ на отзыв отклонён',
       message: moderationStatus === 'APPROVED'
         ? `Ваш ответ на отзыв к «${comment.review.product.name}» прошёл модерацию и опубликован.`

@@ -126,7 +126,7 @@ model Product {
   revitVersions     String[]
   fileSize          String?
   dimensions        String?
-  bimParams         String?
+  bimParams         Json?
   images            String[]         @default([])
   isPublished       Boolean          @default(false)
   moderationStatus  ModerationStatus @default(DRAFT)

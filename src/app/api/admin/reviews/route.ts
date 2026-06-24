@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       await db.notification.create({
         data: {
           userId:  reviewData2.product.authorId,
-          type:    'product_approved',
+          type:    'new_review',
           title:   'Новый отзыв на вашу модель',
           message: `${reviewData2.user.name ?? 'Покупатель'} оставил отзыв на «${reviewData2.product.name}»`,
           link:    '/account?tab=author-reviews',
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     await db.notification.create({
       data: {
         userId:  reviewData.userId,
-        type:    moderationStatus === 'APPROVED' ? 'product_approved' : 'product_rejected',
+        type:    moderationStatus === 'APPROVED' ? 'review_approved' : 'review_rejected',
         title:   moderationStatus === 'APPROVED' ? 'Отзыв опубликован' : 'Отзыв отклонён',
         message: moderationStatus === 'APPROVED'
           ? `Ваш отзыв на «${reviewData.product.name}» прошёл модерацию и опубликован.`

@@ -17,6 +17,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'productId обязателен' }, { status: 400 })
     }
 
+    const product = await db.product.findUnique({
+      where:  { id: productId },
+      select: { isPublished: true },
+    })
+    if (!product?.isPublished) {
+      return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
+    }
+
     const favorite = await db.favorite.upsert({
       where:  { userId_productId: { userId: session.user.id, productId } },
       update: {},

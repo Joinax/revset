@@ -14,10 +14,15 @@ type NotificationItem = {
 }
 
 const TYPE_ICON: Record<string, string> = {
-  author_application_approved: 'ti-user-check',
-  author_application_rejected: 'ti-user-x',
-  product_approved:            'ti-circle-check',
-  product_rejected:            'ti-circle-x',
+  author_application_approved:  'ti-user-check',
+  author_application_rejected:  'ti-user-x',
+  product_approved:             'ti-circle-check',
+  product_rejected:             'ti-circle-x',
+  new_review:                   'ti-star',
+  review_approved:              'ti-message-check',
+  review_rejected:              'ti-message-x',
+  review_comment_approved:      'ti-message-check',
+  review_comment_rejected:      'ti-message-x',
 }
 
 function timeAgo(iso: string) {
