@@ -8,7 +8,15 @@ import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || session.user.role !== 'admin') {
+  if (!session) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const adminUser = await db.user.findUnique({
+    where:  { id: session.user.id },
+    select: { role: true, isBanned: true },
+  })
+  if (!adminUser || adminUser.role !== 'admin' || adminUser.isBanned) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
