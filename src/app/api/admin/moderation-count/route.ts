@@ -20,7 +20,7 @@ export async function GET() {
   }
 
   const count = await db.product.count({
-    where: { isPublished: false },
+    where: { moderationStatus: 'PENDING' },
   })
 
   return NextResponse.json({ count })
