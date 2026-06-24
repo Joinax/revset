@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getQueue, QUEUE_SCAN_FILE, type ScanFileJob } from '@/lib/queue'
 import { serializeDecimal } from '@/lib/serialize'
 
 const ALLOWED_REVIT_VERSIONS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026']
@@ -17,14 +18,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
     }
 
-    // Берём роль из БД, а не из сессии — сессия могла закэшировать устаревшую роль
     const user = await db.user.findUnique({
-      where: { id: session.user.id },
+      where:   { id: session.user.id },
       include: { authorProfile: true },
     })
 
     if (!user || user.role !== 'author' || !user.authorProfile) {
       return NextResponse.json({ error: 'Доступ только для авторов' }, { status: 403 })
+    }
+
+    if (user.isBanned) {
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
     }
 
     const body = await req.json()
@@ -52,15 +56,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Файл обязателен' }, { status: 400 })
     }
 
-    // fileName — опциональный, но если передан — должен быть строкой
+    // fileKey должен быть в temp/ — автор не может подсунуть чужой постоянный ключ
+    if (!fileKey.startsWith('temp/rfa/')) {
+      return NextResponse.json({ error: 'Некорректный ключ файла' }, { status: 400 })
+    }
+
     if (fileName !== undefined && typeof fileName !== 'string') {
       return NextResponse.json({ error: 'Некорректное имя файла' }, { status: 400 })
     }
 
     if (price !== undefined && price !== null && price !== '') {
       const priceNum = parseFloat(price)
-      // Товар либо бесплатный (price не передан), либо минимум 200 ₽.
-      // Максимум 350 000 ₽ — разовый лимит банковской карты в ЮKassa.
       if (isNaN(priceNum) || priceNum < 200 || priceNum > 350_000) {
         return NextResponse.json({ error: 'Цена должна быть от 200 до 350 000 ₽' }, { status: 400 })
       }
@@ -73,8 +79,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Недопустимая версия Revit' }, { status: 400 })
     }
 
-    // categorySlug обязателен и не должен быть пустой строкой —
-    // иначе findFirst({}) вернёт первую попавшуюся категорию
     if (!categorySlug || typeof categorySlug !== 'string' || categorySlug.trim().length === 0) {
       return NextResponse.json({ error: 'Категория обязательна' }, { status: 400 })
     }
@@ -84,6 +88,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Максимум ${MAX_IMAGES} изображений` }, { status: 400 })
       }
       if (!imageKeys.every((k: unknown) => typeof k === 'string')) {
+        return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
+      }
+      // Изображения тоже должны быть из temp/
+      if (!imageKeys.every((k: string) => k.startsWith('temp/images/'))) {
         return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
       }
     }
@@ -98,29 +106,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Категория не найдена' }, { status: 400 })
     }
 
-    const moderationStatus = user.authorProfile.autoPublish ? 'APPROVED' : 'PENDING'
-    const isPublished = moderationStatus === 'APPROVED'
-
     const parsedPrice = price !== undefined && price !== null && price !== ''
       ? parseFloat(price)
       : null
 
+    // Товар создаётся со статусом PENDING_SCAN — файлы ещё проверяются ClamAV
+    // Модератор не видит карточку пока все файлы не пройдут проверку
     const product = await db.product.create({
       data: {
-        name:          name.trim(),
-        description:   description?.trim() || null,
-        price:         parsedPrice && parsedPrice > 0 ? parsedPrice : null,
-        revitVersions: revitVersions,
-        isPublished,
-        moderationStatus,
-        isNew:         true,
-        downloads:     0,
-        categoryId:    category.id,
-        authorId:      session.user.id,
-        images:        imageKeys ?? [],
-        bimParams:     JSON.stringify({ fileKey: fileKey.trim(), fileName: fileName ?? null, uploadedAt: new Date().toISOString() }),
+        name:             name.trim(),
+        description:      description?.trim() || null,
+        price:            parsedPrice && parsedPrice > 0 ? parsedPrice : null,
+        revitVersions,
+        isPublished:      false,
+        moderationStatus: 'PENDING_SCAN',
+        isNew:            true,
+        downloads:        0,
+        categoryId:       category.id,
+        authorId:         session.user.id,
+        images:           [],  // изображения добавятся после прохождения ClamAV
+        bimParams:        JSON.stringify({
+          fileName:   fileName ?? null,
+          uploadedAt: new Date().toISOString(),
+        }),
       },
     })
+
+    // Ставим задачи в очередь ClamAV для всех файлов
+    const queue = await getQueue()
+
+    // RFA файл
+    const rfaDestKey = fileKey.replace('temp/rfa/', 'rfa/')
+    const rfaJob: ScanFileJob = {
+      fileKey,
+      destKey:    rfaDestKey,
+      entityType: 'product',
+      entityId:   product.id,
+      fieldName:  'rfaKey',
+    }
+    await queue.send(QUEUE_SCAN_FILE, rfaJob, { retryLimit: 2, retryDelay: 60 })
+
+    // Изображения
+    if (imageKeys && imageKeys.length > 0) {
+      for (const imgKey of imageKeys) {
+        const imgDestKey = imgKey.replace('temp/images/', 'images/')
+        const imgJob: ScanFileJob = {
+          fileKey:    imgKey,
+          destKey:    imgDestKey,
+          entityType: 'product',
+          entityId:   product.id,
+          fieldName:  'images',
+        }
+        await queue.send(QUEUE_SCAN_FILE, imgJob, { retryLimit: 2, retryDelay: 60 })
+      }
+    }
 
     return NextResponse.json(serializeDecimal({ productId: product.id }), { status: 201 })
 

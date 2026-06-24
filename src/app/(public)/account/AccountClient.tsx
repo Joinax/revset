@@ -14,7 +14,7 @@ type OrderItem     = { id: string; price: number; product: Product }
 type Order         = { id: string; status: string; totalAmount: number; createdAt: string; items: OrderItem[] }
 type Favorite      = { id: string; product: Product & { price: number | null } }
 type Following     = { id: string; createdAt: string; following: { id: string; name: string | null; authorProfile: { bio: string | null; isVerified: boolean } | null; _count: { products: number } } }
-type ModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+type ModerationStatus = 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type AuthorProduct = {
   id: string; name: string; price: number | null; isPublished: boolean
   moderationStatus: ModerationStatus; moderationComment?: string | null
@@ -87,10 +87,11 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 }
 
 const MODERATION_LABELS: Record<ModerationStatus, { label: string; color: string; bg: string }> = {
-  DRAFT:    { label: 'Черновик',     color: 'var(--muted)',  bg: 'var(--bg3)' },
-  PENDING:  { label: 'На модерации', color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
-  APPROVED: { label: 'Опубликовано', color: '#1D9E75',       bg: 'rgba(29,158,117,0.1)' },
-  REJECTED: { label: 'Отклонено',    color: '#E24B4A',       bg: 'rgba(226,75,74,0.1)' },
+  DRAFT:        { label: 'Черновик',              color: 'var(--muted)',  bg: 'var(--bg3)' },
+  PENDING_SCAN: { label: 'Проверка безопасности', color: '#6366F1',       bg: 'rgba(99,102,241,0.1)' },
+  PENDING:      { label: 'На модерации',          color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
+  APPROVED:     { label: 'Опубликовано',          color: '#1D9E75',       bg: 'rgba(29,158,117,0.1)' },
+  REJECTED:     { label: 'Отклонено',             color: '#E24B4A',       bg: 'rgba(226,75,74,0.1)' },
 }
 
 function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number) {

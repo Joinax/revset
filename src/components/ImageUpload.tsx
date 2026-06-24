@@ -13,12 +13,18 @@ type Props = {
   onImagesChange: (images: UploadedImage[], mainIndex: number) => void
   maxImages?:     number
   initialImages?: UploadedImage[]
+  entityType?:    'product' | 'avatar'
+  entityId?:      string
+  fieldName?:     string
 }
 
 export default function ImageUpload({
   onImagesChange,
-  maxImages = 6,
+  maxImages     = 6,
   initialImages = [],
+  entityType    = 'product',
+  entityId      = '',
+  fieldName     = 'images',
 }: Props) {
   const [images,    setImages]    = useState<UploadedImage[]>(initialImages)
   const [mainIndex, setMainIndex] = useState(0)
@@ -47,6 +53,7 @@ export default function ImageUpload({
       }
 
       try {
+        // Шаг 1 — получаем presigned URL
         const res = await fetch('/api/upload', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -55,8 +62,22 @@ export default function ImageUpload({
         if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Ошибка загрузки'); continue }
         const { uploadUrl, fileKey } = await res.json()
 
-        const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+        // Шаг 2 — загружаем напрямую в S3
+        const uploadRes = await fetch(uploadUrl, {
+          method:  'PUT',
+          headers: { 'Content-Type': file.type },
+          body:    file,
+        })
         if (!uploadRes.ok) { setError('Ошибка загрузки в хранилище'); continue }
+
+        // Шаг 3 — уведомляем сервер (только если entityId уже известен)
+        if (entityId) {
+          await fetch('/api/upload/complete', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ fileKey, uploadType: 'image', entityType, entityId, fieldName }),
+          })
+        }
 
         uploaded.push({ fileKey, url: URL.createObjectURL(file), name: file.name })
       } catch {
@@ -91,19 +112,16 @@ export default function ImageUpload({
             <div key={img.fileKey} style={{ position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${i === mainIndex ? 'var(--accent)' : 'var(--border)'}` }}>
               <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 
-              {/* Кнопка удаления */}
               <button type="button" onClick={() => removeImage(i)}
                 style={{ position: 'absolute', top: '4px', right: '4px', width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
                 ×
               </button>
 
-              {/* Бейдж главного фото */}
               {i === mainIndex ? (
                 <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'var(--accent)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '3px' }}>
                   Главное
                 </span>
               ) : (
-                /* Кнопка сделать главным */
                 <button type="button" onClick={() => setAsMain(i)}
                   style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: '10px', cursor: 'pointer', padding: '2px 6px', borderRadius: '3px' }}>
                   Сделать главным

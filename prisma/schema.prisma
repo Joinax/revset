@@ -106,10 +106,11 @@ model Category {
 }
 
 enum ModerationStatus {
-  DRAFT     // черновик — автор сам не опубликовал
-  PENDING   // ожидает проверки админом
-  APPROVED  // одобрено и опубликовано
-  REJECTED  // отклонено админом
+  DRAFT         // черновик — автор сам не опубликовал
+  PENDING_SCAN  // файл проверяется ClamAV, модератор не видит карточку
+  PENDING       // ожидает проверки админом
+  APPROVED      // одобрено и опубликовано
+  REJECTED      // отклонено
 }
 
 model Product {
@@ -262,10 +263,10 @@ model AdminAuditLog {
   id         String   @id @default(cuid())
   adminId    String
   admin      User     @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: Cascade)
-  action     String   // например: 'user.ban', 'order.status_change', 'verification.approve'
-  targetType String   // 'User' | 'Product' | 'Order' | 'Category' | 'Setting'
-  targetId   String?  // id затронутой записи (если применимо)
-  details    Json?    // произвольные доп. данные: { from, to, ... }
+  action     String
+  targetType String
+  targetId   String?
+  details    Json?
   createdAt  DateTime @default(now())
 
   @@index([adminId])
@@ -278,10 +279,10 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // например: 'author_application_approved', 'author_application_rejected', 'product_approved', 'product_rejected'
+  type      String
   title     String
   message   String
-  link      String?  // куда вести по клику, например /account?tab=author-products
+  link      String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 

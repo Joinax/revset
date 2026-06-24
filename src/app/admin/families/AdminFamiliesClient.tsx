@@ -12,7 +12,7 @@ type Product = {
   categoryName: string
   price: number | null
   isPublished: boolean
-  moderationStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
   isNew: boolean
   downloads: number
   reviewCount: number
@@ -43,12 +43,14 @@ type Props = {
 const STATUSES = [
   { value: 'all',      label: 'Все' },
   { value: 'DRAFT',    label: 'Черновики' },
+  { value: 'PENDING_SCAN', label: 'Проверка' },
   { value: 'PENDING',  label: 'На модерации' },
   { value: 'APPROVED', label: 'Опубликованные' },
   { value: 'REJECTED', label: 'Отклонённые' },
 ]
 
 const MODERATION_COLORS: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING_SCAN: { label: 'Проверка безопасности', color: 'var(--admin-accent)',  bg: 'rgba(72,128,255,0.1)' },
   DRAFT:    { label: 'Черновик',     color: 'var(--admin-muted)',   bg: 'var(--admin-bg2)' },
   PENDING:  { label: 'На модерации', color: 'var(--admin-warning)', bg: 'rgba(255,167,86,0.1)' },
   APPROVED: { label: 'Опубликовано', color: 'var(--admin-success)', bg: 'rgba(0,182,155,0.1)' },

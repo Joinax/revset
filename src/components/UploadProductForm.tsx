@@ -70,7 +70,8 @@ export default function UploadProductForm() {
       if (!res.ok) { setError(data.error ?? 'Ошибка публикации'); return }
 
       setSuccess(true)
-      setTimeout(() => router.push(`/product/${data.productId}`), 1500)
+      // Перенаправляем в личный кабинет — товар ещё на проверке, страницы товара нет
+      setTimeout(() => router.push('/account?tab=author-products'), 2000)
 
     } catch {
       setError('Ошибка соединения')
@@ -83,8 +84,9 @@ export default function UploadProductForm() {
     return (
       <div style={{ textAlign: 'center', padding: '40px 0' }}>
         <i className="ti ti-circle-check" style={{ fontSize: '48px', color: '#1D9E75', display: 'block', marginBottom: '12px' }} />
-        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>Модель опубликована!</div>
-        <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Переходим на страницу товара...</div>
+        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>Модель отправлена на проверку!</div>
+        <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '4px' }}>Файлы проходят проверку безопасности.</div>
+        <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Вы получите уведомление когда модель будет готова к модерации.</div>
       </div>
     )
   }
@@ -143,7 +145,7 @@ export default function UploadProductForm() {
       </div>
 
       <div>
-        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA файл *</label>
+        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA / RVT файл *</label>
         <FileUpload onUpload={(key, file) => { setFileKey(key); setFileName(file) }} />
       </div>
 
@@ -155,10 +157,10 @@ export default function UploadProductForm() {
 
       <button type="submit" disabled={!canSubmit}
         style={{ width: '100%', background: canSubmit ? 'var(--accent)' : 'var(--bg3)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '13px', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
-        {loading             ? 'Публикуем...'                 :
+        {loading             ? 'Отправляем...'                :
          images.length === 0 ? 'Сначала загрузите фото'       :
          !fileKey            ? 'Сначала загрузите RFA файл'   :
-                               'Опубликовать модель'}
+                               'Отправить на модерацию'}
       </button>
 
     </form>

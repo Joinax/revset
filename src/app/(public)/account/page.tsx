@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import AccountClient from './AccountClient'
 
-type ModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+type ModerationStatus = 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export default async function AccountPage({
   searchParams,

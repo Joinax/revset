@@ -16,7 +16,7 @@ type Product = {
   categorySlug: string
   revitVersions: string[]
   isPublished: boolean
-  moderationStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
   moderationComment: string | null
   isNew: boolean
   downloads: number

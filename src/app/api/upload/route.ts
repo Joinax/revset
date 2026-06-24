@@ -9,9 +9,33 @@ import { s3, S3_BUCKET } from '@/lib/s3'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024  // 10 МБ
-const MAX_RFA_SIZE   = 50 * 1024 * 1024  // 50 МБ
+const FILE_RULES = {
+  image: {
+    mimeTypes:  ['image/jpeg', 'image/png', 'image/webp'],
+    maxBytes:   10 * 1024 * 1024,   // 10 МБ
+    tempFolder: 'temp/images',
+    label:      'Изображение',
+  },
+  pdf: {
+    mimeTypes:  ['application/pdf'],
+    maxBytes:   20 * 1024 * 1024,   // 20 МБ
+    tempFolder: 'temp/pdf',
+    label:      'PDF',
+  },
+  rfa: {
+    mimeTypes:  [] as string[],  // MIME для .rfa/rvt ненадёжен — только расширение
+    maxBytes:   200 * 1024 * 1024,  // 200 МБ
+    tempFolder: 'temp/rfa',
+    label:      'RFA/RVT файл',
+  },
+} as const
+
+const uploadSchema = z.object({
+  fileName:   z.string().min(1).max(255),
+  fileType:   z.string().min(1).max(100),
+  fileSize:   z.number().positive().finite(),
+  uploadType: z.enum(['image', 'pdf', 'rfa']),
+})
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,10 +44,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
     }
 
-    // Роль берём из БД — сессия может содержать устаревшую роль.
-    // Загрузка файлов доступна только авторам, не покупателям.
     const user = await db.user.findUnique({
-      where: { id: session.user.id },
+      where:  { id: session.user.id },
       select: { role: true, isBanned: true },
     })
 
@@ -31,72 +53,63 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
     }
 
-    if (user.role !== 'author' && user.role !== 'admin') {
+    const parsed = uploadSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Некорректные параметры', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
+    const { fileName, fileType, fileSize, uploadType } = parsed.data
+
+    // PDF и RFA — только авторы и админы
+    if (uploadType !== 'image' && user.role !== 'author' && user.role !== 'admin') {
       return NextResponse.json({ error: 'Доступ только для авторов' }, { status: 403 })
     }
 
-    const uploadSchema = z.object({
-      fileName:   z.string().min(1).max(255),
-      fileType:   z.string().min(1).max(100),
-      fileSize:   z.number().positive().finite(),
-      uploadType: z.enum(['rfa', 'image']),
-    })
+    const rules = FILE_RULES[uploadType]
 
-    let fileName: string, fileType: string, fileSizeNum: number, uploadType: 'rfa' | 'image'
-    try {
-      const result = uploadSchema.safeParse(await req.json())
-      if (!result.success) {
+    if (fileSize > rules.maxBytes) {
+      return NextResponse.json(
+        { error: `${rules.label} не должен превышать ${rules.maxBytes / 1024 / 1024} МБ` },
+        { status: 400 }
+      )
+    }
+
+    if (uploadType === 'rfa') {
+      const ext = fileName.toLowerCase().split('.').pop()
+      if (ext !== 'rfa' && ext !== 'rvt') {
+        return NextResponse.json({ error: 'Разрешены только файлы .rfa и .rvt' }, { status: 400 })
+      }
+    } else {
+      const allowedMimes = rules.mimeTypes as string[]
+      if (!allowedMimes.includes(fileType)) {
         return NextResponse.json(
-          { error: 'Некорректные параметры', details: result.error.flatten().fieldErrors },
+          { error: `Недопустимый тип файла. Разрешены: ${allowedMimes.join(', ')}` },
           { status: 400 }
         )
       }
-      ;({ fileName, fileType, fileSize: fileSizeNum, uploadType } = result.data)
-    } catch {
-      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
-    let fileKey = ''
-    let maxSize = 0
-
-    if (uploadType === 'rfa') {
-      if (!fileName.toLowerCase().endsWith('.rfa')) {
-        return NextResponse.json({ error: 'Разрешены только файлы .rfa' }, { status: 400 })
-      }
-      if (fileSizeNum > MAX_RFA_SIZE) {
-        return NextResponse.json({ error: 'RFA файл не должен превышать 50 МБ' }, { status: 400 })
-      }
-      // fileType для .rfa не проверяем по MIME — браузеры отдают разные значения
-      // для .rfa, важно только расширение
-      fileKey = `rfa/${session.user.id}/${randomUUID()}/${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      maxSize = MAX_RFA_SIZE
-
-    } else {
-      if (!ALLOWED_IMAGE_TYPES.includes(fileType)) {
-        return NextResponse.json({ error: 'Разрешены только JPG, PNG, WebP' }, { status: 400 })
-      }
-      if (fileSizeNum > MAX_IMAGE_SIZE) {
-        return NextResponse.json({ error: 'Изображение не должно превышать 10 МБ' }, { status: 400 })
-      }
-      fileKey = `images/${session.user.id}/${randomUUID()}/${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      maxSize = MAX_IMAGE_SIZE
-    }
+    // Ключ в temp/ — изолируем по userId чтобы нельзя было угадать чужой файл
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const fileKey = `${rules.tempFolder}/${session.user.id}/${randomUUID()}/${safeFileName}`
 
     const command = new PutObjectCommand({
       Bucket:        S3_BUCKET,
       Key:           fileKey,
       ContentType:   fileType,
-      // ContentLength в presigned URL для PutObject ограничивает размер на стороне S3:
-      // загрузка файла большего размера будет отклонена хранилищем
-      ContentLength: maxSize,
+      ContentLength: fileSize,
     })
 
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 })
+    // URL действителен 15 минут — достаточно для загрузки 200 МБ
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 })
 
     return NextResponse.json({ uploadUrl, fileKey })
 
   } catch (error) {
-    console.error('Upload URL error:', error)
+    console.error('[upload] error:', error)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }
 }

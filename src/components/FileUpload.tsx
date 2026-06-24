@@ -1,14 +1,22 @@
 // src/components/FileUpload.tsx
-// Компонент загрузки RFA файла — используется в кабинете автора
+// Компонент загрузки RFA/RVT файла — используется в кабинете автора
 'use client'
 
 import { useState, useRef } from 'react'
 
 type Props = {
-  onUpload: (fileKey: string, fileName: string) => void
+  onUpload:    (fileKey: string, fileName: string) => void
+  entityType?: 'product' | 'avatar'
+  entityId?:   string
+  fieldName?:  string
 }
 
-export default function FileUpload({ onUpload }: Props) {
+export default function FileUpload({
+  onUpload,
+  entityType = 'product',
+  entityId   = '',
+  fieldName  = 'rfaKey',
+}: Props) {
   const [dragging,  setDragging]  = useState(false)
   const [uploading, setUploading] = useState(false)
   const [progress,  setProgress]  = useState(0)
@@ -17,12 +25,13 @@ export default function FileUpload({ onUpload }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith('.rfa')) {
-      setError('Разрешены только файлы формата .rfa')
+    const ext = file.name.toLowerCase().split('.').pop()
+    if (ext !== 'rfa' && ext !== 'rvt') {
+      setError('Разрешены только файлы формата .rfa и .rvt')
       return
     }
-    if (file.size > 50 * 1024 * 1024) {
-      setError('Файл не должен превышать 50 МБ')
+    if (file.size > 200 * 1024 * 1024) {
+      setError('Файл не должен превышать 200 МБ')
       return
     }
 
@@ -35,10 +44,10 @@ export default function FileUpload({ onUpload }: Props) {
       const res = await fetch('/api/upload', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          fileName: file.name,
-          fileType: file.type || 'application/octet-stream',
-          fileSize: file.size,
+        body: JSON.stringify({
+          fileName:   file.name,
+          fileType:   file.type || 'application/octet-stream',
+          fileSize:   file.size,
           uploadType: 'rfa',
         }),
       })
@@ -50,7 +59,7 @@ export default function FileUpload({ onUpload }: Props) {
 
       const { uploadUrl, fileKey } = await res.json()
 
-      // Шаг 2 — загружаем файл напрямую в S3
+      // Шаг 2 — загружаем файл напрямую в S3 с прогресс-баром
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', uploadUrl)
@@ -67,11 +76,22 @@ export default function FileUpload({ onUpload }: Props) {
         xhr.send(file)
       })
 
+      // Шаг 3 — уведомляем сервер что загрузка завершена (ставим задачу в ClamAV очередь)
+      // entityId может быть пустым при создании нового товара — задача встанет в очередь
+      // после того как create/route.ts создаст продукт и вызовет complete отдельно
+      if (entityId) {
+        await fetch('/api/upload/complete', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileKey, uploadType: 'rfa', entityType, entityId, fieldName }),
+        })
+      }
+
       setUploaded(file.name)
       onUpload(fileKey, file.name)
 
-    } catch (err: any) {
-      setError(err.message ?? 'Ошибка загрузки')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки')
     } finally {
       setUploading(false)
     }
@@ -86,22 +106,25 @@ export default function FileUpload({ onUpload }: Props) {
 
   return (
     <div>
-      {/* Зона перетаскивания */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         style={{
-          border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: '10px', padding: '32px',
-          textAlign: 'center', cursor: 'pointer',
+          border:     `2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: '10px',
+          padding:    '32px',
+          textAlign:  'center',
+          cursor:     'pointer',
           transition: 'border-color 0.2s',
           background: dragging ? 'rgba(41,82,200,0.05)' : 'transparent',
         }}
       >
         <input
-          ref={inputRef} type="file" accept=".rfa"
+          ref={inputRef}
+          type="file"
+          accept=".rfa,.rvt"
           style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
@@ -123,8 +146,8 @@ export default function FileUpload({ onUpload }: Props) {
         ) : (
           <>
             <i className="ti ti-upload" style={{ fontSize: '28px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }} />
-            <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>Перетащите RFA файл сюда</div>
-            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>или нажмите для выбора · Максимум 50 МБ</div>
+            <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>Перетащите RFA или RVT файл сюда</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>или нажмите для выбора · Максимум 200 МБ</div>
           </>
         )}
       </div>
