@@ -2,11 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { Prisma } from '@prisma/client'
+import { Prisma, OrderStatus } from '@prisma/client'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
 
-const validStatuses = ['PENDING', 'PAID', 'CANCELLED', 'REFUNDED']
+const validStatuses: OrderStatus[] = ['PENDING', 'PAID', 'CANCELLED', 'REFUNDED']
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let orderId: string, status: string
+  let orderId: string, status: OrderStatus
   try {
     const body = await request.json()
     orderId = body?.orderId
-    status  = body?.status
+    status  = body?.status as OrderStatus
   } catch {
     return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
