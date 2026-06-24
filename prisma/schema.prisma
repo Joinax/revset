@@ -93,6 +93,8 @@ model AuthorProfile {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   autoPublish  Boolean  @default(false)
+
+  @@index([isVerified])
 }
 
 model Category {
@@ -141,6 +143,9 @@ model Product {
   favorites         Favorite[]
   reviews           Review[]
   cartItems         CartItem[]
+
+  @@index([isPublished, createdAt])
+  @@index([authorId, moderationStatus])
 }
 
 model Order {
@@ -154,6 +159,8 @@ model Order {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   items       OrderItem[]
+
+  @@index([userId, status])
 }
 
 enum OrderStatus {
@@ -196,6 +203,7 @@ model Review {
   comments          ReviewComment[]
   likes             ReviewLike[]
   @@unique([userId, productId])
+  @@index([productId, moderationStatus])
 }
 
 model ReviewComment {
@@ -230,6 +238,7 @@ model Follow {
   following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   @@unique([followerId, followingId])
+  @@index([followingId])
 }
 
 model Cart {
