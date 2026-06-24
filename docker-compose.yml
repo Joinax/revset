@@ -12,5 +12,24 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  minio:
+    image: minio/minio
+    container_name: revset_minio
+    restart: unless-stopped
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER:     minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+
 volumes:
   postgres_data:
+    external: true
+    name: revit-store_postgres_data
+  minio_data:
+    external: true
+    name: revset_minio_data
