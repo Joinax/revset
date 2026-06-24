@@ -67,7 +67,7 @@ export default async function AdminFamiliesPage({
         authorName:   p.author.name,
         categoryId:   p.categoryId,
         categoryName: p.category.name,
-        price:        p.price,
+        price:        p.price !== null ? Number(p.price) : null,
         isPublished:  p.isPublished,
         moderationStatus: p.moderationStatus,
         isNew:        p.isNew,

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 
@@ -44,7 +45,11 @@ export async function POST() {
     if (alreadyPurchased)
       return NextResponse.json({ error: 'Один или несколько товаров уже куплены' }, { status: 400 })
 
-    const total = paidItems.reduce((s, i) => s + i.product.price!, 0)
+    // Суммируем через Prisma.Decimal — точная арифметика без погрешности JS number
+    const total = paidItems.reduce(
+      (s, i) => s.plus(i.product.price!),
+      new Prisma.Decimal(0)
+    )
 
     // Создаём заказ
     const order = await db.order.create({

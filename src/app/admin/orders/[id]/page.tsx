@@ -32,7 +32,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       order={{
         id:          order.id,
         status:      order.status,
-        totalAmount: order.totalAmount,
+        totalAmount: Number(order.totalAmount),
         paymentId:   order.paymentId,
         createdAt:   order.createdAt.toISOString(),
         updatedAt:   order.updatedAt.toISOString(),
@@ -49,7 +49,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         productName:  i.product.name,
         category:     i.product.category.name,
         emoji:        i.product.previewEmoji ?? '📦',
-        price:        i.price,
+        price:        Number(i.price),
       }))}
     />
   )

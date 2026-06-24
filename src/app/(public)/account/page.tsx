@@ -164,7 +164,7 @@ export default async function AccountPage({
       rejectedCount,
       totalDownloads: agg._sum.downloads ?? 0,
       totalSales:     salesData._count.id,
-      totalRevenue:   salesData._sum.price ?? 0,
+      totalRevenue:   salesData._sum.price ? Number(salesData._sum.price) : 0,
     }
 
     // Полный список продаж — все OrderItem по товарам этого автора, где заказ оплачен
@@ -186,7 +186,7 @@ export default async function AccountPage({
 
     authorSales = salesRaw.map(s => ({
       id:          s.id,
-      price:       s.price,
+      price:       Number(s.price),
       createdAt:   s.order.createdAt.toISOString(),
       orderStatus: s.order.status,
       buyerName:   s.order.user.name ?? 'Без имени',
@@ -235,11 +235,11 @@ export default async function AccountPage({
       orders={orders.map(o => ({
         id:          o.id,
         status:      o.status,
-        totalAmount: o.totalAmount,
+        totalAmount: Number(o.totalAmount),
         createdAt:   o.createdAt.toISOString(),
         items:       o.items.map(i => ({
           id:    i.id,
-          price: i.price,
+          price: Number(i.price),
           product: {
             id:           i.product.id,
             name:         i.product.name,
@@ -254,7 +254,7 @@ export default async function AccountPage({
         product: {
           id:           f.product.id,
           name:         f.product.name,
-          price:        f.product.price,
+          price:        f.product.price !== null ? Number(f.product.price) : null,
           previewEmoji: f.product.previewEmoji ?? '📦',
           previewBg:    f.product.previewBg    ?? '#141420',
           images:       f.product.images       ?? [],
@@ -273,7 +273,7 @@ export default async function AccountPage({
       authorProducts={isAuthor ? authorProducts.map(p => ({
         id:               p.id,
         name:             p.name,
-        price:            p.price,
+        price:            p.price !== null ? Number(p.price) : null,
         isPublished:      p.isPublished,
         moderationStatus: p.moderationStatus,
         moderationComment: p.moderationComment ?? null,

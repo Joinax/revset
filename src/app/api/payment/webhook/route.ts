@@ -1,6 +1,8 @@
 // src/app/api/payment/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import ipRangeCheck from 'ip-range-check'
+import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { sendSaleNotificationEmail } from '@/lib/mailer'
 
@@ -26,10 +28,6 @@ export async function POST(req: NextRequest) {
       '2a02:5180::/32',
     ]
 
-    // Реальный IP берём из заголовка который проставляет reverse proxy (nginx/Cloudflare).
-    // Если приложение стоит за proxy — использовать 'x-forwarded-for' или 'x-real-ip'.
-    // Если напрямую — req.ip (но в Next.js это не всегда доступно).
-    // ВАЖНО: настроить в зависимости от инфраструктуры деплоя.
     const clientIp = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',')[0].trim()
 
     if (!clientIp || !isYookassaIp(clientIp, YOOKASSA_IPS)) {
@@ -37,16 +35,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const body = await req.json()
-    const { event, object: payment } = body
+    // Zod-схема входящего webhook от ЮKassa.
+    // Проверяем структуру до любой бизнес-логики — это защита от
+    // мусорных запросов которые прошли IP-фильтр (например, с разрешённого IP).
+    const webhookSchema = z.object({
+      event: z.enum(['payment.succeeded', 'payment.canceled', 'payment.waiting_for_capture']),
+      object: z.object({
+        id:       z.string().min(1),
+        status:   z.string().min(1),
+        metadata: z.object({
+          orderId: z.string().optional(),
+        }).optional(),
+        confirmation: z.object({
+          confirmation_url: z.string().optional(),
+        }).optional(),
+      }),
+    })
+
+    let event: string
+    let payment: z.infer<typeof webhookSchema>['object']
+
+    try {
+      const raw = await req.json()
+      const result = webhookSchema.safeParse(raw)
+      if (!result.success) {
+        // Неизвестный тип события или неверная структура — возвращаем 200
+        // чтобы ЮKassa не повторяла запрос бесконечно
+        console.warn('[webhook] Unknown or invalid webhook structure:', result.error.flatten())
+        return NextResponse.json({ ok: true })
+      }
+      event   = result.data.event
+      payment = result.data.object
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+    }
 
     if (event === 'payment.succeeded') {
       const orderId = payment.metadata?.orderId
       if (!orderId) return NextResponse.json({ ok: true })
 
       // Верифицируем платёж напрямую в ЮKassa — не доверяем данным из тела webhook.
-      // Передаём payment.id из webhook только для построения URL запроса к API,
-      // а все данные (статус, сумму, orderId) берём из ответа ЮKassa, не из webhook.
       const verifyResponse = await fetch(`${YOOKASSA_API}/payments/${payment.id}`, {
         headers: { 'Authorization': getAuthHeader() },
       })
@@ -58,23 +86,18 @@ export async function POST(req: NextRequest) {
 
       const verified = await verifyResponse.json()
 
-      // Проверяем статус из ответа ЮKassa (не из webhook)
       if (verified.status !== 'succeeded') {
         return NextResponse.json({ error: 'Платёж не подтверждён' }, { status: 400 })
       }
 
-      // Дополнительно сверяем orderId из метаданных верифицированного платежа —
-      // а не из тела webhook. Это защищает от атаки где злоумышленник передаёт
-      // реальный payment.id чужого платежа с подменённым orderId в теле webhook.
+      // Сверяем orderId из метаданных верифицированного платежа — защита от подмены
       const verifiedOrderId = verified.metadata?.orderId
       if (!verifiedOrderId || verifiedOrderId !== orderId) {
         console.error(`[webhook] orderId mismatch: webhook=${orderId}, verified=${verifiedOrderId}`)
         return NextResponse.json({ error: 'Некорректные данные платежа' }, { status: 400 })
       }
 
-      // Идемпотентность — проверяем текущий статус заказа перед обновлением.
-      // ЮKassa может прислать один webhook несколько раз — повторная обработка
-      // уже оплаченного заказа приведёт к задвоению статистики и писем авторам.
+      // Идемпотентность — ЮKassa может прислать один webhook несколько раз
       const existingOrder = await db.order.findUnique({
         where: { id: orderId },
         select: { status: true },
@@ -86,7 +109,6 @@ export async function POST(req: NextRequest) {
       }
 
       if (existingOrder.status === 'PAID') {
-        // Уже обработано — возвращаем 200 чтобы ЮKassa не повторяла webhook
         console.log(`[webhook] Order ${orderId} already paid, skipping`)
         return NextResponse.json({ ok: true })
       }
@@ -110,14 +132,20 @@ export async function POST(req: NextRequest) {
 
       console.log(`[webhook] Order ${orderId} paid`)
 
-      // Обновляем счётчики продаж/выручки авторов — группируем по автору
-      // на случай если в заказе несколько товаров одного автора
-      const perAuthor = new Map<string, { sales: number; revenue: number }>()
+      // Обновляем счётчики продаж/выручки авторов.
+      // Суммируем через Prisma.Decimal (Decimal.js) — точная арифметика без
+      // погрешности JS number. Группируем по автору на случай если в заказе
+      // несколько товаров одного автора, чтобы сделать один upsert на автора.
+      const perAuthor = new Map<string, { sales: number; revenue: Prisma.Decimal }>()
       for (const item of order.items) {
         const authorId = item.product.authorId
-        const entry = perAuthor.get(authorId) ?? { sales: 0, revenue: 0 }
+        const entry = perAuthor.get(authorId) ?? {
+          sales:   0,
+          revenue: new Prisma.Decimal(0),
+        }
         entry.sales += 1
-        entry.revenue += item.price
+        // .plus() — метод Decimal.js, точное сложение без погрешности
+        entry.revenue = entry.revenue.plus(item.price)
         perAuthor.set(authorId, entry)
       }
 
@@ -127,10 +155,12 @@ export async function POST(req: NextRequest) {
             where: { userId: authorId },
             update: {
               totalSales:   { increment: sales },
+              // revenue — Prisma.Decimal, передаём напрямую в increment.
+              // PostgreSQL выполнит сложение на стороне БД точно.
               totalRevenue: { increment: revenue },
             },
             create: {
-              userId: authorId,
+              userId:       authorId,
               totalSales:   sales,
               totalRevenue: revenue,
             },
@@ -147,7 +177,10 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      // Уведомляем авторов о продаже
+      // Уведомляем авторов о продаже.
+      // sendSaleNotificationEmail принимает amount: number — конвертируем
+      // Decimal в number только здесь, для отображения в тексте письма.
+      // Точность не критична: результат идёт в строку письма, не в БД.
       for (const item of order.items) {
         const author = item.product.author
         if (author.email) {
@@ -156,7 +189,7 @@ export async function POST(req: NextRequest) {
               author.email,
               author.name ?? 'Автор',
               item.product.name,
-              item.price,
+              Number(item.price),
             )
           } catch (emailError) {
             // Не падаем если письмо не отправилось — заказ уже оплачен
@@ -170,7 +203,6 @@ export async function POST(req: NextRequest) {
       const orderId = payment.metadata?.orderId
       if (!orderId) return NextResponse.json({ ok: true })
 
-      // Верифицируем отмену в ЮKassa — не доверяем данным из тела webhook
       const verifyResponse = await fetch(`${YOOKASSA_API}/payments/${payment.id}`, {
         headers: { 'Authorization': getAuthHeader() },
       })
@@ -192,7 +224,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Некорректные данные платежа' }, { status: 400 })
       }
 
-      // Идемпотентность — не обновляем уже отменённые или оплаченные заказы
       const existingOrder = await db.order.findUnique({
         where: { id: orderId },
         select: { status: true },
@@ -215,7 +246,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Проверка IP с поддержкой CIDR-диапазонов через ip-range-check
 function isYookassaIp(ip: string, allowlist: string[]): boolean {
   return ipRangeCheck(ip, allowlist)
 }

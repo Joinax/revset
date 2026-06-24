@@ -67,7 +67,7 @@ export default async function AdminTransactionsPage({
         userEmail:   o.user.email,
         userImage:   o.user.image,
         status:      o.status,
-        totalAmount: o.totalAmount,
+        totalAmount: Number(o.totalAmount),
         itemCount:   o.items.length,
         itemNames:   o.items.map(i => i.product.name),
         createdAt:   o.createdAt.toISOString(),
@@ -79,7 +79,7 @@ export default async function AdminTransactionsPage({
       currentQ={q}
       currentUserId={userId}
       currentUserName={filterUserName}
-      totalRevenue={stats._sum.totalAmount ?? 0}
+      totalRevenue={stats._sum.totalAmount ? Number(stats._sum.totalAmount) : 0}
       totalPaid={stats._count.id}
     />
   )

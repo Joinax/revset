@@ -1,7 +1,4 @@
 // src/app/admin/verification/page.tsx
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import AdminVerificationClient from './AdminVerificationClient'
 
@@ -10,9 +7,6 @@ export default async function AdminVerificationPage({
 }: {
   searchParams: Promise<{ status?: string }>
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || session.user.role !== 'admin') redirect('/')
-
   const params = await searchParams
   const status = params.status ?? 'pending'
 
@@ -50,7 +44,7 @@ export default async function AdminVerificationPage({
         isVerified:    a.isVerified,
         autoPublish:   a.autoPublish,
         totalSales:    a.totalSales,
-        totalRevenue:  a.totalRevenue,
+        totalRevenue:  Number(a.totalRevenue),
         productsCount: a.user._count.products,
         registeredAt:  a.user.createdAt.toISOString(),
         createdAt:     a.createdAt.toISOString(),

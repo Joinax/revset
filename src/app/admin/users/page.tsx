@@ -57,7 +57,7 @@ export default async function AdminUsersPage({
         createdAt:     u.createdAt.toISOString(),
         isVerified:    u.authorProfile?.isVerified ?? false,
         totalSales:    u.authorProfile?.totalSales ?? 0,
-        totalRevenue:  u.authorProfile?.totalRevenue ?? 0,
+        totalRevenue:  u.authorProfile?.totalRevenue ? Number(u.authorProfile.totalRevenue) : 0,
         ordersCount:   u._count.orders,
         productsCount: u._count.products,
         isBanned:      (u as any).isBanned ?? false,

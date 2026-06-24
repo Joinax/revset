@@ -78,7 +78,13 @@ export default async function ProductPage({
 
   return (
     <ProductClient
-      product={{ ...product, reviews: visibleReviews, avgRating }}
+      product={{
+        ...product,
+        price:    product.price    !== null ? Number(product.price)    : null,
+        priceOld: product.priceOld !== null ? Number(product.priceOld) : null,
+        reviews:  visibleReviews,
+        avgRating,
+      }}
       isPurchased={isPurchased}
       isFavorited={isFavorited}
       isInCart={isInCart}

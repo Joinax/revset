@@ -56,7 +56,7 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
     id:            p.id,
     name:          p.name,
     author:        author.name ?? 'Автор',
-    price:         p.price,
+    price:         p.price !== null ? Number(p.price) : null,
     rating:        p.reviews.length > 0
       ? Math.round(p.reviews.reduce((s, r) => s + r.rating, 0) / p.reviews.length * 10) / 10
       : null,

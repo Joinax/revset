@@ -3,14 +3,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { authorId } = await req.json()
-  if (!authorId || typeof authorId !== 'string') {
-    return NextResponse.json({ error: 'authorId required' }, { status: 400 })
+  const followSchema = z.object({ authorId: z.string().min(1).max(50) })
+  let authorId: string
+  try {
+    const result = followSchema.safeParse(await req.json())
+    if (!result.success) return NextResponse.json({ error: 'authorId required' }, { status: 400 })
+    authorId = result.data.authorId
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
   if (authorId === session.user.id) {
     return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 })
@@ -39,9 +45,14 @@ export async function DELETE(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { authorId } = await req.json()
-  if (!authorId || typeof authorId !== 'string') {
-    return NextResponse.json({ error: 'authorId required' }, { status: 400 })
+  const followSchema = z.object({ authorId: z.string().min(1).max(50) })
+  let authorId: string
+  try {
+    const result = followSchema.safeParse(await req.json())
+    if (!result.success) return NextResponse.json({ error: 'authorId required' }, { status: 400 })
+    authorId = result.data.authorId
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
 
   await db.follow.deleteMany({

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -21,11 +22,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { userId, action, autoPublish } = await request.json()
+  const verifySchema = z.object({
+    userId:      z.string().min(1).max(50),
+    action:      z.enum(['approve', 'reject', 'toggleAutoPublish']),
+    autoPublish: z.boolean().optional(),
+  })
+
+  let userId: string, action: string, autoPublish: boolean | undefined
+  try {
+    const result = verifySchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
+    }
+    ;({ userId, action, autoPublish } = result.data)
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+  }
 
   // Переключение авто-публикации
   if (action === 'toggleAutoPublish') {
-    if (!userId) return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
 
     await db.authorProfile.update({
       where: { userId },
@@ -43,9 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  if (!userId || !['approve', 'reject'].includes(action)) {
-    return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
-  }
+
 
   const targetUser = await db.user.findUnique({
     where:   { id: userId },

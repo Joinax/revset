@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 const MAX_BIO_LENGTH  = 1000
 const MAX_CITY_LENGTH = 100
@@ -30,24 +31,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Заявка уже отправлена и ожидает рассмотрения' }, { status: 400 })
     }
 
-    const { bio, city } = await req.json()
+    const becomeAuthorSchema = z.object({
+      bio:  z.string().max(MAX_BIO_LENGTH,  `Bio не должно превышать ${MAX_BIO_LENGTH} символов`).optional().nullable(),
+      city: z.string().max(MAX_CITY_LENGTH, `Город не должен превышать ${MAX_CITY_LENGTH} символов`).optional().nullable(),
+    })
 
-    if (bio !== undefined && bio !== null) {
-      if (typeof bio !== 'string') {
-        return NextResponse.json({ error: 'Некорректное поле bio' }, { status: 400 })
+    let bio: string | null | undefined, city: string | null | undefined
+    try {
+      const result = becomeAuthorSchema.safeParse(await req.json())
+      if (!result.success) {
+        return NextResponse.json(
+          { error: 'Некорректные данные', details: result.error.flatten().fieldErrors },
+          { status: 400 }
+        )
       }
-      if (bio.length > MAX_BIO_LENGTH) {
-        return NextResponse.json({ error: `Bio не должно превышать ${MAX_BIO_LENGTH} символов` }, { status: 400 })
-      }
-    }
-
-    if (city !== undefined && city !== null) {
-      if (typeof city !== 'string') {
-        return NextResponse.json({ error: 'Некорректное поле city' }, { status: 400 })
-      }
-      if (city.length > MAX_CITY_LENGTH) {
-        return NextResponse.json({ error: `Город не должен превышать ${MAX_CITY_LENGTH} символов` }, { status: 400 })
-      }
+      ;({ bio, city } = result.data)
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
     await db.authorProfile.create({

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
 
@@ -59,12 +60,12 @@ export async function POST(request: NextRequest) {
     const direction = willBePaid ? 1 : -1
 
     // Группируем по автору — на случай если в заказе несколько товаров одного автора
-    const perAuthor = new Map<string, { sales: number; revenue: number }>()
+    const perAuthor = new Map<string, { sales: number; revenue: Prisma.Decimal }>()
     for (const item of order.items) {
       const authorId = item.product.authorId
-      const entry = perAuthor.get(authorId) ?? { sales: 0, revenue: 0 }
+      const entry = perAuthor.get(authorId) ?? { sales: 0, revenue: new Prisma.Decimal(0) }
       entry.sales += 1
-      entry.revenue += item.price
+      entry.revenue = entry.revenue.plus(item.price)
       perAuthor.set(authorId, entry)
     }
 
@@ -75,16 +76,15 @@ export async function POST(request: NextRequest) {
           where: { userId: authorId },
           update: {
             totalSales:   { increment: direction * sales },
-            totalRevenue: { increment: direction * revenue },
+            totalRevenue: { increment: direction === 1 ? revenue : revenue.negated() },
           },
           // На случай если у автора почему-то ещё нет профиля —
           // создаём с нулевыми значениями, увеличенными только если direction положительный
-          // (если direction отрицательный и профиля не было, отрицательные значения не имеют смысла —
-          // используем Math.max(0, ...) для защиты)
+          // (если direction отрицательный и профиля не было, отрицательные значения не имеют смысла)
           create: {
             userId: authorId,
             totalSales:   Math.max(0, direction * sales),
-            totalRevenue: Math.max(0, direction * revenue),
+            totalRevenue: direction === 1 ? revenue : new Prisma.Decimal(0),
           },
         })
       ),

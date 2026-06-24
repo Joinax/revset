@@ -62,12 +62,12 @@ export default async function AdminDashboardPage() {
   const salesByDay: Record<string, number> = {}
   for (const order of last30DaysOrders) {
     const day = order.createdAt.toISOString().split('T')[0]
-    salesByDay[day] = (salesByDay[day] ?? 0) + order.totalAmount
+    salesByDay[day] = (salesByDay[day] ?? 0) + Number(order.totalAmount)
   }
   const chartData = Object.entries(salesByDay).map(([date, amount]) => ({ date, amount }))
 
-  const revenueThisMonth = ordersThisMonth._sum.totalAmount ?? 0
-  const revenueLastMonth = ordersLastMonth._sum.totalAmount ?? 0
+  const revenueThisMonth = ordersThisMonth._sum.totalAmount ? Number(ordersThisMonth._sum.totalAmount) : 0
+  const revenueLastMonth = ordersLastMonth._sum.totalAmount ? Number(ordersLastMonth._sum.totalAmount) : 0
   const revenueChange = revenueLastMonth > 0
     ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100)
     : 0
@@ -88,7 +88,7 @@ export default async function AdminDashboardPage() {
         id: o.id,
         userName: o.user.name,
         userEmail: o.user.email,
-        amount: o.totalAmount,
+        amount: Number(o.totalAmount),
         productName: o.items[0]?.product.name ?? '—',
         itemCount: o.items.length,
         createdAt: o.createdAt.toISOString(),

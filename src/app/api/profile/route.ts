@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 const MAX_NAME_LENGTH = 100
 
@@ -13,14 +14,22 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
     }
 
-    const { name } = await req.json()
+    const profileSchema = z.object({
+      name: z.string().min(1, 'Имя не может быть пустым').max(MAX_NAME_LENGTH, `Имя не должно превышать ${MAX_NAME_LENGTH} символов`).trim(),
+    })
 
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return NextResponse.json({ error: 'Имя не может быть пустым' }, { status: 400 })
-    }
-
-    if (name.trim().length > MAX_NAME_LENGTH) {
-      return NextResponse.json({ error: `Имя не должно превышать ${MAX_NAME_LENGTH} символов` }, { status: 400 })
+    let name: string
+    try {
+      const result = profileSchema.safeParse(await req.json())
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.error.flatten().fieldErrors.name?.[0] ?? 'Некорректные данные' },
+          { status: 400 }
+        )
+      }
+      name = result.data.name
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
     const user = await db.user.update({

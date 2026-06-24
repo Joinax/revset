@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -20,7 +21,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = await request.json()
+  // Настройки — произвольные ключ-значение, но значения только строки/числа/булевы
+  const settingsSchema = z.record(z.string().min(1).max(100), z.union([z.string(), z.number(), z.boolean()]))
+
+  let body: Record<string, string | number | boolean>
+  try {
+    const result = settingsSchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json({ error: 'Некорректные данные настроек' }, { status: 400 })
+    }
+    body = result.data
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+  }
   const keys = Object.keys(body)
 
   // Читаем текущие значения — нужны для лога (что изменилось)

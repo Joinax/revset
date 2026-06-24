@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 const MAX_COMMENT_LENGTH = 1000
 
@@ -35,13 +36,23 @@ export async function POST(
     }
 
     const { id: reviewId } = await params
-    const { text } = await req.json()
 
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return NextResponse.json({ error: 'Текст комментария обязателен' }, { status: 400 })
-    }
-    if (text.trim().length > MAX_COMMENT_LENGTH) {
-      return NextResponse.json({ error: `Комментарий не должен превышать ${MAX_COMMENT_LENGTH} символов` }, { status: 400 })
+    const commentSchema = z.object({
+      text: z.string().min(1, 'Текст комментария обязателен').max(MAX_COMMENT_LENGTH, `Комментарий не должен превышать ${MAX_COMMENT_LENGTH} символов`).trim(),
+    })
+
+    let text: string
+    try {
+      const result = commentSchema.safeParse(await req.json())
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.error.flatten().fieldErrors.text?.[0] ?? 'Некорректные данные' },
+          { status: 400 }
+        )
+      }
+      text = result.data.text
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
     const review = await db.review.findUnique({

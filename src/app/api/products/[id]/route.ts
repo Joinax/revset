@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { serializeDecimal } from '@/lib/serialize'
 
 const ALLOWED_REVIT_VERSIONS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026']
 const MAX_IMAGES = 10
@@ -71,8 +72,10 @@ export async function PATCH(
 
     if (price !== undefined && price !== null && price !== '') {
       const priceNum = parseFloat(price)
-      if (isNaN(priceNum) || priceNum < 0 || priceNum > 1_000_000) {
-        return NextResponse.json({ error: 'Некорректная цена' }, { status: 400 })
+      // Товар либо бесплатный (price не передан), либо минимум 200 ₽.
+      // Максимум 350 000 ₽ — разовый лимит банковской карты в ЮKassa.
+      if (isNaN(priceNum) || priceNum < 200 || priceNum > 350_000) {
+        return NextResponse.json({ error: 'Цена должна быть от 200 до 350 000 ₽' }, { status: 400 })
       }
     }
 
@@ -212,7 +215,7 @@ export async function PATCH(
     revalidatePath('/catalog')
     revalidatePath('/')
 
-    return NextResponse.json({ productId: updated.id })
+    return NextResponse.json(serializeDecimal({ productId: updated.id }))
 
   } catch (error) {
     console.error('Update product error:', error)

@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
+import { z } from 'zod'
 
 const YOOKASSA_API = 'https://api.yookassa.ru/v3'
 
@@ -19,9 +20,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
     }
 
-    const { productId } = await req.json()
-    if (!productId) {
-      return NextResponse.json({ error: 'productId обязателен' }, { status: 400 })
+    // Zod-схема входящего запроса.
+    // safeParse не бросает исключение — возвращает { success, data, error }.
+    // Это защищает от невалидного JSON, неверных типов и инъекций через тело запроса.
+    const bodySchema = z.object({
+      productId: z.string().min(1).max(50),
+    })
+
+    let productId: string
+    try {
+      const raw = await req.json()
+      const result = bodySchema.safeParse(raw)
+      if (!result.success) {
+        return NextResponse.json(
+          { error: 'Некорректные данные запроса', details: result.error.flatten().fieldErrors },
+          { status: 400 }
+        )
+      }
+      productId = result.data.productId
+    } catch {
+      return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
     const product = await db.product.findUnique({ where: { id: productId } })
@@ -30,6 +48,11 @@ export async function POST(req: NextRequest) {
     }
     if (product.price === null) {
       return NextResponse.json({ error: 'Товар бесплатный' }, { status: 400 })
+    }
+    // Дополнительная защита: минимальная цена платного товара — 200 ₽.
+    // Это бизнес-правило проекта; ЮKassa технически принимает от 1 ₽.
+    if (product.price.lessThan(200)) {
+      return NextResponse.json({ error: 'Минимальная цена товара 200 ₽' }, { status: 400 })
     }
 
     if (product.authorId === session.user.id) {
@@ -87,6 +110,8 @@ export async function POST(req: NextRequest) {
               },
               body: JSON.stringify({
                 amount: {
+                  // product.price — Prisma.Decimal, .toFixed(2) — метод Decimal.js,
+                  // точный результат без погрешности JS number
                   value:    product.price.toFixed(2),
                   currency: 'RUB',
                 },
@@ -173,7 +198,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Нет ни оплаченного ни незавершённого заказа — создаём новый
+    // Нет ни оплаченного ни незавершённого заказа — создаём новый.
+    // product.price — Prisma.Decimal, передаём напрямую без конвертации
+    // чтобы PostgreSQL получил точное значение без погрешности JS number.
     const order = await db.order.create({
       data: {
         userId:      session.user.id,

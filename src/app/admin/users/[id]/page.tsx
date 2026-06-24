@@ -54,20 +54,20 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         isVerified:   user.authorProfile.isVerified,
         autoPublish:  user.authorProfile.autoPublish,
         totalSales:   user.authorProfile.totalSales,
-        totalRevenue: user.authorProfile.totalRevenue,
+        totalRevenue: Number(user.authorProfile.totalRevenue),
         createdAt:    user.authorProfile.createdAt.toISOString(),
       } : null}
       orders={user.orders.map(o => ({
         id:          o.id,
         status:      o.status,
-        totalAmount: o.totalAmount,
+        totalAmount: Number(o.totalAmount),
         itemNames:   o.items.map(i => i.product.name),
         createdAt:   o.createdAt.toISOString(),
       }))}
       products={user.products.map(p => ({
         id:          p.id,
         name:        p.name,
-        price:       p.price,
+        price:       p.price !== null ? Number(p.price) : null,
         isPublished: p.isPublished,
         downloads:   p.downloads,
         category:    p.category.name,

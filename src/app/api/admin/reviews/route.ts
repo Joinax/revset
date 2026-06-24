@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -21,10 +22,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { reviewId, action, moderationComment } = await request.json()
+  const reviewModerationSchema = z.object({
+    reviewId:          z.string().min(1).max(50),
+    action:            z.enum(['approve', 'reject']),
+    moderationComment: z.string().max(500).optional().nullable(),
+  })
 
-  if (!reviewId || !['approve', 'reject'].includes(action)) {
-    return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
+  let reviewId: string, action: string, moderationComment: string | null | undefined
+  try {
+    const result = reviewModerationSchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
+    }
+    ;({ reviewId, action, moderationComment } = result.data)
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
 
   const review = await db.review.findUnique({

@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { z } from 'zod'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -11,8 +12,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { userId, role, isBanned } = await request.json()
-  if (!userId) return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
+  const userActionSchema = z.object({
+    userId:   z.string().min(1).max(50),
+    role:     z.enum(['user', 'author', 'admin']).optional(),
+    isBanned: z.boolean().optional(),
+  })
+
+  let userId: string, role: string | undefined, isBanned: boolean | undefined
+  try {
+    const result = userActionSchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
+    }
+    ;({ userId, role, isBanned } = result.data)
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+  }
 
   // Нельзя изменить собственную роль или заблокировать самого себя —
   // иначе администратор может случайно лишить себя доступа к системе
@@ -26,9 +41,9 @@ export async function POST(request: NextRequest) {
   })
   if (!before) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const data: any = {}
-  if (role !== undefined && ['user', 'author', 'admin'].includes(role)) data.role = role
-  if (isBanned !== undefined) data.isBanned = Boolean(isBanned)
+  const data: Record<string, unknown> = {}
+  if (role !== undefined) data.role = role
+  if (isBanned !== undefined) data.isBanned = isBanned
 
   await db.user.update({ where: { id: userId }, data })
 

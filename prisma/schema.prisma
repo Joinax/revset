@@ -89,7 +89,7 @@ model AuthorProfile {
   responseTime String?
   acceptOrders Boolean  @default(false)
   totalSales   Int      @default(0)
-  totalRevenue Float    @default(0)
+  totalRevenue Decimal  @default(0) @db.Decimal(10, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   autoPublish  Boolean  @default(false)
@@ -116,8 +116,8 @@ model Product {
   id                String           @id @default(cuid())
   name              String
   description       String?
-  price             Float?
-  priceOld          Float?
+  price             Decimal? @db.Decimal(10, 2)
+  priceOld          Decimal? @db.Decimal(10, 2)
   previewEmoji      String?
   previewBg         String?
   revitVersions     String[]
@@ -147,7 +147,7 @@ model Order {
   userId      String
   user        User        @relation(fields: [userId], references: [id])
   status      OrderStatus @default(PENDING)
-  totalAmount Float
+  totalAmount Decimal @db.Decimal(10, 2)
   paymentId   String?
   paymentUrl  String?
   createdAt   DateTime    @default(now())
@@ -168,7 +168,7 @@ model OrderItem {
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
   product   Product @relation(fields: [productId], references: [id])
-  price     Float
+  price     Decimal @db.Decimal(10, 2)
 }
 
 model Favorite {

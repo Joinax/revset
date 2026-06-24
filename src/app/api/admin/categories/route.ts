@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
+import { z } from 'zod'
 
 // Простая транслитерация кириллицы — нужна для генерации slug
 // из названий категорий вроде "Мебель", "Сантехника" и т.д.
@@ -48,16 +49,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: { name?: string; emoji?: string }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-  }
+  const createCategorySchema = z.object({
+    name:  z.string().min(1, 'Укажите название категории').max(100).trim(),
+    emoji: z.string().max(10).optional(),
+  })
 
-  const { name, emoji } = body
-  if (!name?.trim()) {
-    return NextResponse.json({ error: 'Укажите название категории' }, { status: 400 })
+  let name: string, emoji: string | undefined
+  try {
+    const result = createCategorySchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error.flatten().fieldErrors.name?.[0] ?? 'Некорректные данные' },
+        { status: 400 }
+      )
+    }
+    ;({ name, emoji } = result.data)
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
 
   const slug = slugify(name)
@@ -102,16 +110,17 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: { id?: string }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-  }
+  const deleteCategorySchema = z.object({ id: z.string().min(1, 'ID категории не указан').max(50) })
 
-  const { id } = body
-  if (!id) {
-    return NextResponse.json({ error: 'ID категории не указан' }, { status: 400 })
+  let id: string
+  try {
+    const result = deleteCategorySchema.safeParse(await request.json())
+    if (!result.success) {
+      return NextResponse.json({ error: 'ID категории не указан' }, { status: 400 })
+    }
+    id = result.data.id
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
 
   // Проверяем, есть ли товары в этой категории — удалять такую категорию нельзя,

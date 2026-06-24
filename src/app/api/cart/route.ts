@@ -27,7 +27,14 @@ export async function GET() {
     },
   })
 
-  return NextResponse.json({ items: cart?.items ?? [] })
+  const items = (cart?.items ?? []).map(i => ({
+    ...i,
+    product: {
+      ...i.product,
+      price: i.product.price !== null ? Number(i.product.price) : null,
+    },
+  }))
+  return NextResponse.json({ items })
 }
 
 // Добавить в корзину
