@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
     // Для аватарки — сразу показываем пользователю, не ждём worker
     // Worker проверит ClamAV и обновит на постоянный ключ (или удалит при вирусе)
     if (entityType === 'avatar') {
+      if (entityId !== session.user.id) {
+        return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
+      }
       // Сохраняем постоянный ключ (без temp/) — worker уже переместил файл
       // destKey = 'images/userId/uuid/filename.jpg'
       await db.user.update({
