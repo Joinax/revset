@@ -23,7 +23,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { orderId, status } = await request.json()
+  let orderId: string, status: string
+  try {
+    const body = await request.json()
+    orderId = body?.orderId
+    status  = body?.status
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+  }
 
   if (!orderId || !validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid params' }, { status: 400 })

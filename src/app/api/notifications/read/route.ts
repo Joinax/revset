@@ -10,7 +10,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
   }
 
-  const { id, all } = await req.json()
+  let id: string | undefined, all: boolean | undefined
+  try {
+    const body = await req.json()
+    id  = body?.id
+    all = body?.all
+  } catch {
+    return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
+  }
 
   if (all) {
     await db.notification.updateMany({
