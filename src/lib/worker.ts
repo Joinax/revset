@@ -94,6 +94,7 @@ async function markPending(
       })
       let params: Record<string, unknown> = {}
       try { params = JSON.parse(current?.bimParams ?? '{}') } catch { /* */ }
+      // fieldName = 'rfaKey' | 'pdfKey' — сохраняем постоянный ключ файла
       params[fieldName] = destKey
 
       await db.product.update({
@@ -105,15 +106,7 @@ async function markPending(
       })
     }
 
-    await db.notification.create({
-      data: {
-        userId:  product.authorId,
-        type:    'file_scan_complete',
-        title:   'Файл прошёл проверку',
-        message: `Файл для «${product.name}» прошёл проверку безопасности и отправлен на модерацию.`,
-        link:    '/account?tab=author-products',
-      },
-    })
+
 
   } else if (entityType === 'avatar') {
     await db.user.update({

@@ -5,7 +5,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { s3, S3_BUCKET } from '@/lib/s3'
+import { s3Public, S3_BUCKET } from '@/lib/s3'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
@@ -97,14 +97,13 @@ export async function POST(req: NextRequest) {
     const fileKey = `${rules.tempFolder}/${session.user.id}/${randomUUID()}/${safeFileName}`
 
     const command = new PutObjectCommand({
-      Bucket:        S3_BUCKET,
-      Key:           fileKey,
-      ContentType:   fileType,
-      ContentLength: fileSize,
+      Bucket:      S3_BUCKET,
+      Key:         fileKey,
+      ContentType: fileType,
     })
 
     // URL действителен 15 минут — достаточно для загрузки 200 МБ
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 })
+    const uploadUrl = await getSignedUrl(s3Public, command, { expiresIn: 900 })
 
     return NextResponse.json({ uploadUrl, fileKey })
 

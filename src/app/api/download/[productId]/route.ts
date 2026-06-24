@@ -59,14 +59,16 @@ export async function GET(
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
-    let parsed: { fileKey?: string; fileName?: string }
+    let parsed: { fileKey?: string; rfaKey?: string; fileName?: string }
     try {
       parsed = JSON.parse(product.bimParams)
     } catch {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }
 
-    const { fileKey } = parsed
+    // rfaKey — новый формат (после ClamAV проверки)
+    // fileKey — старый формат (обратная совместимость)
+    const fileKey = parsed.rfaKey ?? parsed.fileKey
     if (!fileKey) {
       return NextResponse.json({ error: 'Файл не найден' }, { status: 404 })
     }

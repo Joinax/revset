@@ -26,6 +26,12 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
 
   if (!product) notFound()
 
+  // Карточка недоступна для модерации пока файлы проверяются платформой
+  // или если файл был отклонён из-за вируса (moderationComment содержит "Обнаружена угроза")
+  const isBlocked =
+    product.moderationStatus === 'PENDING_SCAN' ||
+    (product.moderationStatus === 'REJECTED' && product.moderationComment?.startsWith('Обнаружена угроза'))
+
   const avgRating = product.reviews.length > 0
     ? Math.round(product.reviews.reduce((s, r) => s + r.rating, 0) / product.reviews.length * 10) / 10
     : null
@@ -42,6 +48,7 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
         isPublished:   product.isPublished,
         moderationStatus:  product.moderationStatus,
         moderationComment: product.moderationComment,
+        isBlocked: !!isBlocked,
         isNew:         product.isNew,
         downloads:     product.downloads,
         reviewCount:   product._count.reviews,

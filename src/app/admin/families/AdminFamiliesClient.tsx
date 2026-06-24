@@ -259,11 +259,72 @@ export default function AdminFamiliesClient({
           </div>
         ) : products.map(p => {
           const statusInfo = MODERATION_COLORS[p.moderationStatus] ?? MODERATION_COLORS.DRAFT
-          return (
-          <Link key={p.id} href={`/admin/families/${p.id}`} className="families-row" style={{
+          const isBlocked = p.moderationStatus === 'PENDING_SCAN'
+          const rowStyle = {
             display: 'grid', gridTemplateColumns: '3fr 1.5fr 1fr 1fr 1fr 1fr 1fr',
             padding: '14px 20px', borderBottom: '1px solid var(--admin-border)', alignItems: 'center',
-            textDecoration: 'none', color: 'inherit',
+            color: 'inherit',
+          }
+          return isBlocked ? (
+          <div key={p.id} style={{ ...rowStyle, opacity: 0.65, cursor: 'default' }}>
+            {/* Name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '10px',
+                background: 'var(--admin-bg2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '18px', flexShrink: 0, overflow: 'hidden',
+              }}>
+                {p.images.length > 0
+                  ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : p.emoji
+                }
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--admin-muted)' }}>
+                  {p.downloads} скачиваний · {p.reviewCount} отзывов
+                </div>
+              </div>
+            </div>
+
+            {/* Author */}
+            <div style={{ fontSize: '13px', color: 'var(--admin-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.authorName}
+            </div>
+
+            {/* Category */}
+            <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{p.categoryName}</div>
+
+            {/* Price */}
+            <div style={{ fontSize: '13px', fontWeight: 600, color: p.price ? 'var(--admin-text)' : 'var(--admin-success)' }}>
+              {formatMoney(p.price)}
+            </div>
+
+            {/* Status */}
+            <div>
+              <span style={{
+                fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px',
+                color:      statusInfo.color,
+                background: statusInfo.bg,
+              }}>
+                {statusInfo.label}
+              </span>
+            </div>
+
+            {/* Sales */}
+            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--admin-text)' }}>
+              {p.salesCount}
+            </div>
+
+            {/* Date */}
+            <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>{formatDate(p.createdAt)}</div>
+          </div>
+          ) : (
+          <Link key={p.id} href={`/admin/families/${p.id}`} className="families-row" style={{
+            ...rowStyle, textDecoration: 'none',
           }}>
             {/* Name */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>

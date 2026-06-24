@@ -18,6 +18,7 @@ type Product = {
   isPublished: boolean
   moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
   moderationComment: string | null
+  isBlocked: boolean
   isNew: boolean
   downloads: number
   reviewCount: number
@@ -143,6 +144,7 @@ function FileBlock({
 export default function AdminFamilyDetailClient({ product, categories }: Props) {
   const router = useRouter()
   const { mutate: mutateModerationCount } = useModerationCount()
+  const isBlocked = product.isBlocked
   const [name,          setName]          = useState(product.name)
   const [description,   setDescription]   = useState(product.description)
   const [price,         setPrice]         = useState(product.price)
@@ -240,6 +242,38 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
         </Link>
       </div>
 
+      {/* Баннер блокировки — карточка недоступна для модерации */}
+      {isBlocked && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: '12px',
+          padding: '16px 20px', borderRadius: '14px',
+          background: product.moderationStatus === 'PENDING_SCAN'
+            ? 'rgba(72,128,255,0.08)'
+            : 'rgba(239,56,38,0.08)',
+          border: `1px solid ${product.moderationStatus === 'PENDING_SCAN'
+            ? 'rgba(72,128,255,0.3)'
+            : 'rgba(239,56,38,0.3)'}`,
+        }}>
+          <i className={`ti ${product.moderationStatus === 'PENDING_SCAN' ? 'ti-shield-search' : 'ti-virus'}`}
+            style={{
+              fontSize: '20px', flexShrink: 0,
+              color: product.moderationStatus === 'PENDING_SCAN' ? 'var(--admin-accent)' : 'var(--admin-danger)',
+            }} />
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--admin-text)', marginBottom: '4px' }}>
+              {product.moderationStatus === 'PENDING_SCAN'
+                ? 'Файлы проверяются платформой'
+                : 'Файл отклонён — обнаружена угроза'}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>
+              {product.moderationStatus === 'PENDING_SCAN'
+                ? 'Карточка станет доступна для модерации после завершения проверки безопасности файлов.'
+                : `Причина: ${product.moderationComment}. Карточка заблокирована — скачивание файлов недоступно.`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
@@ -333,7 +367,7 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
       </Section>
 
       {/* Edit form */}
-      <Section title="Редактирование">
+      {!isBlocked && <Section title="Редактирование">
         {/* Name */}
         <div>
           <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Название</label>
@@ -417,10 +451,10 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
             <i className="ti ti-alert-circle" style={{ fontSize: '15px' }} />{error}
           </div>
         )}
-      </Section>
+      </Section>}
 
       {/* Save */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {!isBlocked && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={handleSave} disabled={saving}
           style={{
             padding: '11px 28px', borderRadius: '10px', border: 'none',
@@ -432,7 +466,7 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
           <i className={`ti ${saved ? 'ti-check' : 'ti-device-floppy'}`} />
           {saving ? 'Сохранение...' : saved ? 'Сохранено!' : 'Сохранить изменения'}
         </button>
-      </div>
+      </div>}
     </div>
   )
 }
