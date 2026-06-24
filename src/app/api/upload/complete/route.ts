@@ -49,18 +49,31 @@ export async function POST(req: NextRequest) {
     const { fileKey, uploadType, entityType, entityId, fieldName } = parsed.data
 
     // Убеждаемся что fileKey принадлежит этому пользователю
-    const expectedPrefix = `temp/${uploadType}/${session.user.id}/`
+    // uploadType 'image' → папка 'images', остальные совпадают
+    const folderName = uploadType === 'image' ? 'images' : uploadType
+    const expectedPrefix = `temp/${folderName}/${session.user.id}/`
     if (!fileKey.startsWith(expectedPrefix)) {
       return NextResponse.json({ error: 'Недопустимый ключ файла' }, { status: 403 })
     }
 
-    const tempFolder = `temp/${uploadType}`
+    const tempFolder = `temp/${folderName}`
     const destFolder = DEST_MAP[tempFolder]
     if (!destFolder) {
       return NextResponse.json({ error: 'Неизвестный тип загрузки' }, { status: 400 })
     }
 
     const destKey = fileKey.replace(`${tempFolder}/`, `${destFolder}/`)
+
+    // Для аватарки — сразу показываем пользователю, не ждём worker
+    // Worker проверит ClamAV и обновит на постоянный ключ (или удалит при вирусе)
+    if (entityType === 'avatar') {
+      // Сохраняем постоянный ключ (без temp/) — worker уже переместил файл
+      // destKey = 'images/userId/uuid/filename.jpg'
+      await db.user.update({
+        where: { id: entityId },
+        data:  { image: destKey },
+      })
+    }
 
     const queue = await getQueue()
     const job: ScanFileJob = { fileKey, destKey, entityType, entityId, fieldName }

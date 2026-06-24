@@ -147,7 +147,34 @@ async function markRejected(
     })
 
   } else if (entityType === 'avatar') {
-    // Аватарка просто не сохраняется — пользователь останется со старой
-    console.warn(`[worker] avatar scan rejected for user ${entityId}: ${reason}`)
+    // Обнуляем аватарку — она была в temp/ и теперь удалена
+    await db.user.update({
+      where: { id: entityId },
+      data:  { image: null },
+    })
+
+    // Уведомляем пользователя
+    await db.notification.create({
+      data: {
+        userId:  entityId,
+        type:    'avatar_scan_rejected',
+        title:   'Аватарка удалена',
+        message: 'Ваша аватарка была удалена: обнаружена угроза безопасности.',
+        link:    '/account?tab=profile',
+      },
+    })
+
+    // Запись в audit log для админа
+    await db.adminAuditLog.create({
+      data: {
+        adminId:    entityId,  // фиктивный — используем userId как инициатора
+        action:     'avatar.virus_detected',
+        targetType: 'User',
+        targetId:   entityId,
+        details:    { reason },
+      },
+    }).catch(() => {/* audit log не критичен */})
+
+    console.warn(`[worker] avatar virus detected for user ${entityId}: ${reason}`)
   }
 }

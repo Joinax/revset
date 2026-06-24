@@ -356,7 +356,12 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [currentCity,  setCurrentCity]  = useState(user.city ?? '')
   const [currentBio,   setCurrentBio]   = useState(user.bio  ?? '')
   const [search,       setSearch]       = useState(authorFilters?.query ?? '')
-  const [avatarUrl,    setAvatarUrl]    = useState(user.image ?? '')
+  const [avatarUrl,    setAvatarUrl]    = useState(() => {
+    const img = user.image ?? ''
+    if (!img) return ''
+    if (img.startsWith('http')) return img
+    return `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
+  })
   const [avatarLoading, setAvatarLoading] = useState(false)
 
   const router      = useRouter()
@@ -454,13 +459,39 @@ export default function AccountClient({ user, orders, favorites, followings = []
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return
+    if (file.size > 5 * 1024 * 1024) return
+
     setAvatarLoading(true)
-    const fd = new FormData()
-    fd.append('avatar', file)
-    const res = await fetch('/api/profile/avatar', { method: 'POST', body: fd })
-    const data = await res.json()
-    setAvatarLoading(false)
-    if (res.ok) { const url = data.image + '?t=' + Date.now(); setAvatarUrl(url); updateUser({ image: url }) }
+    try {
+      // Шаг 1 — получаем presigned URL
+      const urlRes = await fetch('/api/upload', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size, uploadType: 'image' }),
+      })
+      if (!urlRes.ok) return
+      const { uploadUrl, fileKey } = await urlRes.json()
+
+      // Шаг 2 — загружаем напрямую в S3
+      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      if (!putRes.ok) return
+
+      // Шаг 3 — уведомляем сервер: worker проверит ClamAV и обновит user.image
+      await fetch('/api/upload/complete', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ fileKey, uploadType: 'image', entityType: 'avatar', entityId: user.id, fieldName: 'image' }),
+      })
+
+      // Показываем превью сразу в сайдбаре ЛК через blob URL
+      const previewUrl = URL.createObjectURL(file)
+      setAvatarUrl(previewUrl)
+      // Обновляем сессию через 3 секунды — worker успеет переместить файл из temp/
+      setTimeout(() => refresh(), 3000)
+    } finally {
+      setAvatarLoading(false)
+    }
   }
 
   function ProductThumb({ product }: { product: Product | AuthorProduct }) {

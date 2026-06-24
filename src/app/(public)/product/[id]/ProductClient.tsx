@@ -11,6 +11,12 @@ import ReviewActions from '@/components/ReviewActions'
 const S3  = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const BKT = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 
+function s3Url(key: string | null | undefined): string | null {
+  if (!key) return null
+  if (key.startsWith('http')) return key
+  return `${S3}/${BKT}/${key}`
+}
+
 type Props = {
   product: {
     id: string; name: string; description: string | null
@@ -351,7 +357,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                           currentUserId={currentUserId}
                           productAuthorId={product.author.id}
                           productAuthorName={product.author.name}
-                          productAuthorImage={product.author.image}
+                          productAuthorImage={s3Url(product.author.image)}
                         />
                       )}
                     </div>
@@ -496,8 +502,8 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                 boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
               }}>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: product.author.authorProfile?.bio ? '12px' : '14px' }}>
-                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0, background: product.author.image ? '#fff' : 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', overflow: 'hidden' }}>
-                    {product.author.image ? <img src={product.author.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (product.author.name ?? 'А')[0].toUpperCase()}
+                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0, background: s3Url(product.author.image) ? '#fff' : 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', overflow: 'hidden' }}>
+                    {s3Url(product.author.image) ? <img src={s3Url(product.author.image)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (product.author.name ?? 'А')[0].toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>

@@ -9,6 +9,15 @@ import NotificationBell from './NotificationBell'
 import { useAppSession } from './SessionProvider'
 import { signOut } from '@/lib/auth-client'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+
+function avatarUrl(image: string | null | undefined): string | null {
+  if (!image) return null
+  if (image.startsWith('http')) return image
+  return `${S3_ENDPOINT}/${S3_BUCKET}/${image}`
+}
+
 export default function Navbar() {
   const [menuOpen,    setMenuOpen]    = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -86,13 +95,13 @@ export default function Navbar() {
                     }} className="nav-links-desktop">
                     <span style={{
                       width: '24px', height: '24px', borderRadius: '50%',
-                      background: user.image ? '#fff' : 'var(--accent)', color: '#fff',
+                      background: avatarUrl(user.image) ? '#fff' : 'var(--accent)', color: '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: '11px', fontWeight: 700, flexShrink: 0,
                       overflow: 'hidden',
                     }}>
-                      {user.image
-                        ? <img src={user.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {avatarUrl(user.image)
+                        ? <img src={avatarUrl(user.image)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : (user.name ?? user.email ?? 'U')[0].toUpperCase()
                       }
                     </span>

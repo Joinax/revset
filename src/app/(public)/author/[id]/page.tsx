@@ -7,6 +7,15 @@ import { db } from '@/lib/db'
 import AuthorProducts from '@/components/AuthorProducts'
 import AuthorSubscribeButton from '@/components/AuthorSubscribeButton'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+
+function imgUrl(key: string | null | undefined): string | null {
+  if (!key) return null
+  if (key.startsWith('http')) return key
+  return `${S3_ENDPOINT}/${S3_BUCKET}/${key}`
+}
+
 export default async function AuthorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = await params
   const { from } = await searchParams
@@ -89,14 +98,14 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
               <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
                 <div style={{
                   width: '88px', height: '88px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-                  background: author.image ? '#fff' : 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                  background: imgUrl(author.image) ? '#fff' : 'linear-gradient(135deg, var(--accent), var(--accent2))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '32px', fontWeight: 800, color: '#fff',
                   border: '3px solid rgba(255,255,255,0.2)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 }}>
-                  {author.image
-                    ? <img src={author.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {imgUrl(author.image)
+                    ? <img src={imgUrl(author.image)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : (author.name ?? 'А')[0].toUpperCase()
                   }
                 </div>
