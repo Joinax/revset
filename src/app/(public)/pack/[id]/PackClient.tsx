@@ -18,29 +18,30 @@ function Stars({ rating }: { rating: number }) {
 }
 
 type PackProduct = { id: string; name: string; price: number | null; isAvailable: boolean; images: string[]; previewEmoji: string | null; previewBg: string | null }
-type Review = { id: string; rating: number; text: string; createdAt: Date; userName: string | null; source: 'pack' | 'product'; productName?: string }
+type Review = { id: string; rating: number; text: string; createdAt: string; userName: string | null; source: 'pack' | 'product'; productName?: string }
+
+export type PackClientPack = {
+  id: string; name: string; description: string | null; price: number
+  pdfKey: string | null; bundleKey: string | null
+  hasExclusive: boolean; exclusiveDesc: string | null
+  images: string[]; exclusiveImages: string[]
+  products: PackProduct[]
+  packReviews: Review[]; productReviews: Review[]
+  author: { id: string; name: string | null }
+  category: { name: string; slug: string }
+}
 
 type Props = {
-  pack: {
-    id: string; name: string; description: string | null; price: number
-    pdfKey: string | null; bundleKey: string | null
-    hasExclusive: boolean; exclusiveDesc: string | null
-    images: string[]; exclusiveImages: string[]
-    products: PackProduct[]
-    packReviews: Review[]; productReviews: Review[]
-    author: { id: string; name: string | null }
-    category: { name: string; slug: string }
-  }
+  pack: PackClientPack
   isPurchased: boolean
   hasDownloaded: boolean
   isOwnPack: boolean
   totalProductsPrice: number
   savings: number
   savingsPct: number
-  currentUserId: string | null
 }
 
-export default function PackClient({ pack, isPurchased, hasDownloaded, isOwnPack, totalProductsPrice, savings, savingsPct }: Props) {
+export default function PackClient({ pack, isPurchased, hasDownloaded, isOwnPack, totalProductsPrice, savings, savingsPct  }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [downloading, setDownloading] = useState(false)
   const [activeTab, setActiveTab] = useState<'desc' | 'reviews'>('desc')
@@ -64,7 +65,8 @@ export default function PackClient({ pack, isPurchased, hasDownloaded, isOwnPack
     setDownloading(false)
   }
 
-  const canDownload = isPurchased && !!pack.bundleKey
+  const isFree = pack.price === 0
+  const canDownload = ((isFree && isPurchased) || (!isFree && isPurchased && hasDownloaded)) && !!pack.bundleKey
   const canDownloadPdf = !!pack.pdfKey && (pack.price === 0 || (isPurchased && hasDownloaded))
 
   return (

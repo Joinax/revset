@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import PackClient from './PackClient'
+import { serializeDecimal } from '@/lib/serialize'
+import PackClient, { type PackClientPack } from './PackClient'
 
 export default async function PackPage({
   params,
@@ -75,41 +76,53 @@ export default async function PackPage({
   const savings = totalProductsPrice > packPrice ? totalProductsPrice - packPrice : 0
   const savingsPct = totalProductsPrice > 0 ? Math.round(savings / totalProductsPrice * 100) : 0
 
+  // serializeDecimal uses JSON.parse(JSON.stringify(...)) which converts Date→string and Decimal→number.
+  // The generic T cannot express the Date→string change, so we cast to PackClientPack.
+  const serializedPack = serializeDecimal({
+    id: pack.id,
+    name: pack.name,
+    description: pack.description,
+    price: packPrice,
+    pdfKey: pack.pdfKey,
+    bundleKey: pack.bundleKey,
+    hasExclusive: pack.hasExclusive,
+    exclusiveDesc: pack.exclusiveDesc,
+    images: pack.images.map(i => i.key),
+    exclusiveImages: pack.exclusiveImages.map(i => i.key),
+    products: pack.products.map(p => ({
+      id: p.product.id,
+      name: p.product.name,
+      price: p.product.price ? Number(p.product.price) : null,
+      isAvailable: p.product.moderationStatus === 'APPROVED',
+      images: p.product.images,
+      previewEmoji: p.product.previewEmoji,
+      previewBg: p.product.previewBg,
+    })),
+    packReviews: pack.reviews.map(r => ({
+      id: r.id, rating: r.rating, text: r.text ?? '',
+      createdAt: r.createdAt, userName: r.user.name,
+      source: 'pack' as const,
+    })),
+    productReviews: productReviews.map(r => ({
+      id: r.id, rating: r.rating, text: r.text ?? '',
+      createdAt: r.createdAt, userName: r.user.name,
+      source: 'product' as const,
+      productName: r.product.name,
+    })),
+    author: pack.author,
+    category: pack.category,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any) as PackClientPack
+
   return (
     <PackClient
-      pack={{
-        ...pack,
-        price: packPrice,
-        images: pack.images.map(i => i.key),
-        exclusiveImages: pack.exclusiveImages.map(i => i.key),
-        products: pack.products.map(p => ({
-          id: p.product.id,
-          name: p.product.name,
-          price: p.product.price ? Number(p.product.price) : null,
-          isAvailable: p.product.moderationStatus === 'APPROVED',
-          images: p.product.images,
-          previewEmoji: p.product.previewEmoji,
-          previewBg: p.product.previewBg,
-        })),
-        packReviews: pack.reviews.map(r => ({
-          id: r.id, rating: r.rating, text: r.text,
-          createdAt: r.createdAt, userName: r.user.name,
-          source: 'pack' as const,
-        })),
-        productReviews: productReviews.map(r => ({
-          id: r.id, rating: r.rating, text: r.text ?? '',
-          createdAt: r.createdAt, userName: r.user.name,
-          source: 'product' as const,
-          productName: r.product.name,
-        })),
-      }}
+      pack={serializedPack}
       isPurchased={isPurchased}
       hasDownloaded={hasDownloaded}
       isOwnPack={isOwnPack}
       totalProductsPrice={totalProductsPrice}
       savings={savings}
       savingsPct={savingsPct}
-      currentUserId={session?.user?.id ?? null}
     />
   )
 }
