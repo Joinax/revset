@@ -12,10 +12,16 @@ export default async function AdminPacksPage({
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session || session.user.role !== 'admin') redirect('/')
 
-  const { status = 'PENDING' } = await searchParams
+  const { status: rawStatus = 'PENDING' } = await searchParams
+
+  const VALID_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
+  type ValidStatus = typeof VALID_STATUSES[number]
+  const status: ValidStatus = VALID_STATUSES.includes(rawStatus as ValidStatus)
+    ? rawStatus as ValidStatus
+    : 'PENDING'
 
   const packs = await db.pack.findMany({
-    where:   { moderationStatus: status as 'PENDING' | 'APPROVED' | 'REJECTED' },
+    where:   { moderationStatus: status },
     include: {
       author:   { select: { id: true, name: true, email: true } },
       category: { select: { name: true } },

@@ -21,6 +21,10 @@ export default async function AdminPackDetailPage({ params }: { params: Promise<
         orderBy: { position: 'asc' },
         include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } },
       },
+      reviews: {
+        include: { user: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   })
   if (!pack) notFound()
@@ -36,6 +40,14 @@ export default async function AdminPackDetailPage({ params }: { params: Promise<
           id: p.product.id, name: p.product.name,
           price: p.product.price ? Number(p.product.price) : null,
           moderationStatus: p.product.moderationStatus,
+        })),
+        reviews: pack.reviews.map(r => ({
+          id:               r.id,
+          rating:           r.rating,
+          text:             r.text,
+          moderationStatus: r.moderationStatus,
+          createdAt:        r.createdAt.toISOString(),
+          user:             { id: r.user.id, name: r.user.name },
         })),
         createdAt: pack.createdAt.toISOString(),
       }}

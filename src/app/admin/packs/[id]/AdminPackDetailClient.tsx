@@ -8,6 +8,27 @@ const S3  = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const BKT = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 const s3Url = (key: string) => `${S3}/${BKT}/${key}`
 
+const MODERATION_LABELS: Record<string, string> = {
+  PENDING:  'На проверке',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонён',
+}
+
+const MODERATION_COLORS: Record<string, string> = {
+  PENDING:  'var(--admin-warning, #f59e0b)',
+  APPROVED: 'var(--admin-success)',
+  REJECTED: 'var(--admin-danger)',
+}
+
+type PackReview = {
+  id: string
+  rating: number
+  text: string
+  moderationStatus: string
+  createdAt: string
+  user: { id: string; name: string | null }
+}
+
 type Props = {
   pack: {
     id: string; name: string; price: number; description: string | null
@@ -16,6 +37,7 @@ type Props = {
     assemblyFileKey: string | null; pdfKey: string | null; bundleKey: string | null
     images: string[]; exclusiveImages: string[]
     products: { id: string; name: string; price: number | null; moderationStatus: string }[]
+    reviews: PackReview[]
     author: { id: string; name: string | null; email: string }
     category: { name: string }
     createdAt: string
@@ -27,17 +49,24 @@ export default function AdminPackDetailClient({ pack }: Props) {
   const [loading, setLoading] = useState(false)
   const [comment, setComment] = useState('')
   const [activeImg, setActiveImg] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleAction(action: 'approve' | 'reject') {
+    setError(null)
     setLoading(true)
-    await fetch('/api/admin/packs', {
+    const res = await fetch('/api/admin/packs', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ packId: pack.id, action, moderationComment: comment || null }),
     })
-    setLoading(false)
-    router.push('/admin/packs')
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Ошибка сервера' }))
+      setError(err.error ?? 'Ошибка сервера')
+      setLoading(false)
+      return
+    }
     router.refresh()
+    router.push('/admin/packs')
   }
 
   const isPending = pack.moderationStatus === 'PENDING'
@@ -127,6 +156,36 @@ export default function AdminPackDetailClient({ pack }: Props) {
               {pack.exclusiveDesc && <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '10px', marginBottom: 0 }}>{pack.exclusiveDesc}</p>}
             </div>
           )}
+
+          {/* Reviews */}
+          <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '20px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '12px', color: 'var(--admin-text)' }}>
+              Отзывы на пак ({pack.reviews.length})
+            </div>
+            {pack.reviews.length === 0 ? (
+              <div style={{ fontSize: '13px', color: 'var(--admin-muted)', textAlign: 'center', padding: '16px 0' }}>Отзывов пока нет</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {pack.reviews.map(r => (
+                  <div key={r.id} style={{ padding: '12px', background: 'var(--admin-bg2)', borderRadius: '10px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--admin-text)' }}>{r.user.name ?? 'Пользователь'}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: 'var(--admin-warning, #f59e0b)', fontWeight: 700 }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                        <span style={{ padding: '2px 8px', borderRadius: '6px', background: MODERATION_COLORS[r.moderationStatus] ?? 'var(--admin-muted)', color: '#fff', fontSize: '11px', fontWeight: 700 }}>
+                          {MODERATION_LABELS[r.moderationStatus] ?? r.moderationStatus}
+                        </span>
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, color: 'var(--admin-muted)', lineHeight: 1.6 }}>{r.text}</p>
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--admin-muted)' }}>
+                      {new Date(r.createdAt).toLocaleDateString('ru')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Actions sidebar */}
@@ -155,6 +214,9 @@ export default function AdminPackDetailClient({ pack }: Props) {
                   style={{ width: '100%', padding: '11px', borderRadius: '10px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-danger)', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: loading ? 0.6 : 1 }}>
                   <i className="ti ti-x" /> Отклонить
                 </button>
+                {error && (
+                  <div style={{ color: 'var(--admin-danger)', marginTop: '8px', fontSize: '13px' }}>{error}</div>
+                )}
               </div>
             )}
 
