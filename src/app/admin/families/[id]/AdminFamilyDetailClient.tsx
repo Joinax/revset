@@ -16,7 +16,7 @@ type Product = {
   categorySlug: string
   revitVersions: string[]
   isPublished: boolean
-  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'BUILDING_BUNDLE' | 'BUNDLE_FAILED' | 'APPROVED' | 'REJECTED'
   moderationComment: string | null
   isBlocked: boolean
   isNew: boolean
@@ -153,8 +153,32 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
   const [isPublished,   setIsPublished]   = useState(product.isPublished)
   const [isNew,         setIsNew]         = useState(product.isNew)
   const [comment,       setComment]       = useState(product.moderationComment ?? '')
-  const [fileDownloading, setFileDownloading] = useState(false)
-  const [fileError,       setFileError]       = useState('')
+  const [fileDownloading,   setFileDownloading]   = useState(false)
+  const [fileError,         setFileError]         = useState('')
+  const [retryLoading,      setRetryLoading]      = useState(false)
+  const [retryError,        setRetryError]        = useState('')
+
+  async function handleRetryBundle() {
+    setRetryLoading(true)
+    setRetryError('')
+    try {
+      const res = await fetch('/api/admin/products', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ productId: product.id, action: 'retry_bundle' }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Ошибка сервера' }))
+        setRetryError(err.error ?? 'Ошибка сервера')
+        return
+      }
+      router.refresh()
+    } catch {
+      setRetryError('Ошибка соединения')
+    } finally {
+      setRetryLoading(false)
+    }
+  }
 
   const bimParams    = (() => { try { return JSON.parse(product.bimParams) } catch { return null } })()
   const bimFileName   = (bimParams?.fileName  as string | undefined) ?? ''
@@ -249,27 +273,77 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
           padding: '16px 20px', borderRadius: '14px',
           background: product.moderationStatus === 'PENDING_SCAN'
             ? 'rgba(72,128,255,0.08)'
-            : 'rgba(239,56,38,0.08)',
-          border: `1px solid ${product.moderationStatus === 'PENDING_SCAN'
-            ? 'rgba(72,128,255,0.3)'
-            : 'rgba(239,56,38,0.3)'}`,
+            : product.moderationStatus === 'BUILDING_BUNDLE'
+              ? 'rgba(72,128,255,0.08)'
+              : 'rgba(239,56,38,0.08)',
+          border: `1px solid ${
+            product.moderationStatus === 'PENDING_SCAN' || product.moderationStatus === 'BUILDING_BUNDLE'
+              ? 'rgba(72,128,255,0.3)'
+              : 'rgba(239,56,38,0.3)'
+          }`,
         }}>
-          <i className={`ti ${product.moderationStatus === 'PENDING_SCAN' ? 'ti-shield-search' : 'ti-virus'}`}
+          <i className={`ti ${
+            product.moderationStatus === 'PENDING_SCAN'   ? 'ti-shield-search' :
+            product.moderationStatus === 'BUILDING_BUNDLE' ? 'ti-loader-2' :
+            'ti-virus'
+          }`}
             style={{
               fontSize: '20px', flexShrink: 0,
-              color: product.moderationStatus === 'PENDING_SCAN' ? 'var(--admin-accent)' : 'var(--admin-danger)',
+              color: product.moderationStatus === 'PENDING_SCAN' || product.moderationStatus === 'BUILDING_BUNDLE'
+                ? 'var(--admin-accent)'
+                : 'var(--admin-danger)',
             }} />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--admin-text)', marginBottom: '4px' }}>
-              {product.moderationStatus === 'PENDING_SCAN'
-                ? 'Файлы проверяются платформой'
-                : 'Файл отклонён — обнаружена угроза'}
+              {product.moderationStatus === 'PENDING_SCAN'    ? 'Файлы проверяются платформой' :
+               product.moderationStatus === 'BUILDING_BUNDLE' ? 'Формируется ZIP-архив'
+               : 'Файл отклонён — обнаружена угроза'}
             </div>
             <div style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>
               {product.moderationStatus === 'PENDING_SCAN'
                 ? 'Карточка станет доступна для модерации после завершения проверки безопасности файлов.'
-                : `Причина: ${product.moderationComment}. Карточка заблокирована — скачивание файлов недоступно.`}
+                : product.moderationStatus === 'BUILDING_BUNDLE'
+                  ? 'Архив с RFA и PDF собирается в фоне. Карточка опубликуется автоматически когда архив будет готов.'
+                  : `Причина: ${product.moderationComment}. Карточка заблокирована — скачивание файлов недоступно.`}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Баннер ошибки генерации архива — кнопка повтора */}
+      {product.moderationStatus === 'BUNDLE_FAILED' && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: '12px',
+          padding: '16px 20px', borderRadius: '14px',
+          background: 'rgba(239,56,38,0.08)',
+          border: '1px solid rgba(239,56,38,0.3)',
+        }}>
+          <i className="ti ti-alert-triangle" style={{ fontSize: '20px', flexShrink: 0, color: 'var(--admin-danger)', marginTop: '2px' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--admin-text)', marginBottom: '4px' }}>
+              Ошибка формирования архива
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--admin-muted)', marginBottom: '12px' }}>
+              Не удалось создать ZIP-архив с RFA и PDF. Файлы модели доступны, попробуйте повторить генерацию.
+            </div>
+            <button
+              onClick={handleRetryBundle}
+              disabled={retryLoading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '9px 18px', borderRadius: '10px', border: 'none',
+                background: 'var(--admin-accent, #4880ff)', color: '#fff',
+                fontSize: '13px', fontWeight: 700,
+                cursor: retryLoading ? 'not-allowed' : 'pointer',
+                opacity: retryLoading ? 0.6 : 1,
+              }}
+            >
+              <i className="ti ti-refresh" />
+              {retryLoading ? 'Запускаем...' : 'Повторить генерацию'}
+            </button>
+            {retryError && (
+              <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--admin-danger)' }}>{retryError}</div>
+            )}
           </div>
         </div>
       )}

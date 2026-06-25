@@ -32,7 +32,7 @@ export async function startWorker() {
           return
         }
 
-        // 2. Сканируем через ClamAV (заглушка — всегда возвращает clean: true)
+        // 2. Сканируем через ClamAV
         const result = await scanFile(fileKey)
 
         if (!result.clean) {
@@ -52,7 +52,7 @@ export async function startWorker() {
         // 4. Удаляем из temp/
         await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: fileKey }))
 
-        // 5. Обновляем запись в БД
+        // 5. Обновляем запись в БД и уменьшаем счётчик
         await markPending(entityType, entityId, fieldName, destKey, job.data.position)
 
         console.log(`[worker] done: ${fileKey} → ${destKey}`)
@@ -73,41 +73,48 @@ async function markPending(
   position?: number
 ) {
   if (entityType === 'product') {
-    const product = await db.product.findUnique({
-      where:  { id: entityId },
-      select: { authorId: true, name: true },
-    })
-    if (!product) return
+    let updated: { pendingScanCount: number; moderationStatus: string }
 
     if (fieldName === 'images') {
-      await db.product.update({
+      updated = await db.product.update({
         where: { id: entityId },
         data: {
-          images:           { push: destKey },
-          moderationStatus: 'PENDING',
+          images:          { push: destKey },
+          pendingScanCount: { decrement: 1 },
         },
+        select: { pendingScanCount: true, moderationStatus: true },
       })
     } else {
-      // rfaKey, pdfKey — обновляем поле напрямую через bimParams
+      // rfaKey или pdfKey — сохраняем в bimParams
       const current = await db.product.findUnique({
         where:  { id: entityId },
         select: { bimParams: true },
       })
       let params: Record<string, unknown> = {}
-      try { params = JSON.parse(current?.bimParams ?? '{}') } catch { /* */ }
-      // fieldName = 'rfaKey' | 'pdfKey' — сохраняем постоянный ключ файла
+      try {
+        const raw = current?.bimParams
+        params = typeof raw === 'string' ? JSON.parse(raw) : (raw as Record<string, unknown> ?? {})
+      } catch { /* */ }
       params[fieldName] = destKey
 
-      await db.product.update({
+      updated = await db.product.update({
         where: { id: entityId },
         data: {
           bimParams:        JSON.stringify(params),
-          moderationStatus: 'PENDING',
+          pendingScanCount: { decrement: 1 },
         },
+        select: { pendingScanCount: true, moderationStatus: true },
       })
     }
 
-
+    // Переходим в PENDING только когда все файлы проверены
+    // и только если статус ещё PENDING_SCAN (не трогаем APPROVED/REJECTED)
+    if (updated.pendingScanCount <= 0 && updated.moderationStatus === 'PENDING_SCAN') {
+      await db.product.update({
+        where: { id: entityId },
+        data:  { moderationStatus: 'PENDING' },
+      })
+    }
 
   } else if (entityType === 'avatar') {
     await db.user.update({
@@ -116,37 +123,47 @@ async function markPending(
     })
 
   } else if (entityType === 'pack') {
-    const pack = await db.pack.findUnique({
-      where:  { id: entityId },
-      select: { authorId: true, name: true },
-    })
-    if (!pack) return
+    let updated: { pendingScanCount: number; moderationStatus: string }
 
     if (fieldName === 'packImage') {
       await db.packImage.create({
         data: { packId: entityId, key: destKey, position: position ?? 0 },
       })
+      updated = await db.pack.update({
+        where: { id: entityId },
+        data:  { pendingScanCount: { decrement: 1 } },
+        select: { pendingScanCount: true, moderationStatus: true },
+      })
     } else if (fieldName === 'packExclusiveImage') {
       await db.packExclusiveImage.create({
         data: { packId: entityId, key: destKey, position: position ?? 0 },
       })
+      updated = await db.pack.update({
+        where: { id: entityId },
+        data:  { pendingScanCount: { decrement: 1 } },
+        select: { pendingScanCount: true, moderationStatus: true },
+      })
     } else {
-      // assemblyFileKey or pdfKey — update directly on Pack
       const ALLOWED_PACK_FIELDS = ['assemblyFileKey', 'pdfKey']
       if (!ALLOWED_PACK_FIELDS.includes(fieldName)) {
         console.error(`markPending: invalid fieldName "${fieldName}" for pack entity`)
         return
       }
-      await db.pack.update({
+      updated = await db.pack.update({
         where: { id: entityId },
-        data:  { [fieldName]: destKey },
+        data:  { [fieldName]: destKey, pendingScanCount: { decrement: 1 } },
+        select: { pendingScanCount: true, moderationStatus: true },
       })
     }
 
-    await db.pack.update({
-      where: { id: entityId },
-      data:  { moderationStatus: 'PENDING' },
-    })
+    // Переходим в PENDING только когда все файлы проверены
+    // и только если статус ещё PENDING_SCAN (не трогаем APPROVED/REJECTED)
+    if (updated.pendingScanCount <= 0 && updated.moderationStatus === 'PENDING_SCAN') {
+      await db.pack.update({
+        where: { id: entityId },
+        data:  { moderationStatus: 'PENDING' },
+      })
+    }
   }
 }
 
@@ -158,9 +175,15 @@ async function markRejected(
   if (entityType === 'product') {
     const product = await db.product.findUnique({
       where:  { id: entityId },
-      select: { authorId: true, name: true },
+      select: { authorId: true, name: true, moderationStatus: true },
     })
     if (!product) return
+
+    // Не трогаем статус если карточка уже прошла модерацию или опубликована
+    if (product.moderationStatus !== 'PENDING_SCAN') {
+      console.warn(`[worker] markRejected skipped — product ${entityId} is already in status ${product.moderationStatus}`)
+      return
+    }
 
     await db.product.update({
       where: { id: entityId },
@@ -181,13 +204,11 @@ async function markRejected(
     })
 
   } else if (entityType === 'avatar') {
-    // Обнуляем аватарку — она была в temp/ и теперь удалена
     await db.user.update({
       where: { id: entityId },
       data:  { image: null },
     })
 
-    // Уведомляем пользователя
     await db.notification.create({
       data: {
         userId:  entityId,
@@ -198,25 +219,30 @@ async function markRejected(
       },
     })
 
-    // Запись в audit log для админа
     await db.adminAuditLog.create({
       data: {
-        adminId:    entityId,  // фиктивный — используем userId как инициатора
+        adminId:    entityId,
         action:     'avatar.virus_detected',
         targetType: 'User',
         targetId:   entityId,
         details:    { reason },
       },
-    }).catch(() => {/* audit log не критичен */})
+    }).catch(() => {})
 
     console.warn(`[worker] avatar virus detected for user ${entityId}: ${reason}`)
 
   } else if (entityType === 'pack') {
     const pack = await db.pack.findUnique({
       where:  { id: entityId },
-      select: { authorId: true, name: true },
+      select: { authorId: true, name: true, moderationStatus: true },
     })
     if (!pack) return
+
+    // Не трогаем статус если пак уже прошёл модерацию или опубликован
+    if (pack.moderationStatus !== 'PENDING_SCAN') {
+      console.warn(`[worker] markRejected skipped — pack ${entityId} is already in status ${pack.moderationStatus}`)
+      return
+    }
 
     await db.pack.update({
       where: { id: entityId },

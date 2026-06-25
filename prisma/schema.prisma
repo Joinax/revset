@@ -112,11 +112,13 @@ model Category {
 }
 
 enum ModerationStatus {
-  DRAFT         // черновик — автор сам не опубликовал
-  PENDING_SCAN  // файл проверяется ClamAV, модератор не видит карточку
-  PENDING       // ожидает проверки админом
-  APPROVED      // одобрено и опубликовано
-  REJECTED      // отклонено
+  DRAFT           // черновик — автор сам не опубликовал
+  PENDING_SCAN    // файл проверяется ClamAV, модератор не видит карточку
+  PENDING         // ожидает проверки админом
+  BUILDING_BUNDLE // одобрено, ZIP архив формируется
+  BUNDLE_FAILED   // ошибка при формировании ZIP архива
+  APPROVED        // одобрено, архив готов, опубликовано
+  REJECTED        // отклонено
 }
 
 model Product {
@@ -131,6 +133,9 @@ model Product {
   fileSize          String?
   dimensions        String?
   bimParams         Json?
+  pdfKey            String?
+  bundleKey         String?
+  pendingScanCount  Int              @default(0)
   images            String[]         @default([])
   isPublished       Boolean          @default(false)
   moderationStatus  ModerationStatus @default(DRAFT)
@@ -327,6 +332,7 @@ model Pack {
   assemblyFileKey  String?
   pdfKey           String?
   bundleKey        String?
+  pendingScanCount Int                @default(0)
 
   hasExclusive     Boolean            @default(false)
   exclusiveDesc    String?

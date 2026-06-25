@@ -14,6 +14,7 @@ type Props = {
     id: string; name: string; description: string
     price: string; isPublished: boolean; categorySlug: string
     revitVersions: string[]; bimParams: string; images: string[]
+    moderationStatus: string; moderationComment: string | null
   }
   categories: { slug: string; name: string }[]
 }
@@ -62,7 +63,8 @@ export default function EditProductClient({ product, categories }: Props) {
           price:         price || null,
           categorySlug:  category,
           revitVersions: versions,
-          isPublished,
+          // При resubmit отклонённой карточки — всегда отправляем на модерацию
+          isPublished:   product.moderationStatus === 'REJECTED' ? true : isPublished,
           fileKey,
           fileName,
           images,
@@ -92,8 +94,22 @@ export default function EditProductClient({ product, categories }: Props) {
           <Link href="/account?tab=author-products" style={{ color: 'var(--muted)', fontSize: '13px' }}>
             ← Назад
           </Link>
-          <h1 style={{ fontSize: '18px', fontWeight: 700 }}>Редактировать модель</h1>
+            <h1 style={{ fontSize: '18px', fontWeight: 700 }}>Редактировать модель</h1>
         </div>
+
+        {/* Баннер отклонения — показываем причину и предлагаем исправить */}
+        {product.moderationStatus === 'REJECTED' && (
+          <div style={{ display: 'flex', gap: '12px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(239,56,38,0.07)', border: '1px solid rgba(239,56,38,0.25)', marginBottom: '20px' }}>
+            <i className="ti ti-alert-triangle" style={{ fontSize: '18px', color: 'var(--danger)', flexShrink: 0, marginTop: '1px' }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--danger)', marginBottom: '4px' }}>Модератор отклонил модель</div>
+              {product.moderationComment
+                ? <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{product.moderationComment}</div>
+                : <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Причина не указана. Исправьте модель и отправьте повторно.</div>
+              }
+            </div>
+          </div>
+        )}
 
         {success ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -221,7 +237,11 @@ export default function EditProductClient({ product, categories }: Props) {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="submit" disabled={loading}
                   style={{ flex: 1, background: loading ? 'var(--bg3)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontFamily: 'var(--font-unbounded), sans-serif', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
-                  {loading ? 'Сохраняем...' : 'Сохранить'}
+                  {loading
+                    ? 'Сохраняем...'
+                    : product.moderationStatus === 'REJECTED'
+                      ? 'Отправить на повторную проверку'
+                      : 'Сохранить'}
                 </button>
                 <Link href="/account?tab=author-products"
                   style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', fontSize: '13px', color: 'var(--text)', textAlign: 'center', fontWeight: 500 }}>

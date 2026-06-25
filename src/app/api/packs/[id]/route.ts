@@ -64,6 +64,7 @@ const patchSchema = z.object({
   hasExclusive:  z.boolean().optional(),
   exclusiveDesc: z.string().max(2000).optional().nullable(),
   productIds:    z.array(z.string()).min(2).max(12).optional(),
+  submit:        z.boolean().optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -91,38 +92,72 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Validation error', details: parsed.error.flatten().fieldErrors }, { status: 400 })
     }
 
-    const { productIds, ...rest } = parsed.data
+    const { productIds, submit, ...rest } = parsed.data
+
+    // Повторная отправка на модерацию — только из REJECTED
+    if (submit === true && pack.moderationStatus !== 'REJECTED') {
+      return NextResponse.json({ error: 'Повторная отправка возможна только для отклонённого пака' }, { status: 400 })
+    }
 
     if (productIds) {
-      const products = await db.product.findMany({
+      // Проверяем, что все переданные карточки одобрены и принадлежат автору
+      const validProducts = await db.product.findMany({
         where: { id: { in: productIds }, authorId: session.user.id, moderationStatus: 'APPROVED' },
         select: { id: true },
       })
-      if (products.length !== productIds.length) {
+      if (validProducts.length !== productIds.length) {
         return NextResponse.json({ error: 'Все карточки должны быть одобрены и принадлежать вам' }, { status: 403 })
       }
-
-      await db.packProduct.deleteMany({ where: { packId: id } })
-      await db.packProduct.createMany({
-        data: productIds.map((productId, position) => ({ packId: id, productId, position })),
-      })
     }
 
-    const updated = await db.pack.update({
-      where: { id },
-      data: {
-        ...rest,
-        name:        rest.name?.trim(),
-        description: rest.description?.trim() || null,
-      },
-      include: {
-        products: {
-          include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } },
-          orderBy: { position: 'asc' },
+    const updated = await db.$transaction(async (tx) => {
+      if (productIds) {
+        const existing = await tx.packProduct.findMany({ where: { packId: id }, select: { productId: true } })
+        const existingSet = new Set(existing.map(e => e.productId))
+        const incomingSet = new Set(productIds)
+
+        const toRemove = [...existingSet].filter(pid => !incomingSet.has(pid))
+        const toAdd    = productIds.filter(pid => !existingSet.has(pid))
+
+        if (toRemove.length > 0) {
+          await tx.packProduct.deleteMany({ where: { packId: id, productId: { in: toRemove } } })
+        }
+        if (toAdd.length > 0) {
+          await tx.packProduct.createMany({
+            data: toAdd.map(productId => ({ packId: id, productId, position: productIds.indexOf(productId) })),
+          })
+        }
+        // Обновляем позиции существующих (порядок мог измениться)
+        for (const productId of productIds) {
+          if (existingSet.has(productId)) {
+            await tx.packProduct.update({
+              where: { packId_productId: { packId: id, productId } },
+              data:  { position: productIds.indexOf(productId) },
+            })
+          }
+        }
+      }
+
+      return tx.pack.update({
+        where: { id },
+        data: {
+          ...rest,
+          name:              rest.name?.trim(),
+          description:       rest.description?.trim() || null,
+          ...(submit === true && {
+            moderationStatus:  'PENDING',
+            moderationComment: null,
+          }),
         },
-        images:          { orderBy: { position: 'asc' } },
-        exclusiveImages: { orderBy: { position: 'asc' } },
-      },
+        include: {
+          products: {
+            include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } },
+            orderBy: { position: 'asc' },
+          },
+          images:          { orderBy: { position: 'asc' } },
+          exclusiveImages: { orderBy: { position: 'asc' } },
+        },
+      })
     })
 
     return NextResponse.json(serializeDecimal(updated))

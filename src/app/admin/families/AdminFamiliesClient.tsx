@@ -12,7 +12,7 @@ type Product = {
   categoryName: string
   price: number | null
   isPublished: boolean
-  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  moderationStatus: 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'BUILDING_BUNDLE' | 'BUNDLE_FAILED' | 'APPROVED' | 'REJECTED'
   isNew: boolean
   downloads: number
   reviewCount: number
@@ -41,20 +41,24 @@ type Props = {
 }
 
 const STATUSES = [
-  { value: 'all',      label: 'Все' },
-  { value: 'DRAFT',    label: 'Черновики' },
-  { value: 'PENDING_SCAN', label: 'Проверка' },
-  { value: 'PENDING',  label: 'На модерации' },
-  { value: 'APPROVED', label: 'Опубликованные' },
-  { value: 'REJECTED', label: 'Отклонённые' },
+  { value: 'all',            label: 'Все' },
+  { value: 'DRAFT',          label: 'Черновики' },
+  { value: 'PENDING_SCAN',   label: 'Проверка' },
+  { value: 'PENDING',        label: 'На модерации' },
+  { value: 'BUILDING_BUNDLE', label: 'Архив формируется' },
+  { value: 'BUNDLE_FAILED',  label: 'Ошибка архива' },
+  { value: 'APPROVED',       label: 'Опубликованные' },
+  { value: 'REJECTED',       label: 'Отклонённые' },
 ]
 
 const MODERATION_COLORS: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING_SCAN: { label: 'Проверка безопасности', color: 'var(--admin-accent)',  bg: 'rgba(72,128,255,0.1)' },
-  DRAFT:    { label: 'Черновик',     color: 'var(--admin-muted)',   bg: 'var(--admin-bg2)' },
-  PENDING:  { label: 'На модерации', color: 'var(--admin-warning)', bg: 'rgba(255,167,86,0.1)' },
-  APPROVED: { label: 'Опубликовано', color: 'var(--admin-success)', bg: 'rgba(0,182,155,0.1)' },
-  REJECTED: { label: 'Отклонено',    color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
+  PENDING_SCAN:    { label: 'Проверка безопасности', color: 'var(--admin-accent)',  bg: 'rgba(72,128,255,0.1)' },
+  DRAFT:           { label: 'Черновик',              color: 'var(--admin-muted)',   bg: 'var(--admin-bg2)' },
+  PENDING:         { label: 'На модерации',           color: 'var(--admin-warning)', bg: 'rgba(255,167,86,0.1)' },
+  BUILDING_BUNDLE: { label: 'Архив формируется',      color: 'var(--admin-accent)',  bg: 'rgba(72,128,255,0.1)' },
+  BUNDLE_FAILED:   { label: 'Ошибка архива',          color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
+  APPROVED:        { label: 'Опубликовано',           color: 'var(--admin-success)', bg: 'rgba(0,182,155,0.1)' },
+  REJECTED:        { label: 'Отклонено',              color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
 }
 
 export default function AdminFamiliesClient({

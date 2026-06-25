@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit-log'
 import { serializeDecimal } from '@/lib/serialize'
+import { generateProductBundle } from '@/lib/generate-product-bundle'
 
 const ALLOWED_REVIT_VERSIONS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026']
 const MAX_IMAGES = 10
@@ -130,8 +131,20 @@ export async function PATCH(
     const adminActing = isAdmin && asAdmin === true
 
     let moderationStatus = product.moderationStatus
+    let needsBundleGeneration = false
+
     if (adminActing) {
-      moderationStatus = willBePublished ? 'APPROVED' : 'REJECTED'
+      if (willBePublished) {
+        // Если у карточки есть PDF — нужно сначала собрать ZIP
+        if (product.pdfKey) {
+          moderationStatus      = 'BUILDING_BUNDLE'
+          needsBundleGeneration = true
+        } else {
+          moderationStatus = 'APPROVED'
+        }
+      } else {
+        moderationStatus = 'REJECTED'
+      }
     } else if (isOwner) {
       if (!willBePublished) {
         moderationStatus = 'DRAFT'
@@ -144,6 +157,7 @@ export async function PATCH(
       }
     }
 
+    // Карточка публикуется сразу только если APPROVED (без очереди на ZIP)
     const actuallyPublished = moderationStatus === 'APPROVED'
 
     const nextModerationComment = moderationStatus === 'REJECTED'
@@ -174,25 +188,23 @@ export async function PATCH(
     })
 
     if (adminActing) {
-      if (wasPublished !== actuallyPublished) {
-        await logAdminAction({
-          adminId: session.user.id,
-          action: actuallyPublished ? 'product.publish' : 'product.unpublish',
-          targetType: 'Product',
-          targetId: id,
-          details: { productName: product.name, moderationStatus, moderationComment: nextModerationComment },
-        })
-      } else {
-        await logAdminAction({
-          adminId: session.user.id,
-          action: 'product.update',
-          targetType: 'Product',
-          targetId: id,
-          details: { productName: product.name },
-        })
-      }
+      await logAdminAction({
+        adminId:    session.user.id,
+        action:     needsBundleGeneration ? 'product.approve_pending_bundle'
+          : actuallyPublished             ? 'product.publish'
+          : 'product.unpublish',
+        targetType: 'Product',
+        targetId:   id,
+        details:    { productName: product.name, moderationStatus, moderationComment: nextModerationComment },
+      })
 
-      if (product.moderationStatus !== moderationStatus && (moderationStatus === 'APPROVED' || moderationStatus === 'REJECTED')) {
+      if (needsBundleGeneration) {
+        // ZIP собирается в фоне; APPROVED + уведомление автору — внутри generateProductBundle
+        generateProductBundle(id).catch(err =>
+          console.error(`[products] bundle generation failed for ${id}:`, err)
+        )
+      } else if (product.moderationStatus !== moderationStatus && (moderationStatus === 'APPROVED' || moderationStatus === 'REJECTED')) {
+        // Нет ZIP — уведомляем автора сразу
         await db.notification.create({
           data: {
             userId:  product.authorId,

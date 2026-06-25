@@ -8,7 +8,7 @@ import { generatePackBundle } from '@/lib/generate-pack-bundle'
 
 const schema = z.object({
   packId:            z.string().min(1).max(50),
-  action:            z.enum(['approve', 'reject']),
+  action:            z.enum(['approve', 'reject', 'retry_bundle']),
   moderationComment: z.string().max(500).optional().nullable(),
 })
 
@@ -35,32 +35,73 @@ export async function POST(request: NextRequest) {
   })
   if (!pack) return NextResponse.json({ error: 'Pack not found' }, { status: 404 })
 
-  const moderationStatus = action === 'approve' ? 'APPROVED' : 'REJECTED'
+  // Повторная генерация архива при ошибке
+  if (action === 'retry_bundle') {
+    if (pack.moderationStatus !== 'BUNDLE_FAILED') {
+      return NextResponse.json({ error: 'Повторная генерация возможна только при статусе BUNDLE_FAILED' }, { status: 400 })
+    }
 
-  await db.pack.update({
-    where: { id: packId },
-    data: {
-      moderationStatus,
-      moderationComment: moderationStatus === 'REJECTED' ? (moderationComment?.trim() || null) : null,
-    },
-  })
+    await db.pack.update({
+      where: { id: packId },
+      data:  { moderationStatus: 'BUILDING_BUNDLE' },
+    })
 
-  if (moderationStatus === 'APPROVED') {
-    // Generate ZIP in background — don't block the response
     generatePackBundle(packId).catch(err =>
-      console.error(`[admin/packs] ZIP generation failed for ${packId}:`, err)
+      console.error(`[admin/packs] retry bundle failed for ${packId}:`, err)
     )
 
-    await db.notification.create({
+    await logAdminAction({
+      adminId:    session.user.id,
+      action:     'pack.retry_bundle',
+      targetType: 'Pack',
+      targetId:   packId,
+      details:    {},
+    })
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // Одобрение — пак должен быть в статусе PENDING
+  if (action === 'approve') {
+    if (pack.moderationStatus !== 'PENDING') {
+      return NextResponse.json({ error: 'Пак не ожидает проверки' }, { status: 400 })
+    }
+
+    await db.pack.update({
+      where: { id: packId },
+      data:  { moderationStatus: 'BUILDING_BUNDLE', moderationComment: null },
+    })
+
+    // ZIP собирается в фоне; уведомление автору отправится внутри generatePackBundle
+    generatePackBundle(packId).catch(err =>
+      console.error(`[admin/packs] bundle generation failed for ${packId}:`, err)
+    )
+
+    await logAdminAction({
+      adminId:    session.user.id,
+      action:     'pack.approve',
+      targetType: 'Pack',
+      targetId:   packId,
+      details:    { moderationStatus: 'BUILDING_BUNDLE' },
+    })
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // Отклонение — пак должен быть в статусе PENDING
+  if (action === 'reject') {
+    if (pack.moderationStatus !== 'PENDING') {
+      return NextResponse.json({ error: 'Пак не ожидает проверки' }, { status: 400 })
+    }
+
+    await db.pack.update({
+      where: { id: packId },
       data: {
-        userId:  pack.authorId,
-        type:    'pack_approved',
-        title:   'Пак одобрен',
-        message: `Ваш пак «${pack.name}» прошёл модерацию и опубликован.`,
-        link:    `/pack/${packId}`,
+        moderationStatus:  'REJECTED',
+        moderationComment: moderationComment?.trim() || null,
       },
-    }).catch(() => {})
-  } else {
+    })
+
     await db.notification.create({
       data: {
         userId:  pack.authorId,
@@ -72,15 +113,15 @@ export async function POST(request: NextRequest) {
         link:    '/account?tab=author-packs',
       },
     }).catch(() => {})
+
+    await logAdminAction({
+      adminId:    session.user.id,
+      action:     'pack.reject',
+      targetType: 'Pack',
+      targetId:   packId,
+      details:    { moderationStatus: 'REJECTED' },
+    })
+
+    return NextResponse.json({ ok: true })
   }
-
-  await logAdminAction({
-    adminId:    session.user.id,
-    action:     action === 'approve' ? 'pack.approve' : 'pack.reject',
-    targetType: 'Pack',
-    targetId:   packId,
-    details:    { moderationStatus },
-  })
-
-  return NextResponse.json({ ok: true })
 }

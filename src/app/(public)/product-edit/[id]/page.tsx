@@ -37,15 +37,17 @@ export default async function EditProductPage({
   return (
     <EditProductClient
       product={{
-        id:            product.id,
-        name:          product.name,
-        description:   product.description ?? '',
-        price:         product.price?.toString() ?? '',
-        isPublished:   product.isPublished,
-        categorySlug:  product.category.slug,
-        revitVersions: product.revitVersions,
-        bimParams:     product.bimParams ?? '',
-        images:        product.images ?? [],
+        id:               product.id,
+        name:             product.name,
+        description:      product.description ?? '',
+        price:            product.price?.toString() ?? '',
+        isPublished:      product.isPublished,
+        categorySlug:     product.category.slug,
+        revitVersions:    product.revitVersions,
+        bimParams:        product.bimParams != null ? JSON.stringify(product.bimParams) : '',
+        images:           product.images ?? [],
+        moderationStatus: product.moderationStatus,
+        moderationComment: product.moderationComment ?? null,
       }}
       categories={categories.map(c => ({ slug: c.slug, name: c.name }))}
     />

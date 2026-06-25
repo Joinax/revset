@@ -16,8 +16,10 @@ type AuditAction =
   | 'category.create'
   | 'category.delete'
   | 'settings.update'
+  | 'product.approve_pending_bundle'
   | 'pack.approve'
   | 'pack.reject'
+  | 'pack.retry_bundle'
   | 'pack_review.approve'
   | 'pack_review.reject'
 

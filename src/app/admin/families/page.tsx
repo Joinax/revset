@@ -22,7 +22,7 @@ export default async function AdminFamiliesPage({
   const PER_PAGE = 15
 
   const where: any = {}
-  if (['DRAFT', 'PENDING_SCAN', 'PENDING', 'APPROVED', 'REJECTED'].includes(status)) where.moderationStatus = status
+  if (['DRAFT', 'PENDING_SCAN', 'PENDING', 'BUILDING_BUNDLE', 'BUNDLE_FAILED', 'APPROVED', 'REJECTED'].includes(status)) where.moderationStatus = status
   if (category !== 'all')       where.categoryId  = category
   if (authorId)                 where.authorId    = authorId
   if (q) {

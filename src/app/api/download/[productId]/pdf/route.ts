@@ -1,78 +1,79 @@
-// src/app/api/download/pack/[packId]/pdf/route.ts
+// src/app/api/download/[productId]/pdf/route.ts
+// Отдельное скачивание PDF-инструкции — доступно после первого скачивания карточки
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { s3Public, S3_BUCKET } from '@/lib/s3'
+import { s3, S3_BUCKET } from '@/lib/s3'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ packId: string }> }
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session) return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
 
-    const { packId } = await params
+    const { productId } = await params
 
     const currentUser = await db.user.findUnique({
       where:  { id: session.user.id },
       select: { role: true, isBanned: true },
     })
     if (!currentUser || currentUser.isBanned) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
     }
 
-    const pack = await db.pack.findUnique({ where: { id: packId } })
-    if (!pack || pack.moderationStatus !== 'APPROVED') {
-      return NextResponse.json({ error: 'Пак не найден' }, { status: 404 })
+    const product = await db.product.findUnique({ where: { id: productId } })
+    if (!product || product.moderationStatus !== 'APPROVED') {
+      return NextResponse.json({ error: 'Товар не найден' }, { status: 404 })
     }
-    if (!pack.pdfKey) {
+    if (!product.pdfKey) {
       return NextResponse.json({ error: 'PDF не доступен' }, { status: 404 })
     }
 
     const isAdmin = currentUser.role === 'admin'
 
     if (!isAdmin) {
-      const isPaid = Number(pack.price) > 0
+      const isPaid = product.price !== null
 
       if (isPaid) {
-        // Платный пак: нужна покупка И хотя бы одно скачивание пака
+        // Платная карточка: нужна покупка И хотя бы одно скачивание
         const [order, downloaded] = await Promise.all([
           db.order.findFirst({
-            where: { userId: session.user.id, status: 'PAID', items: { some: { packId } } },
+            where: { userId: session.user.id, status: 'PAID', items: { some: { productId } } },
           }),
-          db.downloadLog.findFirst({ where: { userId: session.user.id, packId } }),
+          db.downloadLog.findFirst({ where: { userId: session.user.id, productId } }),
         ])
         if (!order || !downloaded) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
       } else {
-        // Бесплатный пак: нужно хотя бы одно скачивание пака
+        // Бесплатная карточка: нужно хотя бы одно скачивание
         const downloaded = await db.downloadLog.findFirst({
-          where: { userId: session.user.id, packId },
+          where: { userId: session.user.id, productId },
         })
         if (!downloaded) {
-          return NextResponse.json({ error: 'Сначала скачайте пак' }, { status: 403 })
+          return NextResponse.json({ error: 'Сначала скачайте модель' }, { status: 403 })
         }
       }
     }
 
     // Имя файла: убираем символы которые ломают заголовок Content-Disposition
-    const safeName = pack.name.replace(/[";\r\n]/g, '_')
+    const safeName = product.name.replace(/[";\r\n]/g, '_')
 
     const command = new GetObjectCommand({
       Bucket:                     S3_BUCKET,
-      Key:                        pack.pdfKey,
+      Key:                        product.pdfKey,
       ResponseContentDisposition: `attachment; filename="${safeName}.pdf"`,
     })
-    const downloadUrl = await getSignedUrl(s3Public, command, { expiresIn: 600 })
+    const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
 
     return NextResponse.json({ downloadUrl })
   } catch (err) {
-    console.error('Pack PDF download error:', err)
+    console.error('Product PDF download error:', err)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }
 }

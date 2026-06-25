@@ -30,6 +30,7 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
   // или если файл был отклонён из-за вируса (moderationComment содержит "Обнаружена угроза")
   const isBlocked =
     product.moderationStatus === 'PENDING_SCAN' ||
+    product.moderationStatus === 'BUILDING_BUNDLE' ||
     (product.moderationStatus === 'REJECTED' && product.moderationComment?.startsWith('Обнаружена угроза'))
 
   const avgRating = product.reviews.length > 0
@@ -55,7 +56,7 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
         salesCount:    product._count.orderItems,
         avgRating,
         createdAt:     product.createdAt.toISOString(),
-        bimParams:     product.bimParams ?? '',
+        bimParams:     product.bimParams != null ? JSON.stringify(product.bimParams) : '',
         images:        product.images ?? [],
         emoji:         product.previewEmoji ?? '📦',
         authorId:      product.author.id,

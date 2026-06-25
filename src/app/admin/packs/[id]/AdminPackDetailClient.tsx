@@ -9,15 +9,19 @@ const BKT = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 const s3Url = (key: string) => `${S3}/${BKT}/${key}`
 
 const MODERATION_LABELS: Record<string, string> = {
-  PENDING:  'На проверке',
-  APPROVED: 'Одобрен',
-  REJECTED: 'Отклонён',
+  PENDING:         'На проверке',
+  BUILDING_BUNDLE: 'Архив формируется',
+  BUNDLE_FAILED:   'Ошибка архива',
+  APPROVED:        'Одобрен',
+  REJECTED:        'Отклонён',
 }
 
 const MODERATION_COLORS: Record<string, string> = {
-  PENDING:  'var(--admin-warning, #f59e0b)',
-  APPROVED: 'var(--admin-success)',
-  REJECTED: 'var(--admin-danger)',
+  PENDING:         'var(--admin-warning, #f59e0b)',
+  BUILDING_BUNDLE: 'var(--admin-accent, #4880ff)',
+  BUNDLE_FAILED:   'var(--admin-danger)',
+  APPROVED:        'var(--admin-success)',
+  REJECTED:        'var(--admin-danger)',
 }
 
 type PackReview = {
@@ -51,7 +55,7 @@ export default function AdminPackDetailClient({ pack }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleAction(action: 'approve' | 'reject') {
+  async function handleAction(action: 'approve' | 'reject' | 'retry_bundle') {
     setError(null)
     setLoading(true)
     const res = await fetch('/api/admin/packs', {
@@ -66,10 +70,12 @@ export default function AdminPackDetailClient({ pack }: Props) {
       return
     }
     router.refresh()
-    router.push('/admin/packs')
+    if (action !== 'retry_bundle') router.push('/admin/packs')
   }
 
-  const isPending = pack.moderationStatus === 'PENDING'
+  const isPending       = pack.moderationStatus === 'PENDING'
+  const isBuilding      = pack.moderationStatus === 'BUILDING_BUNDLE'
+  const isBundleFailed  = pack.moderationStatus === 'BUNDLE_FAILED'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -220,9 +226,34 @@ export default function AdminPackDetailClient({ pack }: Props) {
               </div>
             )}
 
-            {!isPending && (
+            {isBuilding && (
+              <div style={{ fontSize: '13px', color: 'var(--admin-accent, #4880ff)', textAlign: 'center', padding: '12px', background: 'rgba(72,128,255,0.08)', borderRadius: '10px' }}>
+                <i className="ti ti-loader-2" style={{ marginRight: '6px' }} />
+                Архив ZIP формируется, пожалуйста подождите...
+              </div>
+            )}
+
+            {isBundleFailed && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--admin-danger)', padding: '12px', background: 'rgba(239,56,38,0.08)', borderRadius: '10px' }}>
+                  <i className="ti ti-alert-triangle" style={{ marginRight: '6px' }} />
+                  Ошибка формирования архива. Файлы пака доступны, попробуйте повторить.
+                </div>
+                <button
+                  onClick={() => handleAction('retry_bundle')}
+                  disabled={loading}
+                  style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: 'var(--admin-accent, #4880ff)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: loading ? 0.6 : 1 }}>
+                  <i className="ti ti-refresh" /> Повторить генерацию
+                </button>
+                {error && (
+                  <div style={{ color: 'var(--admin-danger)', fontSize: '13px' }}>{error}</div>
+                )}
+              </div>
+            )}
+
+            {!isPending && !isBuilding && !isBundleFailed && (
               <div style={{ fontSize: '13px', color: 'var(--admin-muted)', textAlign: 'center', padding: '8px' }}>
-                Статус: <strong>{pack.moderationStatus}</strong>
+                Статус: <strong style={{ color: MODERATION_COLORS[pack.moderationStatus] }}>{MODERATION_LABELS[pack.moderationStatus] ?? pack.moderationStatus}</strong>
                 {pack.moderationComment && <div style={{ marginTop: '8px' }}>{pack.moderationComment}</div>}
               </div>
             )}

@@ -110,6 +110,9 @@ export async function POST(req: NextRequest) {
       ? parseFloat(price)
       : null
 
+    // Считаем количество файлов которые уйдут на проверку
+    const scanJobCount = 1 + (imageKeys?.length ?? 0) // 1 RFA + изображения
+
     // Товар создаётся со статусом PENDING_SCAN — файлы ещё проверяются ClamAV
     // Модератор не видит карточку пока все файлы не пройдут проверку
     const product = await db.product.create({
@@ -120,6 +123,7 @@ export async function POST(req: NextRequest) {
         revitVersions,
         isPublished:      false,
         moderationStatus: 'PENDING_SCAN',
+        pendingScanCount: scanJobCount,
         isNew:            true,
         downloads:        0,
         categoryId:       category.id,

@@ -14,7 +14,7 @@ type OrderItem     = { id: string; price: number; product: Product }
 type Order         = { id: string; status: string; totalAmount: number; createdAt: string; items: OrderItem[] }
 type Favorite      = { id: string; product: Product & { price: number | null } }
 type Following     = { id: string; createdAt: string; following: { id: string; name: string | null; authorProfile: { bio: string | null; isVerified: boolean } | null; _count: { products: number } } }
-type ModerationStatus = 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'APPROVED' | 'REJECTED'
+type ModerationStatus = 'DRAFT' | 'PENDING_SCAN' | 'PENDING' | 'BUILDING_BUNDLE' | 'BUNDLE_FAILED' | 'APPROVED' | 'REJECTED'
 type AuthorProduct = {
   id: string; name: string; price: number | null; isPublished: boolean
   moderationStatus: ModerationStatus; moderationComment?: string | null
@@ -94,11 +94,13 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 }
 
 const MODERATION_LABELS: Record<ModerationStatus, { label: string; color: string; bg: string }> = {
-  DRAFT:        { label: 'Черновик',              color: 'var(--muted)',  bg: 'var(--bg3)' },
-  PENDING_SCAN: { label: 'Проверка безопасности', color: '#6366F1',       bg: 'rgba(99,102,241,0.1)' },
-  PENDING:      { label: 'На модерации',          color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
-  APPROVED:     { label: 'Опубликовано',          color: '#1D9E75',       bg: 'rgba(29,158,117,0.1)' },
-  REJECTED:     { label: 'Отклонено',             color: '#E24B4A',       bg: 'rgba(226,75,74,0.1)' },
+  DRAFT:           { label: 'Черновик',              color: 'var(--muted)',  bg: 'var(--bg3)' },
+  PENDING_SCAN:    { label: 'Проверка безопасности', color: '#6366F1',       bg: 'rgba(99,102,241,0.1)' },
+  PENDING:         { label: 'На модерации',          color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
+  BUILDING_BUNDLE: { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  BUNDLE_FAILED:   { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  APPROVED:        { label: 'Опубликовано',          color: '#1D9E75',       bg: 'rgba(29,158,117,0.1)' },
+  REJECTED:        { label: 'Отклонено',             color: '#E24B4A',       bg: 'rgba(226,75,74,0.1)' },
 }
 
 function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number) {
@@ -370,7 +372,9 @@ export default function AccountClient({ user, orders, favorites, followings = []
     if (img.startsWith('http')) return img
     return `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
   })
-  const [avatarLoading, setAvatarLoading] = useState(false)
+  const [avatarLoading,    setAvatarLoading]    = useState(false)
+  const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
+  const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
 
   const router      = useRouter()
   const { refresh, updateUser } = useAppSession()
@@ -392,6 +396,28 @@ export default function AccountClient({ user, orders, favorites, followings = []
     }, 20000)
     return () => clearInterval(interval)
   }, [router, user.isAuthor])
+
+  async function handlePackResubmit(packId: string) {
+    setResubmitLoading(packId)
+    setResubmitError(prev => ({ ...prev, [packId]: '' }))
+    try {
+      const res = await fetch(`/api/packs/${packId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ submit: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Ошибка сервера' }))
+        setResubmitError(prev => ({ ...prev, [packId]: data.error ?? 'Ошибка' }))
+        return
+      }
+      router.refresh()
+    } catch {
+      setResubmitError(prev => ({ ...prev, [packId]: 'Ошибка соединения' }))
+    } finally {
+      setResubmitLoading(null)
+    }
+  }
 
   const paidOrders  = orders.filter(o => o.status === 'PAID')
   const totalSpent  = paidOrders.reduce((s, o) => s + o.totalAmount, 0)
@@ -1422,28 +1448,57 @@ export default function AccountClient({ user, orders, favorites, followings = []
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {authorPacks.map(pack => {
-                    const badge = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
+                    const badge         = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
+                    const isRejected    = pack.moderationStatus === 'REJECTED'
+                    const isResubmitting = resubmitLoading === pack.id
                     return (
-                      <div key={pack.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '60px', height: '50px', borderRadius: '10px', background: 'var(--bg3)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {pack.images[0]
-                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${pack.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <i className="ti ti-package" style={{ fontSize: '22px', opacity: 0.3 }} />}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                            {pack.price > 0 ? `${pack.price.toLocaleString('ru')} ₽` : 'Бесплатно'} · {new Date(pack.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <div key={pack.id} style={{ background: 'var(--bg2)', border: `1px solid ${isRejected ? 'rgba(226,75,74,0.3)' : 'var(--border)'}`, borderRadius: '16px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ width: '60px', height: '50px', borderRadius: '10px', background: 'var(--bg3)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {pack.images[0]
+                              ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${pack.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <i className="ti ti-package" style={{ fontSize: '22px', opacity: 0.3 }} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                              {pack.price > 0 ? `${pack.price.toLocaleString('ru')} ₽` : 'Бесплатно'} · {new Date(pack.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 10px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
+                              {badge.label}
+                            </span>
+                            {pack.moderationStatus === 'APPROVED' && (
+                              <Link href={`/pack/${pack.id}`} style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>Открыть →</Link>
+                            )}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 10px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
-                            {badge.label}
-                          </span>
-                          {pack.moderationStatus === 'APPROVED' && (
-                            <Link href={`/pack/${pack.id}`} style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>Открыть →</Link>
-                          )}
-                        </div>
+
+                        {isRejected && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,56,38,0.06)', border: '1px solid rgba(239,56,38,0.2)' }}>
+                              <i className="ti ti-alert-triangle" style={{ fontSize: '14px', color: 'var(--danger)', flexShrink: 0, marginTop: '2px' }} />
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--danger)', marginBottom: '2px' }}>Пак отклонён модератором</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
+                                  {pack.moderationComment || 'Причина не указана.'}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handlePackResubmit(pack.id)}
+                              disabled={isResubmitting}
+                              style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: isResubmitting ? 'not-allowed' : 'pointer', opacity: isResubmitting ? 0.6 : 1 }}
+                            >
+                              <i className="ti ti-send" />
+                              {isResubmitting ? 'Отправляем...' : 'Отправить на повторную проверку'}
+                            </button>
+                            {resubmitError[pack.id] && (
+                              <div style={{ fontSize: '12px', color: 'var(--danger)' }}>{resubmitError[pack.id]}</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}

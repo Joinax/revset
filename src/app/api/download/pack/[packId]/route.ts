@@ -1,4 +1,3 @@
-// src/app/api/download/pack/[packId]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
@@ -6,6 +5,8 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { s3Public, S3_BUCKET } from '@/lib/s3'
+
+const DOWNLOAD_RATE_LIMIT = 5 // повторных скачиваний в час
 
 export async function GET(
   req: NextRequest,
@@ -38,28 +39,47 @@ export async function GET(
 
     const isAdmin = currentUser.role === 'admin'
 
-    // Access check for paid packs
-    if (Number(pack.price) > 0 && !isAdmin) {
-      const order = await db.order.findFirst({
-        where: { userId: session.user.id, status: 'PAID', items: { some: { packId } } },
-      })
-      if (!order) return NextResponse.json({ error: 'Необходимо купить пак' }, { status: 403 })
-    }
-
     if (!isAdmin) {
-      // Anti-flood: max 3 downloads per hour
-      const recentDownloads = await db.downloadLog.count({
-        where: {
-          userId:    session.user.id,
-          packId,
-          createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
-        },
-      })
-      if (recentDownloads > 0 && recentDownloads >= 3) {
-        return NextResponse.json({ error: 'Слишком много запросов. Попробуйте позже.' }, { status: 429 })
+      // Проверка доступа для платных паков
+      if (Number(pack.price) > 0) {
+        const order = await db.order.findFirst({
+          where: { userId: session.user.id, status: 'PAID', items: { some: { packId } } },
+        })
+        if (!order) return NextResponse.json({ error: 'Необходимо купить пак' }, { status: 403 })
       }
 
-      // Log: 1 record for the pack + 1 per child product
+      // Антифлуд: первое скачивание всегда разрешено.
+      // Повторные — не чаще DOWNLOAD_RATE_LIMIT раз в час.
+      const anyPrevious = await db.downloadLog.findFirst({
+        where: { userId: session.user.id, packId },
+      })
+      if (anyPrevious) {
+        const recentCount = await db.downloadLog.count({
+          where: {
+            userId:    session.user.id,
+            packId,
+            createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+          },
+        })
+        if (recentCount >= DOWNLOAD_RATE_LIMIT) {
+          return NextResponse.json({ error: 'Слишком много запросов. Попробуйте через час.' }, { status: 429 })
+        }
+      }
+    }
+
+    // Имя файла: убираем символы которые ломают заголовок Content-Disposition
+    const safeName = pack.name.replace(/[";\r\n]/g, '_')
+
+    const command = new GetObjectCommand({
+      Bucket:                     S3_BUCKET,
+      Key:                        pack.bundleKey,
+      ResponseContentDisposition: `attachment; filename="${safeName}.zip"`,
+    })
+
+    // Сначала генерируем ссылку — только потом пишем лог
+    const downloadUrl = await getSignedUrl(s3Public, command, { expiresIn: 600 })
+
+    if (!isAdmin) {
       await db.$transaction([
         db.downloadLog.create({ data: { userId: session.user.id, packId } }),
         ...pack.products.map(item =>
@@ -67,13 +87,6 @@ export async function GET(
         ),
       ])
     }
-
-    const command = new GetObjectCommand({
-      Bucket:                     S3_BUCKET,
-      Key:                        pack.bundleKey,
-      ResponseContentDisposition: `attachment; filename="${pack.name}.zip"`,
-    })
-    const downloadUrl = await getSignedUrl(s3Public, command, { expiresIn: 600 })
 
     return NextResponse.json({ downloadUrl })
   } catch (err) {

@@ -79,6 +79,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Все карточки должны быть одобрены и принадлежать вам' }, { status: 403 })
     }
 
+    // Считаем количество файлов которые уйдут на проверку
+    const scanJobCount =
+      imageKeys.length +
+      exclusiveImageKeys.length +
+      (assemblyFileKey ? 1 : 0) +
+      (pdfKey ? 1 : 0)
+
     const pack = await db.pack.create({
       data: {
         name:             name.trim(),
@@ -89,6 +96,7 @@ export async function POST(req: NextRequest) {
         hasExclusive,
         exclusiveDesc:    hasExclusive ? exclusiveDesc?.trim() || null : null,
         moderationStatus: 'PENDING_SCAN',
+        pendingScanCount: scanJobCount,
         products: {
           create: productIds.map((productId, position) => ({ productId, position })),
         },
