@@ -53,7 +53,7 @@ export async function startWorker() {
         await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: fileKey }))
 
         // 5. Обновляем запись в БД
-        await markPending(entityType, entityId, fieldName, destKey)
+        await markPending(entityType, entityId, fieldName, destKey, job.data.position)
 
         console.log(`[worker] done: ${fileKey} → ${destKey}`)
 
@@ -69,7 +69,8 @@ async function markPending(
   entityType: string,
   entityId: string,
   fieldName: string,
-  destKey: string
+  destKey: string,
+  position?: number
 ) {
   if (entityType === 'product') {
     const product = await db.product.findUnique({
@@ -112,6 +113,34 @@ async function markPending(
     await db.user.update({
       where: { id: entityId },
       data:  { image: destKey },
+    })
+
+  } else if (entityType === 'pack') {
+    const pack = await db.pack.findUnique({
+      where:  { id: entityId },
+      select: { authorId: true, name: true },
+    })
+    if (!pack) return
+
+    if (fieldName === 'packImage') {
+      await db.packImage.create({
+        data: { packId: entityId, key: destKey, position: position ?? 0 },
+      })
+    } else if (fieldName === 'packExclusiveImage') {
+      await db.packExclusiveImage.create({
+        data: { packId: entityId, key: destKey, position: position ?? 0 },
+      })
+    } else {
+      // assemblyFileKey or pdfKey — update directly on Pack
+      await db.pack.update({
+        where: { id: entityId },
+        data:  { [fieldName]: destKey },
+      })
+    }
+
+    await db.pack.update({
+      where: { id: entityId },
+      data:  { moderationStatus: 'PENDING' },
     })
   }
 }
@@ -176,5 +205,30 @@ async function markRejected(
     }).catch(() => {/* audit log не критичен */})
 
     console.warn(`[worker] avatar virus detected for user ${entityId}: ${reason}`)
+
+  } else if (entityType === 'pack') {
+    const pack = await db.pack.findUnique({
+      where:  { id: entityId },
+      select: { authorId: true, name: true },
+    })
+    if (!pack) return
+
+    await db.pack.update({
+      where: { id: entityId },
+      data: {
+        moderationStatus:  'REJECTED',
+        moderationComment: reason,
+      },
+    })
+
+    await db.notification.create({
+      data: {
+        userId:  pack.authorId,
+        type:    'pack_scan_rejected',
+        title:   'Файл пака отклонён',
+        message: `Файл для пака «${pack.name}» был отклонён: ${reason}`,
+        link:    '/account?tab=author-packs',
+      },
+    })
   }
 }

@@ -16,8 +16,12 @@ type AuditAction =
   | 'category.create'
   | 'category.delete'
   | 'settings.update'
+  | 'pack.approve'
+  | 'pack.reject'
+  | 'pack_review.approve'
+  | 'pack_review.reject'
 
-type AuditTargetType = 'User' | 'Product' | 'Order' | 'Category' | 'Setting'
+type AuditTargetType = 'User' | 'Product' | 'Order' | 'Category' | 'Setting' | 'Pack' | 'PackReview'
 
 type LogAdminActionParams = {
   adminId: string

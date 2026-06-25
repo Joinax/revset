@@ -26,7 +26,8 @@ export const QUEUE_SCAN_FILE = 'scan-file'
 export interface ScanFileJob {
   fileKey:    string  // temp/images/... или temp/rfa/... или temp/pdf/...
   destKey:    string  // images/... или rfa/... или pdf/...
-  entityType: 'product' | 'avatar'
-  entityId:   string  // productId или userId
-  fieldName:  string  // 'images' | 'rfaKey' | 'pdfKey' | 'image'
+  entityType: 'product' | 'avatar' | 'pack'
+  entityId:   string  // productId или userId или packId
+  fieldName:  string  // 'images' | 'rfaKey' | 'pdfKey' | 'image' | 'assemblyFileKey' | 'packImage' | 'packExclusiveImage'
+  position?:  number  // used for PackImage/PackExclusiveImage ordering
 }
