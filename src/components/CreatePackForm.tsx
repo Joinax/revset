@@ -22,9 +22,14 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
   const [selectedIds,   setSelectedIds]   = useState<string[]>([])
   const [hasExclusive,  setHasExclusive]  = useState(false)
   const [exclusiveDesc, setExclusiveDesc] = useState('')
-  const [imageKeys,     setImageKeys]     = useState<{ fileKey: string; url: string; name: string }[]>([])
-  const [mainIndex,     setMainIndex]     = useState(0)
+  const [extraImages,   setExtraImages]   = useState<{ fileKey: string; url: string; name: string }[]>([])
   const [exclusiveImgKeys, setExclusiveImgKeys] = useState<{ fileKey: string; url: string; name: string }[]>([])
+
+  // Главные фото выбранных карточек (images[0])
+  const autoImages = selectedIds
+    .map(id => approvedProducts.find(p => p.id === id))
+    .filter(Boolean)
+    .map(p => ({ fileKey: p!.images[0], url: `${S3_ENDPOINT}/${S3_BUCKET}/${p!.images[0]}`, name: p!.name }))
   const [assemblyKey,   setAssemblyKey]   = useState('')
   const [pdfKey,        setPdfKey]        = useState('')
   const [loading,       setLoading]       = useState(false)
@@ -44,7 +49,6 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
     if (!name.trim())             { setError('Укажите название пака'); return }
     if (selectedIds.length < 2)   { setError('Выберите минимум 2 карточки'); return }
     if (selectedIds.length > 12)  { setError('Максимум 12 карточек'); return }
-    if (imageKeys.length === 0)   { setError('Загрузите хотя бы одно фото пака'); return }
     if (!categoryId)              { setError('Выберите категорию'); return }
 
     const priceNum = price ? parseFloat(price) : 0
@@ -58,8 +62,6 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
 
     setLoading(true)
     try {
-      const sortedImages = [imageKeys[mainIndex], ...imageKeys.filter((_, i) => i !== mainIndex)]
-
       const res = await fetch('/api/packs/create', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +73,7 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
           productIds:         selectedIds,
           hasExclusive,
           exclusiveDesc:      hasExclusive ? exclusiveDesc.trim() : null,
-          imageKeys:          sortedImages.map(i => i.fileKey),
+          imageKeys:          [...autoImages.map(i => i.fileKey), ...extraImages.map(i => i.fileKey)],
           exclusiveImageKeys: exclusiveImgKeys.map(i => i.fileKey),
           assemblyFileKey:    assemblyKey || null,
           pdfKey:             pdfKey || null,
@@ -177,9 +179,38 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
       </div>
 
       {/* Фотографии пака */}
-      <div>
-        <label style={labelStyle}>Фотографии пака * <span style={{ color: 'var(--danger)' }}>(обязательно, до 6 штук)</span></label>
-        <ImageUpload onImagesChange={(imgs, idx) => { setImageKeys(imgs); setMainIndex(idx) }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <label style={labelStyle}>Фотографии пака</label>
+
+        {/* Авто-изображения из выбранных карточек */}
+        {autoImages.length > 0 && (
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+              Главные фото выбранных карточек ({autoImages.length} шт.) — добавляются автоматически:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {autoImages.map((img, i) => (
+                <div key={img.fileKey + i} style={{ position: 'relative', width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {autoImages.length === 0 && (
+          <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+            Выберите карточки выше — их главные фото появятся здесь автоматически
+          </div>
+        )}
+
+        {/* Дополнительные фото от автора */}
+        <div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
+            Дополнительные фото (необязательно, до 6 штук):
+          </div>
+          <ImageUpload onImagesChange={(imgs) => setExtraImages(imgs)} />
+        </div>
       </div>
 
       {/* PDF-инструкция */}
@@ -226,8 +257,8 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
         </div>
       )}
 
-      <button type="submit" disabled={loading || selectedIds.length < 2 || imageKeys.length === 0}
-        style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: loading || selectedIds.length < 2 || imageKeys.length === 0 ? 'var(--bg3)' : 'var(--accent)', color: '#fff', fontSize: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+      <button type="submit" disabled={loading || selectedIds.length < 2}
+        style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: loading || selectedIds.length < 2 ? 'var(--bg3)' : 'var(--accent)', color: '#fff', fontSize: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
         {loading ? 'Отправляем...' : 'Отправить пак на модерацию'}
       </button>
 
