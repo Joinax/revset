@@ -1295,7 +1295,13 @@ export default function AccountClient({ user, orders, favorites, followings = []
           {/* ── Загрузить ── */}
           {activeTab === 'author-upload' && user.isAuthor && (
             <div style={{ maxWidth: '580px' }}>
-              <SectionTitle>Загрузить новую модель</SectionTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <button onClick={() => setActiveTab('author-products')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>
+                  <i className="ti ti-arrow-left" />
+                  Мои модели
+                </button>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Загрузить модель</div>
+              </div>
               <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
                 <UploadProductForm />
               </div>
