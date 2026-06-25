@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FileUpload from './FileUpload'
 import ImageUpload from './ImageUpload'
+import PdfUpload from './PdfUpload'
 
 const CATEGORIES = [
   { slug: 'furniture',   name: 'Мебель'       },
@@ -25,6 +26,7 @@ export default function UploadProductForm() {
   const [versions,    setVersions]    = useState<string[]>([])
   const [fileKey,     setFileKey]     = useState('')
   const [fileName,    setFileName]    = useState('')
+  const [pdfKey,      setPdfKey]      = useState('')
   const [images,      setImages]      = useState<{fileKey: string; url: string; name: string}[]>([])
   const [mainIndex,   setMainIndex]   = useState(0)
   const [loading,     setLoading]     = useState(false)
@@ -63,6 +65,7 @@ export default function UploadProductForm() {
           categorySlug:  category,
           fileKey, fileName,
           imageKeys: sortedImages.map(i => i.fileKey),
+          pdfKey:    pdfKey || null,
         }),
       })
 
@@ -147,6 +150,16 @@ export default function UploadProductForm() {
       <div>
         <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>RFA / RVT файл *</label>
         <FileUpload onUpload={(key, file) => { setFileKey(key); setFileName(file) }} />
+      </div>
+
+      <div>
+        <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>
+          PDF-инструкция <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(необязательно)</span>
+        </label>
+        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+          Если загрузите — пользователи получат ZIP с файлом модели и инструкцией, а также смогут скачать PDF отдельно
+        </div>
+        <PdfUpload onUpload={key => setPdfKey(key)} onClear={() => setPdfKey('')} />
       </div>
 
       {error && (

@@ -79,9 +79,12 @@ type Props = {
   myReviews?: UserReview[]
   authorReviews?: AuthorReview[]
   authorPacks?: AuthorPack[]
+  categories?: { id: string; name: string }[]
+  approvedProductsForPack?: { id: string; name: string; price: number | null; images: string[] }[]
 }
 
 import ReviewActions from '@/components/ReviewActions'
+import CreatePackForm from '@/components/CreatePackForm'
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
@@ -326,7 +329,7 @@ function AuthorReviewsTab({ reviews, user }: { reviews: AuthorReview[]; user: Us
   )
 }
 
-export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [], authorPacks = [] }: Props) {
+export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [], authorPacks = [], categories = [], approvedProductsForPack = [] }: Props) {
   const searchParams = useSearchParams()
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
@@ -375,6 +378,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [avatarLoading,    setAvatarLoading]    = useState(false)
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
+  const [showCreatePack,   setShowCreatePack]   = useState(false)
 
   const router      = useRouter()
   const { refresh, updateUser } = useAppSession()
@@ -1437,8 +1441,24 @@ export default function AccountClient({ user, orders, favorites, followings = []
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои паки</div>
-                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{authorPacks.length} {authorPacks.length === 1 ? 'пак' : 'паков'}</span>
+                <button
+                  onClick={() => setShowCreatePack(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreatePack ? 'var(--bg3)' : 'var(--accent)', color: showCreatePack ? 'var(--text)' : '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  <i className={`ti ${showCreatePack ? 'ti-x' : 'ti-plus'}`} />
+                  {showCreatePack ? 'Закрыть' : 'Создать пак'}
+                </button>
               </div>
+
+              {showCreatePack && (
+                <div style={{ marginBottom: '24px' }}>
+                  <CreatePackForm
+                    categories={categories}
+                    approvedProducts={approvedProductsForPack}
+                    onSuccess={() => { setShowCreatePack(false); router.refresh() }}
+                  />
+                </div>
+              )}
               {authorPacks.length === 0 ? (
                 <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                   <i className="ti ti-package" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.3 }} />

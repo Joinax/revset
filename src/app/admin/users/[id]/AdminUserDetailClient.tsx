@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+const avatarSrc   = (img: string) => img.startsWith('http') ? img : `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
+
 type User = {
   id: string; name: string; email: string; image: string | null
   role: string; emailVerified: boolean; isBanned: boolean
@@ -138,7 +142,7 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
       {/* Profile card */}
       <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
         {user.image ? (
-          <img src={user.image} alt="" style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+          <img src={avatarSrc(user.image)} alt="" style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
         ) : (
           <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(72,128,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: '28px', fontWeight: 700, color: 'var(--admin-accent)' }}>{user.name.charAt(0).toUpperCase()}</span>

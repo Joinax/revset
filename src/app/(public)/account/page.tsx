@@ -219,6 +219,17 @@ export default async function AccountPage({
     }))
   }
 
+  const [categories, approvedProductsForPack] = isAuthor
+    ? await Promise.all([
+        db.category.findMany({ orderBy: { order: 'asc' }, select: { id: true, name: true } }),
+        db.product.findMany({
+          where:   { authorId: user.id, moderationStatus: 'APPROVED' },
+          select:  { id: true, name: true, price: true, images: true },
+          orderBy: { name: 'asc' },
+        }),
+      ])
+    : [[], []]
+
   return (
     <AccountClient
       user={{
@@ -321,6 +332,13 @@ export default async function AccountPage({
         perPage,
       } : undefined}
       authorPacks={authorPacks}
+      categories={categories.map(c => ({ id: c.id, name: c.name }))}
+      approvedProductsForPack={approvedProductsForPack.map(p => ({
+        id:     p.id,
+        name:   p.name,
+        price:  p.price !== null ? Number(p.price) : null,
+        images: p.images ?? [],
+      }))}
       authorSales={authorSales}
       authorSalesPagination={isAuthor ? {
         currentPage: salesPage,

@@ -4,6 +4,10 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+const avatarSrc   = (img: string) => img.startsWith('http') ? img : `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
+
 type User = {
   id: string
   name: string
@@ -180,7 +184,7 @@ export default function AdminUsersClient({ users, total, currentPage, perPage, c
                 {/* Name */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                   {user.image ? (
-                    <img src={user.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    <img src={avatarSrc(user.image)} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                   ) : (
                     <div style={{
                       width: '36px', height: '36px', borderRadius: '50%',
