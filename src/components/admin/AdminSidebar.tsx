@@ -12,6 +12,7 @@ import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
 const links = [
   { href: '/admin/dashboard',    icon: 'ti-layout-dashboard', label: 'Дашборд' },
   { href: '/admin/families',     icon: 'ti-box',              label: 'Семейства' },
+  { href: '/admin/packs',        icon: 'ti-package',          label: 'Паки' },
   { href: '/admin/users',        icon: 'ti-users',            label: 'Пользователи' },
   { href: '/admin/verification', icon: 'ti-shield-check',     label: 'Верификация' },
   { href: '/admin/transactions',    icon: 'ti-credit-card',    label: 'Транзакции' },
