@@ -39,6 +39,12 @@ type AuthorSale = {
 }
 type AuthorFilters = { status: string; price: string; sort: string; query: string }
 
+type AuthorPack = {
+  id: string; name: string; price: number
+  moderationStatus: string; moderationComment: string | null
+  createdAt: string; images: string[]
+}
+
 type AuthorReview = {
   id: string
   rating: number
@@ -72,6 +78,7 @@ type Props = {
   hasPendingAuthorApplication?: boolean
   myReviews?: UserReview[]
   authorReviews?: AuthorReview[]
+  authorPacks?: AuthorPack[]
 }
 
 import ReviewActions from '@/components/ReviewActions'
@@ -113,11 +120,12 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     { key: 'author-sales',    label: 'Продажи',       icon: 'ti-receipt',   badge: null, badgeVariant: null },
     { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: rejectedCount > 0 ? rejectedCount : null, badgeVariant: 'danger' as const },
     { key: 'author-upload',   label: 'Загрузить',     icon: 'ti-upload',    badge: null, badgeVariant: null },
+    { key: 'author-packs',    label: 'Мои паки',      icon: 'ti-package',   badge: null, badgeVariant: null },
   ]
 }
 
 type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -316,12 +324,12 @@ function AuthorReviewsTab({ reviews, user }: { reviews: AuthorReview[]; user: Us
   )
 }
 
-export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [] }: Props) {
+export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [], authorPacks = [] }: Props) {
   const searchParams = useSearchParams()
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
     const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
-    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
   })
@@ -1393,6 +1401,52 @@ export default function AccountClient({ user, orders, favorites, followings = []
                   {Array.from({ length: authorSalesPagination.totalPages }, (_, i) => i + 1).map(p => (
                     <a key={p} href={`/account?tab=author-sales&salesPage=${p}#author-sales`} style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${p === authorSalesPagination.currentPage ? 'var(--accent)' : 'var(--border)'}`, background: p === authorSalesPagination.currentPage ? 'var(--accent)' : 'var(--bg2)', color: p === authorSalesPagination.currentPage ? '#fff' : 'var(--muted)', fontSize: '13px', fontWeight: p === authorSalesPagination.currentPage ? 700 : 400, textDecoration: 'none' }}>{p}</a>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Мои паки ── */}
+          {activeTab === 'author-packs' && user.isAuthor && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои паки</div>
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{authorPacks.length} {authorPacks.length === 1 ? 'пак' : 'паков'}</span>
+              </div>
+              {authorPacks.length === 0 ? (
+                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+                  <i className="ti ti-package" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.3 }} />
+                  <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>Паков пока нет</p>
+                  <p style={{ fontSize: '13px' }}>Создайте первый пак из ваших одобренных моделей</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {authorPacks.map(pack => {
+                    const badge = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
+                    return (
+                      <div key={pack.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '60px', height: '50px', borderRadius: '10px', background: 'var(--bg3)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {pack.images[0]
+                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${pack.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <i className="ti ti-package" style={{ fontSize: '22px', opacity: 0.3 }} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                            {pack.price > 0 ? `${pack.price.toLocaleString('ru')} ₽` : 'Бесплатно'} · {new Date(pack.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 10px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
+                            {badge.label}
+                          </span>
+                          {pack.moderationStatus === 'APPROVED' && (
+                            <Link href={`/pack/${pack.id}`} style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>Открыть →</Link>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

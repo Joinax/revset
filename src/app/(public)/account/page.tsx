@@ -114,6 +114,7 @@ export default async function AccountPage({
   let allAuthorProductsForTop: any[] = []  // для блока "Топ моделей" в статистике — без пагинации
   let authorSales: any[] = []
   let authorSalesTotal = 0
+  let authorPacks: any[] = []
 
   if (isAuthor) {
     const where: any = { authorId: user.id }
@@ -201,6 +202,21 @@ export default async function AccountPage({
         },
       }))
     authorSalesTotal = salesTotal
+
+    const rawAuthorPacks = await db.pack.findMany({
+      where:   { authorId: user.id },
+      include: { images: { orderBy: { position: 'asc' }, take: 1 } },
+      orderBy: { createdAt: 'desc' },
+    })
+    authorPacks = rawAuthorPacks.map(p => ({
+      id:               p.id,
+      name:             p.name,
+      price:            Number(p.price),
+      moderationStatus: p.moderationStatus,
+      moderationComment: p.moderationComment ?? null,
+      createdAt:        p.createdAt.toISOString(),
+      images:           p.images.map((i: { key: string }) => i.key),
+    }))
   }
 
   return (
@@ -304,6 +320,7 @@ export default async function AccountPage({
         totalPages:  Math.ceil(authorProductsTotal / perPage),
         perPage,
       } : undefined}
+      authorPacks={authorPacks}
       authorSales={authorSales}
       authorSalesPagination={isAuthor ? {
         currentPage: salesPage,
