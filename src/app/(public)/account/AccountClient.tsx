@@ -85,6 +85,7 @@ type Props = {
 
 import ReviewActions from '@/components/ReviewActions'
 import CreatePackForm from '@/components/CreatePackForm'
+import EditPackForm from '@/components/EditPackForm'
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
@@ -129,7 +130,7 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
 }
 
 type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack' | 'author-edit-pack'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -333,7 +334,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
     const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
-    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack', 'author-edit-pack']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
   })
@@ -377,6 +378,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [avatarLoading,    setAvatarLoading]    = useState(false)
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
+  const [editPackId,       setEditPackId]       = useState<string | null>(null)
 
 
   const router      = useRouter()
@@ -1488,6 +1490,12 @@ export default function AccountClient({ user, orders, favorites, followings = []
                             {pack.moderationStatus === 'APPROVED' && (
                               <Link href={`/pack/${pack.id}`} style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>Открыть →</Link>
                             )}
+                            {(pack.moderationStatus === 'DRAFT' || pack.moderationStatus === 'REJECTED') && (
+                              <button onClick={() => { setEditPackId(pack.id); setActiveTab('author-edit-pack') }}
+                                style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+                                Редактировать →
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -1536,6 +1544,25 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 categories={categories}
                 approvedProducts={approvedProductsForPack}
                 onSuccess={() => { setActiveTab('author-packs'); router.refresh() }}
+              />
+            </div>
+          )}
+
+          {activeTab === 'author-edit-pack' && user.isAuthor && editPackId && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <button onClick={() => { setActiveTab('author-packs'); setEditPackId(null) }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>
+                  <i className="ti ti-arrow-left" />
+                  Мои паки
+                </button>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Редактировать пак</div>
+              </div>
+              <EditPackForm
+                packId={editPackId}
+                categories={categories}
+                approvedProducts={approvedProductsForPack}
+                onSuccess={() => { setActiveTab('author-packs'); setEditPackId(null); router.refresh() }}
+                onCancel={() => { setActiveTab('author-packs'); setEditPackId(null) }}
               />
             </div>
           )}

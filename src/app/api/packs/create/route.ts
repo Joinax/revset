@@ -10,12 +10,13 @@ import { serializeDecimal } from '@/lib/serialize'
 const createPackSchema = z.object({
   name:               z.string().min(1).max(200),
   description:        z.string().max(5000).optional().nullable(),
-  price:              z.number().min(200).max(350000),
+  price:              z.number().min(0).max(350000),
   categoryId:         z.string().min(1),
   productIds:         z.array(z.string()).min(2).max(12),
   hasExclusive:       z.boolean().default(false),
   exclusiveDesc:      z.string().max(2000).optional().nullable(),
-  imageKeys:          z.array(z.string()).min(1).max(6),
+  productImageKeys:   z.array(z.string()).max(12).default([]),  // уже финальные ключи из продуктов
+  imageKeys:          z.array(z.string()).max(6).default([]),   // новые temp-загрузки
   exclusiveImageKeys: z.array(z.string()).max(6).optional().default([]),
   assemblyFileKey:    z.string().optional().nullable(),
   pdfKey:             z.string().optional().nullable(),
@@ -43,10 +44,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, description, price, categoryId, productIds, hasExclusive,
-            exclusiveDesc, imageKeys, exclusiveImageKeys, assemblyFileKey, pdfKey } = parsed.data
+            exclusiveDesc, productImageKeys, imageKeys, exclusiveImageKeys, assemblyFileKey, pdfKey } = parsed.data
 
-    // Validate temp key prefixes
-    if (!imageKeys.every(k => k.startsWith('temp/images/'))) {
+    if (productImageKeys.length + imageKeys.length < 1) {
+      return NextResponse.json({ error: 'Необходимо хотя бы одно изображение' }, { status: 400 })
+    }
+    // Validate temp key prefixes for new uploads
+    if (imageKeys.length && !imageKeys.every(k => k.startsWith('temp/images/'))) {
       return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
     }
     if (exclusiveImageKeys.length && !exclusiveImageKeys.every(k => k.startsWith('temp/images/'))) {
@@ -73,18 +77,29 @@ export async function POST(req: NextRequest) {
     // All products must be APPROVED and owned by this author
     const products = await db.product.findMany({
       where: { id: { in: productIds }, authorId: session.user.id, moderationStatus: 'APPROVED' },
-      select: { id: true },
+      select: { id: true, images: true },
     })
     if (products.length !== productIds.length) {
       return NextResponse.json({ error: 'Все карточки должны быть одобрены и принадлежать вам' }, { status: 403 })
     }
 
-    // Считаем количество файлов которые уйдут на проверку
+    // Validate productImageKeys belong to these products
+    if (productImageKeys.length > 0) {
+      const validProductImageSet = new Set(products.flatMap((p: { id: string; images: string[] }) => p.images))
+      if (productImageKeys.some((k: string) => !validProductImageSet.has(k))) {
+        return NextResponse.json({ error: 'Некорректные ключи изображений продуктов' }, { status: 400 })
+      }
+    }
+
+    // scanJobCount — только новые temp-файлы
     const scanJobCount =
       imageKeys.length +
       exclusiveImageKeys.length +
       (assemblyFileKey ? 1 : 0) +
       (pdfKey ? 1 : 0)
+
+    // Если нет новых файлов для сканирования — сразу PENDING, иначе PENDING_SCAN
+    const initialStatus = scanJobCount > 0 ? 'PENDING_SCAN' : 'PENDING'
 
     const pack = await db.pack.create({
       data: {
@@ -95,7 +110,7 @@ export async function POST(req: NextRequest) {
         authorId:         session.user.id,
         hasExclusive,
         exclusiveDesc:    hasExclusive ? exclusiveDesc?.trim() || null : null,
-        moderationStatus: 'PENDING_SCAN',
+        moderationStatus: initialStatus,
         pendingScanCount: scanJobCount,
         products: {
           create: productIds.map((productId, position) => ({ productId, position })),
@@ -103,10 +118,19 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Прямая запись изображений продуктов (уже проверены, сканирование не нужно)
+    if (productImageKeys.length > 0) {
+      await db.packImage.createMany({
+        data: productImageKeys.map((key: string, position: number) => ({ packId: pack.id, key, position })),
+      })
+    }
+
     const queue = await getQueue()
     const jobs: ScanFileJob[] = []
 
-    imageKeys.forEach((fileKey, position) => {
+    // Новые temp-изображения — позиции после productImageKeys
+    imageKeys.forEach((fileKey, i) => {
+      const position = productImageKeys.length + i
       const destKey = fileKey.replace('temp/images/', 'images/packs/')
       jobs.push({ fileKey, destKey, entityType: 'pack', entityId: pack.id, fieldName: 'packImage', position })
     })
