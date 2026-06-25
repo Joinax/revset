@@ -30,6 +30,13 @@ export async function POST() {
     if (!cart || cart.items.length === 0)
       return NextResponse.json({ error: 'Корзина пуста' }, { status: 400 })
 
+    if (cart.items.some(i => i.packId != null)) {
+      return NextResponse.json(
+        { error: 'Оплата паков пока не поддерживается' },
+        { status: 400 }
+      )
+    }
+
     const paidItems = cart.items.filter(i => i.product?.price != null)
     if (paidItems.length === 0)
       return NextResponse.json({ error: 'Нет платных товаров' }, { status: 400 })

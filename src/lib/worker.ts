@@ -132,6 +132,11 @@ async function markPending(
       })
     } else {
       // assemblyFileKey or pdfKey — update directly on Pack
+      const ALLOWED_PACK_FIELDS = ['assemblyFileKey', 'pdfKey']
+      if (!ALLOWED_PACK_FIELDS.includes(fieldName)) {
+        console.error(`markPending: invalid fieldName "${fieldName}" for pack entity`)
+        return
+      }
       await db.pack.update({
         where: { id: entityId },
         data:  { [fieldName]: destKey },
