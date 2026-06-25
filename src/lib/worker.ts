@@ -84,8 +84,17 @@ async function markPending(
         },
         select: { pendingScanCount: true, moderationStatus: true },
       })
+    } else if (fieldName === 'pdfKey') {
+      updated = await db.product.update({
+        where: { id: entityId },
+        data: {
+          pdfKey:           destKey,
+          pendingScanCount: { decrement: 1 },
+        },
+        select: { pendingScanCount: true, moderationStatus: true },
+      })
     } else {
-      // rfaKey или pdfKey — сохраняем в bimParams
+      // rfaKey — сохраняем в bimParams
       const current = await db.product.findUnique({
         where:  { id: entityId },
         select: { bimParams: true },

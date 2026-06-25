@@ -79,13 +79,14 @@ type Props = {
   myReviews?: UserReview[]
   authorReviews?: AuthorReview[]
   authorPacks?: AuthorPack[]
-  categories?: { id: string; name: string }[]
+  categories?: { id: string; slug: string; name: string }[]
   approvedProductsForPack?: { id: string; name: string; price: number | null; images: string[] }[]
 }
 
 import ReviewActions from '@/components/ReviewActions'
 import CreatePackForm from '@/components/CreatePackForm'
 import EditPackForm from '@/components/EditPackForm'
+import EditProductForm from '@/components/EditProductForm'
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
@@ -130,7 +131,7 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
 }
 
 type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack' | 'author-edit-pack'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack' | 'author-edit-pack' | 'author-edit-product'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -334,7 +335,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
     const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
-    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack', 'author-edit-pack']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack', 'author-edit-pack', 'author-edit-product']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
   })
@@ -379,6 +380,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
   const [editPackId,       setEditPackId]       = useState<string | null>(null)
+  const [editProductId,    setEditProductId]    = useState<string | null>(null)
 
 
   const router      = useRouter()
@@ -1252,10 +1254,12 @@ export default function AccountClient({ user, orders, favorites, followings = []
                           <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                           Просмотр
                         </Link>
-                        <Link href={`/product-edit/${product.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', transition: 'background 0.15s, box-shadow 0.15s, transform 0.15s' }} className="model-edit-btn">
+                        <button onClick={() => { setEditProductId(product.id); setActiveTab('author-edit-product') }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', cursor: 'pointer', fontFamily: 'inherit' }}
+                          className="model-edit-btn">
                           <i className="ti ti-pencil" style={{ fontSize: '14px' }} />
                           Изменить
-                        </Link>
+                        </button>
                       </div>
                     </div>
 
@@ -1544,6 +1548,24 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 categories={categories}
                 approvedProducts={approvedProductsForPack}
                 onSuccess={() => { setActiveTab('author-packs'); router.refresh() }}
+              />
+            </div>
+          )}
+
+          {activeTab === 'author-edit-product' && user.isAuthor && editProductId && (
+            <div style={{ maxWidth: '580px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <button onClick={() => { setActiveTab('author-products'); setEditProductId(null) }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>
+                  <i className="ti ti-arrow-left" />
+                  Мои модели
+                </button>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Редактировать модель</div>
+              </div>
+              <EditProductForm
+                productId={editProductId}
+                categories={categories.map(c => ({ slug: c.slug, name: c.name }))}
+                onSuccess={() => { setActiveTab('author-products'); setEditProductId(null); router.refresh() }}
+                onCancel={() => { setActiveTab('author-products'); setEditProductId(null) }}
               />
             </div>
           )}
