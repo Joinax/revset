@@ -115,6 +115,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         name:        rest.name?.trim(),
         description: rest.description?.trim() || null,
       },
+      include: {
+        products: {
+          include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } },
+          orderBy: { position: 'asc' },
+        },
+        images:          { orderBy: { position: 'asc' } },
+        exclusiveImages: { orderBy: { position: 'asc' } },
+      },
     })
 
     return NextResponse.json(serializeDecimal(updated))
