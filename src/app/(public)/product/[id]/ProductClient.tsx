@@ -42,6 +42,7 @@ type Props = {
   isInCart: boolean
   isOwnProduct: boolean
   cameFromAccount?: string | null
+  packsWithSavings?: { id: string; name: string; price: number; savingsPct: number }[]
 }
 
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
@@ -63,7 +64,7 @@ const SPEC_ICONS: Record<string, string> = {
   'Обновлено':    'ti-calendar-check',
 }
 
-export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct, cameFromAccount, currentUserId }: Props) {
+export default function ProductClient({ product, isPurchased, isFavorited, isInCart: initialInCart, isOwnProduct, cameFromAccount, currentUserId, packsWithSavings }: Props) {
   const { avgRating } = product
   const router = useRouter()
   const [activeImg, setActiveImg] = useState(0)
@@ -362,6 +363,34 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Входит в состав пака */}
+              {(packsWithSavings?.length ?? 0) > 0 && (
+                <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(72,128,255,0.04)', border: '1px solid rgba(72,128,255,0.15)', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-package" style={{ color: 'var(--accent)' }} />
+                    Входит в состав пака
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {packsWithSavings!.map(p => (
+                      <Link key={p.id} href={`/pack/${p.id}`} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px',
+                        border: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)',
+                        fontSize: '13px',
+                      }}>
+                        <span style={{ fontWeight: 600 }}>{p.name}</span>
+                        <span>
+                          <span style={{ color: 'var(--muted)', marginRight: '8px' }}>{p.price.toLocaleString('ru')} ₽</span>
+                          {p.savingsPct > 0 && (
+                            <span style={{ color: 'var(--success)', fontWeight: 700 }}>Экономия {p.savingsPct}% →</span>
+                          )}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

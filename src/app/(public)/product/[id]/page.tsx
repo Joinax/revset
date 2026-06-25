@@ -16,7 +16,7 @@ export default async function ProductPage({
   const { id } = await params
   const { from } = await searchParams
 
-  const [product, session] = await Promise.all([
+  const [product, session, productPacks] = await Promise.all([
     db.product.findUnique({
       where: { id },
       include: {
@@ -36,9 +36,31 @@ export default async function ProductPage({
       },
     }),
     auth.api.getSession({ headers: await headers() }),
+    db.packProduct.findMany({
+      where: { productId: id, pack: { moderationStatus: 'APPROVED' } },
+      include: {
+        pack: {
+          select: {
+            id: true, name: true, price: true,
+            products: { include: { product: { select: { price: true } } } },
+          },
+        },
+      },
+    }),
   ])
 
   if (!product) notFound()
+
+  // Compute savings per pack
+  const packsWithSavings = productPacks.map(pp => {
+    const totalProductsPrice = pp.pack.products.reduce(
+      (sum, p) => sum + (p.product.price ? Number(p.product.price) : 0), 0
+    )
+    const packPrice = Number(pp.pack.price)
+    const savingsPct = totalProductsPrice > 0
+      ? Math.round((totalProductsPrice - packPrice) / totalProductsPrice * 100) : 0
+    return { id: pp.pack.id, name: pp.pack.name, price: packPrice, savingsPct }
+  })
 
   // Проверяем куплен ли товар и в избранном ли он
   let isPurchased  = false
@@ -91,6 +113,7 @@ export default async function ProductPage({
       isOwnProduct={isOwnProduct}
       cameFromAccount={from}
       currentUserId={session?.user?.id ?? null}
+      packsWithSavings={packsWithSavings}
     />
   )
 }
