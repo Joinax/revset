@@ -69,7 +69,7 @@ export default async function AdminTransactionsPage({
         status:      o.status,
         totalAmount: Number(o.totalAmount),
         itemCount:   o.items.length,
-        itemNames:   o.items.map(i => i.product.name),
+        itemNames:   o.items.map(i => i.product?.name ?? '—'),
         createdAt:   o.createdAt.toISOString(),
       }))}
       total={total}

@@ -25,7 +25,7 @@ export default async function PaymentSuccessPage({
       await db.cartItem.deleteMany({
         where: {
           cartId: cart.id,
-          productId: { in: order.items.map(i => i.product.id) },
+          productId: { in: order.items.map(i => i.product?.id).filter((id): id is string => id != null) },
         },
       })
     }
@@ -63,9 +63,9 @@ export default async function PaymentSuccessPage({
                 display: 'flex', alignItems: 'center', gap: '12px',
                 marginBottom: '8px', minWidth: '300px',
               }}>
-                <span style={{ fontSize: '28px' }}>{item.product.previewEmoji ?? '📦'}</span>
+                <span style={{ fontSize: '28px' }}>{item.product?.previewEmoji ?? '📦'}</span>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.product.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.product?.name}</div>
                   <div style={{ fontSize: '12px', color: '#1D9E75', fontWeight: 600 }}>Оплачено · {Number(item.price)} ₽</div>
                 </div>
               </div>

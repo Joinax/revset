@@ -191,11 +191,11 @@ export default async function AccountPage({
       orderStatus: s.order.status,
       buyerName:   s.order.user.name ?? 'Без имени',
       product: {
-        id:           s.product.id,
-        name:         s.product.name,
-        previewEmoji: s.product.previewEmoji ?? '📦',
-        previewBg:    s.product.previewBg    ?? '#141420',
-        images:       s.product.images       ?? [],
+        id:           s.product!.id,
+        name:         s.product!.name,
+        previewEmoji: s.product!.previewEmoji ?? '📦',
+        previewBg:    s.product!.previewBg    ?? '#141420',
+        images:       s.product!.images       ?? [],
       },
     }))
     authorSalesTotal = salesTotal
@@ -241,11 +241,11 @@ export default async function AccountPage({
           id:    i.id,
           price: Number(i.price),
           product: {
-            id:           i.product.id,
-            name:         i.product.name,
-            previewEmoji: i.product.previewEmoji ?? '📦',
-            previewBg:    i.product.previewBg    ?? '#141420',
-            images:       i.product.images       ?? [],
+            id:           i.product!.id,
+            name:         i.product!.name,
+            previewEmoji: i.product!.previewEmoji ?? '📦',
+            previewBg:    i.product!.previewBg    ?? '#141420',
+            images:       i.product!.images       ?? [],
           },
         })),
       }))}

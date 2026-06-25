@@ -30,7 +30,7 @@ export async function POST() {
     if (!cart || cart.items.length === 0)
       return NextResponse.json({ error: 'Корзина пуста' }, { status: 400 })
 
-    const paidItems = cart.items.filter(i => i.product.price !== null)
+    const paidItems = cart.items.filter(i => i.product?.price != null)
     if (paidItems.length === 0)
       return NextResponse.json({ error: 'Нет платных товаров' }, { status: 400 })
 
@@ -39,7 +39,7 @@ export async function POST() {
       where: {
         userId: session.user.id,
         status: 'PAID',
-        items: { some: { productId: { in: paidItems.map(i => i.product.id) } } },
+        items: { some: { productId: { in: paidItems.map(i => i.product!.id) } } },
       },
     })
     if (alreadyPurchased)
@@ -47,7 +47,7 @@ export async function POST() {
 
     // Суммируем через Prisma.Decimal — точная арифметика без погрешности JS number
     const total = paidItems.reduce(
-      (s, i) => s.plus(i.product.price!),
+      (s, i) => s.plus(i.product!.price!),
       new Prisma.Decimal(0)
     )
 
@@ -59,15 +59,15 @@ export async function POST() {
         totalAmount: total,
         items: {
           create: paidItems.map(i => ({
-            productId: i.product.id,
-            price: i.product.price!,
+            productId: i.product!.id,
+            price: i.product!.price!,
           })),
         },
       },
     })
 
     const description = paidItems.length === 1
-      ? `Покупка: ${paidItems[0].product.name}`
+      ? `Покупка: ${paidItems[0].product!.name}`
       : `Покупка ${paidItems.length} семейств`
 
     // Создаём платёж в ЮKassa

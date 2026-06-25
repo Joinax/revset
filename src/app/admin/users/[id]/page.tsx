@@ -61,7 +61,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         id:          o.id,
         status:      o.status,
         totalAmount: Number(o.totalAmount),
-        itemNames:   o.items.map(i => i.product.name),
+        itemNames:   o.items.map(i => i.product?.name ?? '—'),
         createdAt:   o.createdAt.toISOString(),
       }))}
       products={user.products.map(p => ({

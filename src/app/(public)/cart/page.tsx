@@ -28,18 +28,18 @@ export default async function CartPage() {
     },
   })
 
-  const items = (cart?.items ?? []).map(i => ({
+  const items = (cart?.items ?? []).filter(i => i.product != null).map(i => ({
     id:        i.id,
-    productId: i.product.id,
-    name:      i.product.name,
-    price:     Number(i.product.price),
-    priceOld:  i.product.priceOld !== null ? Number(i.product.priceOld) : null,
-    emoji:     i.product.previewEmoji ?? '📦',
-    previewBg: i.product.previewBg ?? '#141420',
-    images:    i.product.images ?? [],
-    author:    i.product.author.name ?? 'Автор',
-    authorId:  i.product.author.id,
-    category:  i.product.category.name,
+    productId: i.product!.id,
+    name:      i.product!.name,
+    price:     Number(i.product!.price),
+    priceOld:  i.product!.priceOld !== null ? Number(i.product!.priceOld) : null,
+    emoji:     i.product!.previewEmoji ?? '📦',
+    previewBg: i.product!.previewBg ?? '#141420',
+    images:    i.product!.images ?? [],
+    author:    i.product!.author.name ?? 'Автор',
+    authorId:  i.product!.author.id,
+    category:  i.product!.category.name,
   }))
 
   return (

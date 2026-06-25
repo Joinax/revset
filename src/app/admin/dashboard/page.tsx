@@ -89,7 +89,7 @@ export default async function AdminDashboardPage() {
         userName: o.user.name,
         userEmail: o.user.email,
         amount: Number(o.totalAmount),
-        productName: o.items[0]?.product.name ?? '—',
+        productName: o.items[0]?.product?.name ?? '—',
         itemCount: o.items.length,
         createdAt: o.createdAt.toISOString(),
       }))}

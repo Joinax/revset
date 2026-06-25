@@ -45,10 +45,10 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       }}
       items={order.items.map(i => ({
         id:           i.id,
-        productId:    i.productId,
-        productName:  i.product.name,
-        category:     i.product.category.name,
-        emoji:        i.product.previewEmoji ?? '📦',
+        productId:    i.productId ?? '',
+        productName:  i.product?.name ?? '—',
+        category:     i.product?.category.name ?? '—',
+        emoji:        i.product?.previewEmoji ?? '📦',
         price:        Number(i.price),
       }))}
     />

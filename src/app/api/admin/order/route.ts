@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     // Группируем по автору — на случай если в заказе несколько товаров одного автора
     const perAuthor = new Map<string, { sales: number; revenue: Prisma.Decimal }>()
     for (const item of order.items) {
+      if (!item.product) continue
       const authorId = item.product.authorId
       const entry = perAuthor.get(authorId) ?? { sales: 0, revenue: new Prisma.Decimal(0) }
       entry.sales += 1

@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
       // несколько товаров одного автора, чтобы сделать один upsert на автора.
       const perAuthor = new Map<string, { sales: number; revenue: Prisma.Decimal }>()
       for (const item of order.items) {
+        if (!item.product) continue
         const authorId = item.product.authorId
         const entry = perAuthor.get(authorId) ?? {
           sales:   0,
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
       )
 
       // Очищаем корзину от купленных товаров
-      const purchasedProductIds = order.items.map(i => i.product.id)
+      const purchasedProductIds = order.items.map(i => i.product?.id).filter((id): id is string => id != null)
       const cart = await db.cart.findUnique({ where: { userId: order.userId } })
       if (cart) {
         await db.cartItem.deleteMany({
@@ -182,6 +183,7 @@ export async function POST(req: NextRequest) {
       // Decimal в number только здесь, для отображения в тексте письма.
       // Точность не критична: результат идёт в строку письма, не в БД.
       for (const item of order.items) {
+        if (!item.product) continue
         const author = item.product.author
         if (author.email) {
           try {

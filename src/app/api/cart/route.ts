@@ -29,10 +29,9 @@ export async function GET() {
 
   const items = (cart?.items ?? []).map(i => ({
     ...i,
-    product: {
-      ...i.product,
-      price: i.product.price !== null ? Number(i.product.price) : null,
-    },
+    product: i.product
+      ? { ...i.product, price: i.product.price !== null ? Number(i.product.price) : null }
+      : null,
   }))
   return NextResponse.json({ items })
 }
