@@ -184,20 +184,22 @@ export default async function AccountPage({
       }),
     ])
 
-    authorSales = salesRaw.map(s => ({
-      id:          s.id,
-      price:       Number(s.price),
-      createdAt:   s.order.createdAt.toISOString(),
-      orderStatus: s.order.status,
-      buyerName:   s.order.user.name ?? 'Без имени',
-      product: {
-        id:           s.product!.id,
-        name:         s.product!.name,
-        previewEmoji: s.product!.previewEmoji ?? '📦',
-        previewBg:    s.product!.previewBg    ?? '#141420',
-        images:       s.product!.images       ?? [],
-      },
-    }))
+    authorSales = salesRaw
+      .filter(s => s.product != null)
+      .map(s => ({
+        id:          s.id,
+        price:       Number(s.price),
+        createdAt:   s.order.createdAt.toISOString(),
+        orderStatus: s.order.status,
+        buyerName:   s.order.user.name ?? 'Без имени',
+        product: {
+          id:           s.product!.id,
+          name:         s.product!.name,
+          previewEmoji: s.product!.previewEmoji ?? '📦',
+          previewBg:    s.product!.previewBg    ?? '#141420',
+          images:       s.product!.images       ?? [],
+        },
+      }))
     authorSalesTotal = salesTotal
   }
 
@@ -237,7 +239,7 @@ export default async function AccountPage({
         status:      o.status,
         totalAmount: Number(o.totalAmount),
         createdAt:   o.createdAt.toISOString(),
-        items:       o.items.map(i => ({
+        items:       o.items.filter(i => i.product != null).map(i => ({
           id:    i.id,
           price: Number(i.price),
           product: {

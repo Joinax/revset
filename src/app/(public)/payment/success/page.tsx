@@ -65,7 +65,7 @@ export default async function PaymentSuccessPage({
               }}>
                 <span style={{ fontSize: '28px' }}>{item.product?.previewEmoji ?? '📦'}</span>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.product?.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.product?.name ?? '—'}</div>
                   <div style={{ fontSize: '12px', color: '#1D9E75', fontWeight: 600 }}>Оплачено · {Number(item.price)} ₽</div>
                 </div>
               </div>
