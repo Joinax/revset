@@ -124,7 +124,6 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     { key: 'author-reviews',  label: 'Отзывы',        icon: 'ti-message-star', badge: null, badgeVariant: null },
     { key: 'author-sales',    label: 'Продажи',       icon: 'ti-receipt',   badge: null, badgeVariant: null },
     { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: rejectedCount > 0 ? rejectedCount : null, badgeVariant: 'danger' as const },
-    { key: 'author-upload',      label: 'Загрузить',     icon: 'ti-upload',        badge: null, badgeVariant: null },
     { key: 'author-packs',       label: 'Мои паки',      icon: 'ti-package',       badge: null, badgeVariant: null },
     { key: 'author-create-pack', label: 'Создать пак',   icon: 'ti-package-import', badge: null, badgeVariant: null },
   ]
