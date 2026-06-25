@@ -124,13 +124,14 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     { key: 'author-reviews',  label: 'Отзывы',        icon: 'ti-message-star', badge: null, badgeVariant: null },
     { key: 'author-sales',    label: 'Продажи',       icon: 'ti-receipt',   badge: null, badgeVariant: null },
     { key: 'author-products', label: 'Мои модели',    icon: 'ti-file-3d',   badge: rejectedCount > 0 ? rejectedCount : null, badgeVariant: 'danger' as const },
-    { key: 'author-upload',   label: 'Загрузить',     icon: 'ti-upload',    badge: null, badgeVariant: null },
-    { key: 'author-packs',    label: 'Мои паки',      icon: 'ti-package',   badge: null, badgeVariant: null },
+    { key: 'author-upload',      label: 'Загрузить',     icon: 'ti-upload',        badge: null, badgeVariant: null },
+    { key: 'author-packs',       label: 'Мои паки',      icon: 'ti-package',       badge: null, badgeVariant: null },
+    { key: 'author-create-pack', label: 'Создать пак',   icon: 'ti-package-import', badge: null, badgeVariant: null },
   ]
 }
 
 type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
-         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs'
+         | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack'
 
 
 function SubscriptionsTab({ followings }: { followings: Following[] }) {
@@ -334,7 +335,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
     const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
-    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs']
+    const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
   })
@@ -378,7 +379,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [avatarLoading,    setAvatarLoading]    = useState(false)
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
-  const [showCreatePack,   setShowCreatePack]   = useState(false)
+
 
   const router      = useRouter()
   const { refresh, updateUser } = useAppSession()
@@ -1442,23 +1443,14 @@ export default function AccountClient({ user, orders, favorites, followings = []
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои паки</div>
                 <button
-                  onClick={() => setShowCreatePack(v => !v)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreatePack ? 'var(--bg3)' : 'var(--accent)', color: showCreatePack ? 'var(--text)' : '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                  onClick={() => setActiveTab('author-create-pack')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  <i className={`ti ${showCreatePack ? 'ti-x' : 'ti-plus'}`} />
-                  {showCreatePack ? 'Закрыть' : 'Создать пак'}
+                  <i className="ti ti-plus" />
+                  Создать пак
                 </button>
               </div>
 
-              {showCreatePack && (
-                <div style={{ marginBottom: '24px' }}>
-                  <CreatePackForm
-                    categories={categories}
-                    approvedProducts={approvedProductsForPack}
-                    onSuccess={() => { setShowCreatePack(false); router.refresh() }}
-                  />
-                </div>
-              )}
               {authorPacks.length === 0 ? (
                 <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                   <i className="ti ti-package" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.3 }} />
@@ -1524,6 +1516,23 @@ export default function AccountClient({ user, orders, favorites, followings = []
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'author-create-pack' && user.isAuthor && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <button onClick={() => setActiveTab('author-packs')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer' }}>
+                  <i className="ti ti-arrow-left" />
+                  Мои паки
+                </button>
+                <div style={{ fontSize: '18px', fontWeight: 700 }}>Создать пак</div>
+              </div>
+              <CreatePackForm
+                categories={categories}
+                approvedProducts={approvedProductsForPack}
+                onSuccess={() => { setActiveTab('author-packs'); router.refresh() }}
+              />
             </div>
           )}
 
