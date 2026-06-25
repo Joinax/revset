@@ -5,6 +5,10 @@ import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { useVerificationCount } from '@/hooks/useVerificationCount'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+const avatarSrc   = (img: string) => img.startsWith('http') ? img : `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
+
 type Author = {
   userId: string
   name: string
@@ -166,7 +170,7 @@ export default function AdminVerificationClient({ authors, pendingCount, verifie
               {/* Top: avatar + info */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                 {author.image ? (
-                  <img src={author.image} alt="" style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  <img src={avatarSrc(author.image)} alt="" style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                 ) : (
                   <div style={{
                     width: '52px', height: '52px', borderRadius: '50%',

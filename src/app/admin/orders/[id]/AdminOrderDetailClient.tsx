@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+const avatarSrc   = (img: string) => img.startsWith('http') ? img : `${S3_ENDPOINT}/${S3_BUCKET}/${img}`
+
 type Order = {
   id: string
   status: string
@@ -138,7 +142,7 @@ export default function AdminOrderDetailClient({ order, user, items }: Props) {
         </div>
         <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           {user.image ? (
-            <img src={user.image} alt="" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
+            <img src={avatarSrc(user.image)} alt="" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
           ) : (
             <div style={{
               width: '44px', height: '44px', borderRadius: '50%',
