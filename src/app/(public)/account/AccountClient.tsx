@@ -80,7 +80,7 @@ type Props = {
   authorReviews?: AuthorReview[]
   authorPacks?: AuthorPack[]
   categories?: { id: string; slug: string; name: string }[]
-  approvedProductsForPack?: { id: string; name: string; price: number | null; images: string[] }[]
+  approvedProductsForPack?: { id: string; name: string; price: number | null; images: string[]; createdAt: string; category: { id: string; name: string } | null }[]
 }
 
 import ReviewActions from '@/components/ReviewActions'

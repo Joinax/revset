@@ -224,8 +224,8 @@ export default async function AccountPage({
         db.category.findMany({ orderBy: { order: 'asc' }, select: { id: true, slug: true, name: true } }),
         db.product.findMany({
           where:   { authorId: user.id, moderationStatus: 'APPROVED' },
-          select:  { id: true, name: true, price: true, images: true },
-          orderBy: { name: 'asc' },
+          select:  { id: true, name: true, price: true, images: true, createdAt: true, category: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
         }),
       ])
     : [[], []]
@@ -334,10 +334,12 @@ export default async function AccountPage({
       authorPacks={authorPacks}
       categories={categories.map(c => ({ id: c.id, slug: c.slug, name: c.name }))}
       approvedProductsForPack={approvedProductsForPack.map(p => ({
-        id:     p.id,
-        name:   p.name,
-        price:  p.price !== null ? Number(p.price) : null,
-        images: p.images ?? [],
+        id:        p.id,
+        name:      p.name,
+        price:     p.price !== null ? Number(p.price) : null,
+        images:    p.images ?? [],
+        createdAt: p.createdAt.toISOString(),
+        category:  p.category ? { id: p.category.id, name: p.category.name } : null,
       }))}
       authorSales={authorSales}
       authorSalesPagination={isAuthor ? {
