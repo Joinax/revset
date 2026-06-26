@@ -37,9 +37,8 @@ type Props = {
   pack: {
     id: string; name: string; price: number; description: string | null
     moderationStatus: string; moderationComment: string | null
-    hasExclusive: boolean; exclusiveDesc: string | null
     assemblyFileKey: string | null; pdfKey: string | null; bundleKey: string | null
-    images: string[]; exclusiveImages: string[]
+    images: string[]
     products: { id: string; name: string; price: number | null; moderationStatus: string }[]
     reviews: PackReview[]
     author: { id: string; name: string | null; email: string }
@@ -116,7 +115,6 @@ export default function AdminPackDetailClient({ pack }: Props) {
               { label: 'Автор',     value: pack.author.name ?? pack.author.email },
               { label: 'Категория', value: pack.category.name },
               { label: 'Создан',    value: new Date(pack.createdAt).toLocaleDateString('ru') },
-              { label: 'Эксклюзив', value: pack.hasExclusive ? 'Да' : 'Нет' },
               { label: 'Сборный RVT', value: pack.assemblyFileKey ? 'Загружен' : '—' },
               { label: 'PDF',       value: pack.pdfKey ? 'Загружен' : '—' },
             ].map(row => (
@@ -149,19 +147,6 @@ export default function AdminPackDetailClient({ pack }: Props) {
               ))}
             </div>
           </div>
-
-          {/* Exclusive preview */}
-          {pack.hasExclusive && pack.exclusiveImages.length > 0 && (
-            <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '20px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', color: 'var(--admin-text)' }}>Превью эксклюзива</div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {pack.exclusiveImages.map((img, i) => (
-                  <img key={i} src={s3Url(img)} alt="" style={{ width: '100px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--admin-border)' }} />
-                ))}
-              </div>
-              {pack.exclusiveDesc && <p style={{ fontSize: '13px', color: 'var(--admin-muted)', marginTop: '10px', marginBottom: 0 }}>{pack.exclusiveDesc}</p>}
-            </div>
-          )}
 
           {/* Reviews */}
           <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '20px' }}>

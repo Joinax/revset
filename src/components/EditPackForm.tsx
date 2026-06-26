@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ImageUpload from './ImageUpload'
 import FileUpload from './FileUpload'
 import PdfUpload from './PdfUpload'
@@ -21,23 +21,17 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   const [fetchLoading, setFetchLoading] = useState(true)
   const [fetchError,   setFetchError]   = useState('')
 
-  const [name,          setName]          = useState('')
-  const [description,   setDescription]   = useState('')
-  const [price,         setPrice]         = useState('')
-  const [categoryId,    setCategoryId]    = useState('')
-  const [selectedIds,   setSelectedIds]   = useState<string[]>([])
-  const [hasExclusive,  setHasExclusive]  = useState(false)
-  const [exclusiveDesc, setExclusiveDesc] = useState('')
+  const [name,        setName]        = useState('')
+  const [description, setDescription] = useState('')
+  const [price,       setPrice]       = useState('')
+  const [categoryId,  setCategoryId]  = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [pickerOpen,  setPickerOpen]  = useState(false)
 
-  // Существующие изображения пака (уже в S3)
-  const [existingImages,   setExistingImages]   = useState<string[]>([])
-  const [keepImageKeys,    setKeepImageKeys]     = useState<Set<string>>(new Set())
-  const [newExtraImages,   setNewExtraImages]    = useState<{ fileKey: string; url: string; name: string }[]>([])
-
-  // Эксклюзивные изображения
-  const [existingExclImg,  setExistingExclImg]  = useState<string[]>([])
-  const [keepExclKeys,     setKeepExclKeys]      = useState<Set<string>>(new Set())
-  const [newExclImages,    setNewExclImages]     = useState<{ fileKey: string; url: string; name: string }[]>([])
+  // Существующие доп-изображения (не авто из карточек)
+  const [existingImages,  setExistingImages]  = useState<string[]>([])
+  const [keepImageKeys,   setKeepImageKeys]   = useState<Set<string>>(new Set())
+  const [newExtraImages,  setNewExtraImages]  = useState<{ fileKey: string; url: string; name: string }[]>([])
 
   // Файлы
   const [existingAssembly, setExistingAssembly] = useState<string | null>(null)
@@ -47,31 +41,43 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   const [newPdfKey,        setNewPdfKey]        = useState('')
   const [clearPdf,         setClearPdf]         = useState(false)
 
-  const [coverProductId, setCoverProductId] = useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Авто-изображения из выбранных карточек, с выбранной обложкой первой
-  const baseAutoImages = selectedIds
+  // Авто-фото из выбранных карточек — порядок selectedIds определяет обложку
+  const autoImages = selectedIds
     .map(id => approvedProducts.find(p => p.id === id))
     .filter((p): p is PickerProduct => !!p && p.images.length > 0)
     .map(p => ({ productId: p.id, fileKey: p.images[0], url: `${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`, name: p.name }))
 
-  const effectiveCoverId = coverProductId && selectedIds.includes(coverProductId)
-    ? coverProductId : selectedIds[0] ?? null
+  const autoImageKeySet = new Set(autoImages.map(i => i.fileKey))
+  const recentProducts  = approvedProducts.slice(0, 10)
 
-  const orderedAutoImages = effectiveCoverId
-    ? [baseAutoImages.find(x => x.productId === effectiveCoverId), ...baseAutoImages.filter(x => x.productId !== effectiveCoverId)].filter((x): x is typeof baseAutoImages[number] => !!x)
-    : baseAutoImages
-
-  const autoImages = orderedAutoImages
-  const autoImageKeySet  = new Set(autoImages.map(i => i.fileKey))
-  const recentProducts   = approvedProducts.slice(0, 10)
-
-  // Существующие изображения, которые НЕ являются авто (ручные загрузки)
+  // Сохранённые доп-фото (не авто)
   const existingExtraImages = existingImages.filter(k => !autoImageKeySet.has(k))
+
+  // Drag-and-drop для переупорядочивания авто-фото
+  const dragIdxRef = useRef<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+
+  function handlePhotoDragStart(i: number) {
+    dragIdxRef.current = i
+  }
+  function handlePhotoDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault()
+    setDragOverIdx(i)
+    if (dragIdxRef.current === null || dragIdxRef.current === i) return
+    const newIds = [...selectedIds]
+    const [movedId] = newIds.splice(dragIdxRef.current, 1)
+    newIds.splice(i, 0, movedId)
+    dragIdxRef.current = i
+    setSelectedIds(newIds)
+  }
+  function handlePhotoDragEnd() {
+    dragIdxRef.current = null
+    setDragOverIdx(null)
+  }
 
   useEffect(() => {
     async function load() {
@@ -85,16 +91,10 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         setPrice(pack.price > 0 ? String(pack.price) : '')
         setCategoryId(pack.categoryId ?? '')
         setSelectedIds((pack.products ?? []).map((pp: { productId: string }) => pp.productId))
-        setHasExclusive(pack.hasExclusive ?? false)
-        setExclusiveDesc(pack.exclusiveDesc ?? '')
 
         const imgKeys: string[] = (pack.images ?? []).map((i: { key: string }) => i.key)
         setExistingImages(imgKeys)
         setKeepImageKeys(new Set(imgKeys))
-
-        const exclKeys: string[] = (pack.exclusiveImages ?? []).map((i: { key: string }) => i.key)
-        setExistingExclImg(exclKeys)
-        setKeepExclKeys(new Set(exclKeys))
 
         setExistingAssembly(pack.assemblyFileKey ?? null)
         setExistingPdf(pack.pdfKey ?? null)
@@ -108,13 +108,9 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   }, [packId])
 
   function toggleProduct(id: string) {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) {
-        if (coverProductId === id) setCoverProductId(null)
-        return prev.filter(x => x !== id)
-      }
-      return [...prev, id]
-    })
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   function toggleKeepImage(key: string) {
@@ -129,24 +125,18 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
     e.preventDefault()
     setError('')
 
-    if (!name.trim())           { setError('Укажите название пака'); return }
-    if (selectedIds.length < 2) { setError('Выберите минимум 2 карточки'); return }
-    if (selectedIds.length > 12){ setError('Максимум 12 карточек'); return }
-    if (!categoryId)            { setError('Выберите категорию'); return }
+    if (!name.trim())            { setError('Укажите название пака'); return }
+    if (selectedIds.length < 2)  { setError('Выберите минимум 2 карточки'); return }
+    if (selectedIds.length > 12) { setError('Максимум 12 карточек'); return }
+    if (!categoryId)             { setError('Выберите категорию'); return }
 
     const priceNum = price ? parseFloat(price) : 0
     if (priceNum !== 0 && (priceNum < 200 || priceNum > 350000)) {
       setError('Цена должна быть 0 (бесплатно) или от 200 до 350 000 ₽')
       return
     }
-    if (hasExclusive && !exclusiveDesc.trim()) { setError('Укажите описание эксклюзивного контента'); return }
-    if (hasExclusive && !existingAssembly && !newAssemblyKey) { setError('Для эксклюзива загрузите сборный RVT файл'); return }
 
-    // keepImageKeys фильтруем — убираем те, что уже покрыты autoImages
     const finalKeepImageKeys = [...keepImageKeys].filter(k => !autoImageKeySet.has(k))
-
-    const totalImages = autoImages.length + finalKeepImageKeys.length + newExtraImages.length
-    if (totalImages < 1) { setError('Необходимо хотя бы одно изображение'); return }
 
     setSaving(true)
     try {
@@ -154,20 +144,16 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:                   name.trim(),
-          description:            description.trim() || null,
-          price:                  priceNum,
+          name:             name.trim(),
+          description:      description.trim() || null,
+          price:            priceNum,
           categoryId,
-          productIds:             selectedIds,
-          hasExclusive,
-          exclusiveDesc:          hasExclusive ? exclusiveDesc.trim() : null,
-          productImageKeys:       autoImages.map(i => i.fileKey),
-          keepImageKeys:          finalKeepImageKeys,
-          newImageKeys:           newExtraImages.map(i => i.fileKey),
-          keepExclusiveImageKeys: [...keepExclKeys],
-          newExclusiveImageKeys:  newExclImages.map(i => i.fileKey),
-          assemblyFileKey:        clearAssembly ? null : (newAssemblyKey || undefined),
-          pdfKey:                 clearPdf      ? null : (newPdfKey      || undefined),
+          productIds:       selectedIds,
+          productImageKeys: autoImages.map(i => i.fileKey),
+          keepImageKeys:    finalKeepImageKeys,
+          newImageKeys:     newExtraImages.map(i => i.fileKey),
+          assemblyFileKey:  clearAssembly ? null : (newAssemblyKey || undefined),
+          pdfKey:           clearPdf      ? null : (newPdfKey      || undefined),
         }),
       })
 
@@ -240,7 +226,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
       {/* Выбор карточек */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <label style={labelStyle}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
             Карточки * — выбрано {selectedIds.length} / 12
             <span style={{ fontWeight: 400 }}> (от 2 до 12)</span>
           </label>
@@ -253,7 +239,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           )}
         </div>
 
-        {/* Зона A — выбранные карточки */}
+        {/* Выбранные карточки */}
         {selectedIds.length > 0 && (
           <div style={{ marginBottom: '12px' }}>
             <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Выбрано:</div>
@@ -280,7 +266,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           </div>
         )}
 
-        {/* Зона B — последние 10 карточек */}
+        {/* Последние 10 карточек */}
         {approvedProducts.length === 0 ? (
           <div style={{ padding: '16px', background: 'var(--bg3)', borderRadius: '10px', fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
             Нет одобренных моделей
@@ -323,25 +309,30 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         />
       </div>
 
-      {/* Изображения */}
+      {/* Фотографии пака */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {/* Обложка — из авто-фото карточек */}
         <div>
-          <label style={labelStyle}>Обложка пака</label>
-          {orderedAutoImages.length > 0 ? (
+          <label style={labelStyle}>Обложка и фотографии пака</label>
+          {autoImages.length > 0 ? (
             <div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Первая карточка определяет обложку пака в каталоге. Нажмите на другое фото, чтобы сменить обложку:
+                Первое фото — обложка пака. Перетащите фото чтобы изменить порядок:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {orderedAutoImages.map((img, i) => {
+                {autoImages.map((img, i) => {
                   const isCover = i === 0
+                  const isDragTarget = dragOverIdx === i && dragIdxRef.current !== null && dragIdxRef.current !== i
                   return (
-                    <div key={img.productId} onClick={() => setCoverProductId(img.productId)}
-                      title={isCover ? 'Это обложка пака' : 'Нажмите, чтобы сделать обложкой'}
-                      style={{ position: 'relative', width: '80px', cursor: 'pointer', flexShrink: 0 }}>
+                    <div
+                      key={img.productId}
+                      draggable
+                      onDragStart={() => handlePhotoDragStart(i)}
+                      onDragOver={e => handlePhotoDragOver(e, i)}
+                      onDragEnd={handlePhotoDragEnd}
+                      title={isCover ? 'Обложка пака' : 'Перетащите чтобы сделать обложкой'}
+                      style={{ position: 'relative', width: '80px', cursor: 'grab', flexShrink: 0, opacity: isDragTarget ? 0.5 : 1, transition: 'opacity 0.15s' }}>
                       <div style={{ width: '80px', height: '80px', borderRadius: '10px', overflow: 'hidden', border: `2px solid ${isCover ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--bg3)' }}>
-                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
                       </div>
                       {isCover && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--accent)', fontSize: '9px', fontWeight: 700, color: '#fff', textAlign: 'center', padding: '3px 0', borderRadius: '0 0 8px 8px', letterSpacing: '0.03em' }}>
@@ -355,19 +346,15 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
             </div>
           ) : (
             <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-              Выберите карточки выше — первое фото выбранной карточки станет обложкой пака
+              Выберите карточки выше — фото первой карточки станет обложкой пака
             </div>
           )}
         </div>
 
-        {/* Дополнительные фото в галерею */}
         <div>
           <label style={labelStyle}>
-            Фотографии галереи <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+            Дополнительные фото в галерею <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
           </label>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-            Интерьерные снимки, постановочные фото — добавляются в галерею после обложки
-          </div>
 
           {existingExtraImages.length > 0 && (
             <div style={{ marginBottom: '10px' }}>
@@ -390,77 +377,33 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         </div>
       </div>
 
-      {/* PDF */}
-      <div>
-        <label style={labelStyle}>PDF-инструкция</label>
-        {existingPdf && !clearPdf ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-            <i className="ti ti-file-type-pdf" style={{ fontSize: '20px', color: '#E24B4A' }} />
-            <span style={{ fontSize: '13px', flex: 1 }}>PDF загружен</span>
-            <button type="button" onClick={() => setClearPdf(true)} style={{ fontSize: '12px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Удалить</button>
-          </div>
-        ) : (
-          <PdfUpload onUpload={key => { setNewPdfKey(key); setClearPdf(false) }} onClear={() => setNewPdfKey('')} />
-        )}
-      </div>
-
-      {/* Эксклюзив */}
-      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setHasExclusive(v => !v)}>
-          <div style={{ width: '40px', height: '22px', borderRadius: '11px', background: hasExclusive ? 'var(--accent)' : 'var(--bg3)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-            <div style={{ position: 'absolute', top: '3px', left: hasExclusive ? '21px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 600 }}>Эксклюзивный контент</div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Сборный RVT + превью для покупателей</div>
-          </div>
+      {/* Файлы */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div>
+          <label style={labelStyle}>Сборный RVT/RFA файл</label>
+          {existingAssembly && !clearAssembly ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              <i className="ti ti-file" style={{ fontSize: '18px', color: 'var(--accent)' }} />
+              <span style={{ fontSize: '13px', flex: 1 }}>RVT файл загружен</span>
+              <button type="button" onClick={() => setClearAssembly(true)} style={{ fontSize: '12px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Удалить</button>
+            </div>
+          ) : (
+            <FileUpload onUpload={key => { setNewAssemblyKey(key); setClearAssembly(false) }} />
+          )}
         </div>
 
-        {hasExclusive && (
-          <>
-            <div>
-              <label style={labelStyle}>Описание эксклюзива *</label>
-              <textarea value={exclusiveDesc} onChange={e => setExclusiveDesc(e.target.value)} rows={2}
-                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'var(--font-manrope)' }} />
+        <div>
+          <label style={labelStyle}>PDF-инструкция</label>
+          {existingPdf && !clearPdf ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              <i className="ti ti-file-type-pdf" style={{ fontSize: '20px', color: '#E24B4A' }} />
+              <span style={{ fontSize: '13px', flex: 1 }}>PDF загружен</span>
+              <button type="button" onClick={() => setClearPdf(true)} style={{ fontSize: '12px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Удалить</button>
             </div>
-
-            {/* Сборный файл */}
-            <div>
-              <label style={labelStyle}>Сборный RVT файл {existingAssembly && !clearAssembly ? '(загружен)' : '*'}</label>
-              {existingAssembly && !clearAssembly ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                  <i className="ti ti-file" style={{ fontSize: '18px', color: 'var(--accent)' }} />
-                  <span style={{ fontSize: '13px', flex: 1 }}>RVT файл загружен</span>
-                  <button type="button" onClick={() => setClearAssembly(true)} style={{ fontSize: '12px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Удалить</button>
-                </div>
-              ) : (
-                <FileUpload onUpload={key => { setNewAssemblyKey(key); setClearAssembly(false) }} />
-              )}
-            </div>
-
-            {/* Эксклюзивные превью */}
-            <div>
-              <label style={labelStyle}>Превью для покупателей <span style={{ fontWeight: 400 }}>(видят только после покупки)</span></label>
-              {existingExclImg.length > 0 && (
-                <div style={{ marginBottom: '8px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>Текущие (нажмите чтобы убрать):</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {existingExclImg.map(key => {
-                      const kept = keepExclKeys.has(key)
-                      return (
-                        <div key={key} onClick={() => setKeepExclKeys(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })}
-                          style={{ width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${kept ? 'var(--border)' : 'var(--danger)'}`, cursor: 'pointer', opacity: kept ? 1 : 0.4 }}>
-                          <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              <ImageUpload onImagesChange={imgs => setNewExclImages(imgs)} />
-            </div>
-          </>
-        )}
+          ) : (
+            <PdfUpload onUpload={key => { setNewPdfKey(key); setClearPdf(false) }} onClear={() => setNewPdfKey('')} />
+          )}
+        </div>
       </div>
 
       {error && (
@@ -469,10 +412,16 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         </div>
       )}
 
-      <button type="submit" disabled={saving || selectedIds.length < 2}
-        style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: saving || selectedIds.length < 2 ? 'var(--bg3)' : 'var(--accent)', color: '#fff', fontSize: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-        {saving ? 'Сохраняем...' : 'Сохранить изменения'}
-      </button>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <button type="button" onClick={onCancel}
+          style={{ padding: '13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '13px', cursor: 'pointer' }}>
+          Отмена
+        </button>
+        <button type="submit" disabled={saving || selectedIds.length < 2}
+          style={{ padding: '13px', borderRadius: '10px', border: 'none', background: saving || selectedIds.length < 2 ? 'var(--bg3)' : 'var(--accent)', color: '#fff', fontSize: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          {saving ? 'Сохраняем...' : 'Сохранить изменения'}
+        </button>
+      </div>
 
     </form>
   )

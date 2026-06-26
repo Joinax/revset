@@ -143,15 +143,6 @@ async function markPending(
         data:  { pendingScanCount: { decrement: 1 } },
         select: { pendingScanCount: true, moderationStatus: true },
       })
-    } else if (fieldName === 'packExclusiveImage') {
-      await db.packExclusiveImage.create({
-        data: { packId: entityId, key: destKey, position: position ?? 0 },
-      })
-      updated = await db.pack.update({
-        where: { id: entityId },
-        data:  { pendingScanCount: { decrement: 1 } },
-        select: { pendingScanCount: true, moderationStatus: true },
-      })
     } else {
       const ALLOWED_PACK_FIELDS = ['assemblyFileKey', 'pdfKey']
       if (!ALLOWED_PACK_FIELDS.includes(fieldName)) {

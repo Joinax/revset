@@ -19,7 +19,6 @@ export default async function PackPage({
       author:   { select: { id: true, name: true, image: true } },
       category: { select: { id: true, name: true, slug: true } },
       images:   { orderBy: { position: 'asc' } },
-      exclusiveImages: { orderBy: { position: 'asc' } },
       products: {
         orderBy: { position: 'asc' },
         include: {
@@ -85,10 +84,7 @@ export default async function PackPage({
     price: packPrice,
     pdfKey: pack.pdfKey,
     bundleKey: pack.bundleKey,
-    hasExclusive: pack.hasExclusive,
-    exclusiveDesc: pack.exclusiveDesc,
     images: pack.images.map(i => i.key),
-    exclusiveImages: pack.exclusiveImages.map(i => i.key),
     products: pack.products.map(p => ({
       id: p.product.id,
       name: p.product.name,

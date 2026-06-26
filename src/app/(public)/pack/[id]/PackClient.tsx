@@ -23,8 +23,7 @@ type Review = { id: string; rating: number; text: string; createdAt: string; use
 export type PackClientPack = {
   id: string; name: string; description: string | null; price: number
   pdfKey: string | null; bundleKey: string | null
-  hasExclusive: boolean; exclusiveDesc: string | null
-  images: string[]; exclusiveImages: string[]
+  images: string[]
   products: PackProduct[]
   packReviews: Review[]; productReviews: Review[]
   author: { id: string; name: string | null }
@@ -158,23 +157,6 @@ export default function PackClient({ pack, isPurchased, hasDownloaded, isOwnPack
                   )}
                 </div>
 
-                {/* Exclusive block */}
-                {pack.hasExclusive && (
-                  <div style={{ padding: '16px', background: 'rgba(72,128,255,0.04)', border: '1px solid rgba(72,128,255,0.15)', borderRadius: '14px', marginBottom: '24px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <i className="ti ti-sparkles" style={{ color: 'var(--accent)' }} />
-                      Эксклюзив только в этом паке
-                    </div>
-                    {pack.exclusiveImages.length > 0 && (
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                        {pack.exclusiveImages.map((img, i) => (
-                          <img key={i} src={s3Url(img)} alt="" style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
-                        ))}
-                      </div>
-                    )}
-                    {pack.exclusiveDesc && <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{pack.exclusiveDesc}</p>}
-                  </div>
-                )}
               </div>
             )}
 

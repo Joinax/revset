@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import ImageUpload from './ImageUpload'
 import FileUpload from './FileUpload'
 import PdfUpload from './PdfUpload'
@@ -16,56 +16,63 @@ type Props = {
 }
 
 export default function CreatePackForm({ categories, approvedProducts, onSuccess }: Props) {
-  const [name,          setName]          = useState('')
-  const [description,   setDescription]   = useState('')
-  const [price,         setPrice]         = useState('')
-  const [categoryId,    setCategoryId]    = useState(categories[0]?.id ?? '')
-  const [selectedIds,    setSelectedIds]    = useState<string[]>([])
-  const [coverProductId, setCoverProductId] = useState<string | null>(null)
-  const [pickerOpen,     setPickerOpen]     = useState(false)
-  const [hasExclusive,   setHasExclusive]   = useState(false)
-  const [exclusiveDesc, setExclusiveDesc] = useState('')
-  const [extraImages,   setExtraImages]   = useState<{ fileKey: string; url: string; name: string }[]>([])
-  const [exclusiveImgKeys, setExclusiveImgKeys] = useState<{ fileKey: string; url: string; name: string }[]>([])
+  const [name,        setName]        = useState('')
+  const [description, setDescription] = useState('')
+  const [price,       setPrice]       = useState('')
+  const [categoryId,  setCategoryId]  = useState(categories[0]?.id ?? '')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [pickerOpen,  setPickerOpen]  = useState(false)
+  const [extraImages, setExtraImages] = useState<{ fileKey: string; url: string; name: string }[]>([])
+  const [assemblyKey, setAssemblyKey] = useState('')
+  const [pdfKey,      setPdfKey]      = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
+  const [success,     setSuccess]     = useState(false)
 
   const recentProducts = approvedProducts.slice(0, 10)
 
-  // Авто-фото из выбранных карточек, с выбранной обложкой первой
-  const baseAutoImages = selectedIds
+  // Авто-фото из выбранных карточек — порядок selectedIds определяет обложку (первый = обложка)
+  const autoImages = selectedIds
     .map(id => approvedProducts.find(p => p.id === id))
     .filter((p): p is PickerProduct => !!p && p.images.length > 0)
     .map(p => ({ productId: p.id, fileKey: p.images[0], url: `${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`, name: p.name }))
 
-  const effectiveCoverId = coverProductId && selectedIds.includes(coverProductId)
-    ? coverProductId : selectedIds[0] ?? null
+  // Drag-and-drop для переупорядочивания фото
+  const dragIdxRef = useRef<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
-  const orderedAutoImages = effectiveCoverId
-    ? [baseAutoImages.find(x => x.productId === effectiveCoverId), ...baseAutoImages.filter(x => x.productId !== effectiveCoverId)].filter((x): x is typeof baseAutoImages[number] => !!x)
-    : baseAutoImages
-  const [assemblyKey,   setAssemblyKey]   = useState('')
-  const [pdfKey,        setPdfKey]        = useState('')
-  const [loading,       setLoading]       = useState(false)
-  const [error,         setError]         = useState('')
-  const [success,       setSuccess]       = useState(false)
+  function handlePhotoDragStart(i: number) {
+    dragIdxRef.current = i
+  }
+  function handlePhotoDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault()
+    setDragOverIdx(i)
+    if (dragIdxRef.current === null || dragIdxRef.current === i) return
+    const newIds = [...selectedIds]
+    const [movedId] = newIds.splice(dragIdxRef.current, 1)
+    newIds.splice(i, 0, movedId)
+    dragIdxRef.current = i
+    setSelectedIds(newIds)
+  }
+  function handlePhotoDragEnd() {
+    dragIdxRef.current = null
+    setDragOverIdx(null)
+  }
 
   function toggleProduct(id: string) {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) {
-        if (coverProductId === id) setCoverProductId(null)
-        return prev.filter(x => x !== id)
-      }
-      return [...prev, id]
-    })
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    if (!name.trim())             { setError('Укажите название пака'); return }
-    if (selectedIds.length < 2)   { setError('Выберите минимум 2 карточки'); return }
-    if (selectedIds.length > 12)  { setError('Максимум 12 карточек'); return }
-    if (!categoryId)              { setError('Выберите категорию'); return }
+    if (!name.trim())            { setError('Укажите название пака'); return }
+    if (selectedIds.length < 2)  { setError('Выберите минимум 2 карточки'); return }
+    if (selectedIds.length > 12) { setError('Максимум 12 карточек'); return }
+    if (!categoryId)             { setError('Выберите категорию'); return }
 
     const priceNum = price ? parseFloat(price) : 0
     if (priceNum !== 0 && (priceNum < 200 || priceNum > 350000)) {
@@ -73,27 +80,21 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
       return
     }
 
-    if (hasExclusive && !assemblyKey) { setError('Для эксклюзива загрузите сборный RVT файл'); return }
-    if (hasExclusive && !exclusiveDesc.trim()) { setError('Укажите описание эксклюзивного контента'); return }
-
     setLoading(true)
     try {
       const res = await fetch('/api/packs/create', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:               name.trim(),
-          description:        description.trim() || null,
-          price:              priceNum,
+          name:             name.trim(),
+          description:      description.trim() || null,
+          price:            priceNum,
           categoryId,
-          productIds:         selectedIds,
-          hasExclusive,
-          exclusiveDesc:      hasExclusive ? exclusiveDesc.trim() : null,
-          productImageKeys:   orderedAutoImages.map(i => i.fileKey),
-          imageKeys:          extraImages.map(i => i.fileKey),
-          exclusiveImageKeys: exclusiveImgKeys.map(i => i.fileKey),
-          assemblyFileKey:    assemblyKey || null,
-          pdfKey:             pdfKey || null,
+          productIds:       selectedIds,
+          productImageKeys: autoImages.map(i => i.fileKey),
+          imageKeys:        extraImages.map(i => i.fileKey),
+          assemblyFileKey:  assemblyKey || null,
+          pdfKey:           pdfKey || null,
         }),
       })
 
@@ -163,7 +164,7 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
       {/* Выбор карточек */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <label style={labelStyle}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
             Карточки * — выбрано {selectedIds.length} / 12
             <span style={{ fontWeight: 400 }}> (от 2 до 12)</span>
           </label>
@@ -176,7 +177,7 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
           )}
         </div>
 
-        {/* Зона A — выбранные карточки */}
+        {/* Выбранные карточки */}
         {selectedIds.length > 0 && (
           <div style={{ marginBottom: '12px' }}>
             <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Выбрано:</div>
@@ -203,7 +204,7 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
           </div>
         )}
 
-        {/* Зона B — последние 10 карточек */}
+        {/* Последние 10 карточек */}
         {approvedProducts.length === 0 ? (
           <div style={{ padding: '16px', background: 'var(--bg3)', borderRadius: '10px', fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
             У вас нет одобренных моделей. Карточки должны пройти модерацию прежде чем их можно добавить в пак.
@@ -248,23 +249,28 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
 
       {/* Фотографии пака */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {/* Обложка — из авто-фото карточек */}
         <div>
-          <label style={labelStyle}>Обложка пака</label>
-          {orderedAutoImages.length > 0 ? (
+          <label style={labelStyle}>Обложка и фотографии пака</label>
+          {autoImages.length > 0 ? (
             <div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Первая карточка определяет обложку пака в каталоге. Нажмите на другое фото, чтобы сменить обложку:
+                Первое фото — обложка пака. Перетащите фото чтобы изменить порядок:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {orderedAutoImages.map((img, i) => {
+                {autoImages.map((img, i) => {
                   const isCover = i === 0
+                  const isDragTarget = dragOverIdx === i && dragIdxRef.current !== null && dragIdxRef.current !== i
                   return (
-                    <div key={img.productId} onClick={() => setCoverProductId(img.productId)}
-                      title={isCover ? 'Это обложка пака' : 'Нажмите, чтобы сделать обложкой'}
-                      style={{ position: 'relative', width: '80px', cursor: 'pointer', flexShrink: 0 }}>
+                    <div
+                      key={img.productId}
+                      draggable
+                      onDragStart={() => handlePhotoDragStart(i)}
+                      onDragOver={e => handlePhotoDragOver(e, i)}
+                      onDragEnd={handlePhotoDragEnd}
+                      title={isCover ? 'Обложка пака' : 'Перетащите чтобы сделать обложкой'}
+                      style={{ position: 'relative', width: '80px', cursor: 'grab', flexShrink: 0, opacity: isDragTarget ? 0.5 : 1, transition: 'opacity 0.15s' }}>
                       <div style={{ width: '80px', height: '80px', borderRadius: '10px', overflow: 'hidden', border: `2px solid ${isCover ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--bg3)' }}>
-                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
                       </div>
                       {isCover && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--accent)', fontSize: '9px', fontWeight: 700, color: '#fff', textAlign: 'center', padding: '3px 0', borderRadius: '0 0 8px 8px', letterSpacing: '0.03em' }}>
@@ -278,59 +284,29 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
             </div>
           ) : (
             <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-              Выберите карточки выше — фото первой выбранной карточки станет обложкой пака
+              Выберите карточки выше — фото первой карточки станет обложкой пака
             </div>
           )}
         </div>
 
-        {/* Дополнительные фото в галерею */}
         <div>
           <label style={labelStyle}>
-            Фотографии галереи <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+            Дополнительные фото в галерею <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
           </label>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-            Интерьерные снимки, постановочные фото — добавляются в галерею после обложки
-          </div>
-          <ImageUpload onImagesChange={(imgs) => setExtraImages(imgs)} />
+          <ImageUpload onImagesChange={imgs => setExtraImages(imgs)} />
         </div>
       </div>
 
-      {/* PDF-инструкция */}
-      <div>
-        <label style={labelStyle}>PDF-инструкция <span style={{ fontWeight: 400 }}>(необязательно)</span></label>
-        <PdfUpload onUpload={key => setPdfKey(key)} onClear={() => setPdfKey('')} />
-      </div>
-
-      {/* Эксклюзив */}
-      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setHasExclusive(v => !v)}>
-          <div style={{ width: '40px', height: '22px', borderRadius: '11px', background: hasExclusive ? 'var(--accent)' : 'var(--bg3)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-            <div style={{ position: 'absolute', top: '3px', left: hasExclusive ? '21px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 600 }}>Эксклюзивный контент</div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Сборный RVT файл + дополнительные превью только для покупателей</div>
-          </div>
+      {/* Файлы */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div>
+          <label style={labelStyle}>Сборный RVT/RFA файл <span style={{ fontWeight: 400 }}>(необязательно)</span></label>
+          <FileUpload onUpload={key => setAssemblyKey(key)} />
         </div>
-
-        {hasExclusive && (
-          <>
-            <div>
-              <label style={labelStyle}>Описание эксклюзива *</label>
-              <textarea value={exclusiveDesc} onChange={e => setExclusiveDesc(e.target.value)} rows={2}
-                placeholder="Что получит покупатель дополнительно..."
-                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'var(--font-manrope)' }} />
-            </div>
-            <div>
-              <label style={labelStyle}>Сборный RVT файл *</label>
-              <FileUpload onUpload={key => setAssemblyKey(key)} />
-            </div>
-            <div>
-              <label style={labelStyle}>Превью для покупателей <span style={{ fontWeight: 400 }}>(до 6 фото, видят только после покупки)</span></label>
-              <ImageUpload onImagesChange={(imgs) => setExclusiveImgKeys(imgs)} />
-            </div>
-          </>
-        )}
+        <div>
+          <label style={labelStyle}>PDF-инструкция <span style={{ fontWeight: 400 }}>(необязательно)</span></label>
+          <PdfUpload onUpload={key => setPdfKey(key)} onClear={() => setPdfKey('')} />
+        </div>
       </div>
 
       {error && (

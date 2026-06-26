@@ -15,8 +15,7 @@ export default async function AdminPackDetailPage({ params }: { params: Promise<
     include: {
       author:          { select: { id: true, name: true, email: true } },
       category:        { select: { name: true } },
-      images:          { orderBy: { position: 'asc' } },
-      exclusiveImages: { orderBy: { position: 'asc' } },
+      images:   { orderBy: { position: 'asc' } },
       products: {
         orderBy: { position: 'asc' },
         include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } },
@@ -33,9 +32,8 @@ export default async function AdminPackDetailPage({ params }: { params: Promise<
     <AdminPackDetailClient
       pack={{
         ...pack,
-        price:           Number(pack.price),
-        images:          pack.images.map(i => i.key),
-        exclusiveImages: pack.exclusiveImages.map(i => i.key),
+        price:    Number(pack.price),
+        images:   pack.images.map(i => i.key),
         products:        pack.products.map(p => ({
           id: p.product.id, name: p.product.name,
           price: p.product.price ? Number(p.product.price) : null,

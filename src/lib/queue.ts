@@ -28,6 +28,6 @@ export interface ScanFileJob {
   destKey:    string  // images/... или rfa/... или pdf/...
   entityType: 'product' | 'avatar' | 'pack'
   entityId:   string  // productId или userId или packId
-  fieldName:  string  // 'images' | 'rfaKey' | 'pdfKey' | 'image' | 'assemblyFileKey' | 'packImage' | 'packExclusiveImage'
-  position?:  number  // used for PackImage/PackExclusiveImage ordering
+  fieldName:  string  // 'images' | 'rfaKey' | 'pdfKey' | 'image' | 'assemblyFileKey' | 'packImage'
+  position?:  number  // used for PackImage ordering
 }

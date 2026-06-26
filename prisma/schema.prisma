@@ -334,12 +334,8 @@ model Pack {
   bundleKey        String?
   pendingScanCount Int                @default(0)
 
-  hasExclusive     Boolean            @default(false)
-  exclusiveDesc    String?
-
   products         PackProduct[]
   images           PackImage[]
-  exclusiveImages  PackExclusiveImage[]
   reviews          PackReview[]
   orderItems       OrderItem[]
   cartItems        CartItem[]
@@ -367,16 +363,6 @@ model PackProduct {
 }
 
 model PackImage {
-  id       String @id @default(cuid())
-  packId   String
-  pack     Pack   @relation(fields: [packId], references: [id], onDelete: Cascade)
-  key      String
-  position Int    @default(0)
-
-  @@index([packId])
-}
-
-model PackExclusiveImage {
   id       String @id @default(cuid())
   packId   String
   pack     Pack   @relation(fields: [packId], references: [id], onDelete: Cascade)

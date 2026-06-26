@@ -217,11 +217,12 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                       <div
                         key={p.id}
                         onClick={() => !disabled && toggleProduct(p.id)}
-                        style={{ borderRadius: '16px', overflow: 'hidden', border: selected ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', boxShadow: 'var(--shadow-rest)', transition: 'border-color 0.15s, opacity 0.15s' }}>
+                        className="picker-card"
+                        style={{ borderRadius: '16px', overflow: 'hidden', border: selected ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', boxShadow: 'var(--shadow-rest)', transition: 'transform 0.2s, box-shadow 0.2s, border-color 0.2s, opacity 0.15s' }}>
                         {/* Превью — квадрат 1:1 как в избранном */}
                         <div style={{ aspectRatio: '1 / 1', position: 'relative', overflow: 'hidden', background: 'var(--bg3)' }}>
                           {p.images[0]
-                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} className="picker-card-img" style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }} />
                             : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '32px', color: 'var(--muted)' }} /></div>}
                           {selected && <div style={{ position: 'absolute', inset: 0, background: 'rgba(72,128,255,0.12)' }} />}
                           {selected && (
@@ -285,6 +286,12 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
         </div>
 
       </div>
+      <style>{`
+        .picker-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+        .picker-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(72,128,255,0.18); border-color: rgba(72,128,255,0.6) !important; }
+        .picker-card:hover .picker-card-img { transform: scale(1.04); }
+        .dark .picker-card:hover { box-shadow: 0 8px 32px rgba(72,128,255,0.15); border-color: rgba(72,128,255,0.4) !important; }
+      `}</style>
     </div>
   )
 }
