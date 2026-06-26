@@ -4,13 +4,14 @@ import { useState } from 'react'
 import ImageUpload from './ImageUpload'
 import FileUpload from './FileUpload'
 import PdfUpload from './PdfUpload'
+import ProductPickerModal, { type PickerProduct } from './ProductPickerModal'
 
 const S3_ENDPOINT = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const S3_BUCKET   = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
 
 type Props = {
   categories:       { id: string; name: string }[]
-  approvedProducts: { id: string; name: string; price: number | null; images: string[] }[]
+  approvedProducts: PickerProduct[]
   onSuccess:        () => void
 }
 
@@ -20,10 +21,13 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
   const [price,         setPrice]         = useState('')
   const [categoryId,    setCategoryId]    = useState(categories[0]?.id ?? '')
   const [selectedIds,   setSelectedIds]   = useState<string[]>([])
+  const [pickerOpen,    setPickerOpen]    = useState(false)
   const [hasExclusive,  setHasExclusive]  = useState(false)
   const [exclusiveDesc, setExclusiveDesc] = useState('')
   const [extraImages,   setExtraImages]   = useState<{ fileKey: string; url: string; name: string }[]>([])
   const [exclusiveImgKeys, setExclusiveImgKeys] = useState<{ fileKey: string; url: string; name: string }[]>([])
+
+  const recentProducts = approvedProducts.slice(0, 10)
 
   // Главные фото выбранных карточек (images[0])
   const autoImages = selectedIds
@@ -146,37 +150,88 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
 
       {/* Выбор карточек */}
       <div>
-        <label style={labelStyle}>
-          Карточки модели * — выбрано {selectedIds.length} из {approvedProducts.length}
-          <span style={{ color: 'var(--muted)', fontWeight: 400 }}> (от 2 до 12)</span>
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <label style={labelStyle}>
+            Карточки * — выбрано {selectedIds.length} / 12
+            <span style={{ fontWeight: 400 }}> (от 2 до 12)</span>
+          </label>
+          {approvedProducts.length > 0 && (
+            <button type="button" onClick={() => setPickerOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}>
+              <i className="ti ti-search" style={{ fontSize: '13px' }} />
+              Найти ещё
+            </button>
+          )}
+        </div>
+
+        {/* Зона A — выбранные карточки */}
+        {selectedIds.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Выбрано:</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {selectedIds.map(id => {
+                const p = approvedProducts.find(x => x.id === id)
+                if (!p) return null
+                return (
+                  <div key={id} style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', border: '2px solid var(--accent)', background: 'var(--bg3)' }}>
+                      {p.images[0]
+                        ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '16px', color: 'var(--muted)' }} /></div>}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text)', marginTop: '3px', width: '56px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{p.name}</div>
+                    <button type="button" onClick={() => toggleProduct(id)}
+                      style={{ position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                      <i className="ti ti-x" style={{ fontSize: '9px', color: '#fff' }} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Зона B — последние 10 карточек */}
         {approvedProducts.length === 0 ? (
           <div style={{ padding: '16px', background: 'var(--bg3)', borderRadius: '10px', fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
             У вас нет одобренных моделей. Карточки должны пройти модерацию прежде чем их можно добавить в пак.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto', padding: '4px' }}>
-            {approvedProducts.map(p => {
-              const selected = selectedIds.includes(p.id)
-              return (
-                <div key={p.id} onClick={() => toggleProduct(p.id)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'rgba(72,128,255,0.07)' : 'var(--bg)', transition: 'background 0.15s, border-color 0.15s' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: 'var(--bg3)' }}>
-                    {p.images[0]
-                      ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '16px', color: 'var(--muted)' }} /></div>}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Последние добавленные:</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {recentProducts.map(p => {
+                const selected = selectedIds.includes(p.id)
+                const disabled = !selected && selectedIds.length >= 12
+                return (
+                  <div key={p.id} onClick={() => !disabled && toggleProduct(p.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer', border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'rgba(72,128,255,0.07)' : 'var(--bg)', opacity: disabled ? 0.4 : 1, transition: 'background 0.15s, border-color 0.15s' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: 'var(--bg3)' }}>
+                      {p.images[0]
+                        ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '16px', color: 'var(--muted)' }} /></div>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{p.price ? `${Number(p.price).toLocaleString('ru')} ₽` : 'Бесплатно'}</div>
+                    </div>
+                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {selected && <i className="ti ti-check" style={{ fontSize: '11px', color: '#fff' }} />}
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{p.price ? `${p.price.toLocaleString('ru')} ₽` : 'Бесплатно'}</div>
-                  </div>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {selected && <i className="ti ti-check" style={{ fontSize: '11px', color: '#fff' }} />}
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         )}
+
+        <ProductPickerModal
+          isOpen={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          products={approvedProducts}
+          selectedIds={selectedIds}
+          onConfirm={ids => setSelectedIds(ids)}
+        />
       </div>
 
       {/* Фотографии пака */}
