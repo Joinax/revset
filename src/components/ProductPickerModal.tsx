@@ -110,7 +110,7 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: 'var(--bg)', borderRadius: '16px', width: '100%', maxWidth: 'min(1200px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--bg)', borderRadius: '16px', width: '100%', maxWidth: 'min(1200px, 96vw)', height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border)' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -217,7 +217,7 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                       <div
                         key={p.id}
                         onClick={() => !disabled && toggleProduct(p.id)}
-                        style={{ borderRadius: '16px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', boxShadow: 'var(--shadow-rest)', transition: 'border-color 0.15s, opacity 0.15s' }}>
+                        style={{ borderRadius: '16px', overflow: 'hidden', border: selected ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', boxShadow: 'var(--shadow-rest)', transition: 'border-color 0.15s, opacity 0.15s' }}>
                         {/* Превью — квадрат 1:1 как в избранном */}
                         <div style={{ aspectRatio: '1 / 1', position: 'relative', overflow: 'hidden', background: 'var(--bg3)' }}>
                           {p.images[0]

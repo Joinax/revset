@@ -246,14 +246,15 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
         />
       </div>
 
-      {/* Обложка пака */}
+      {/* Фотографии пака */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Обложка — из авто-фото карточек */}
         <div>
           <label style={labelStyle}>Обложка пака</label>
           {orderedAutoImages.length > 0 ? (
             <div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Нажмите на фото, чтобы выбрать его главной обложкой пака:
+                Первая карточка определяет обложку пака в каталоге. Нажмите на другое фото, чтобы сменить обложку:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {orderedAutoImages.map((img, i) => {
@@ -277,14 +278,18 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
             </div>
           ) : (
             <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-              Выберите карточки выше — первое фото выбранной карточки станет обложкой пака
+              Выберите карточки выше — фото первой выбранной карточки станет обложкой пака
             </div>
           )}
         </div>
 
+        {/* Дополнительные фото в галерею */}
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
-            Дополнительные фото <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+          <label style={labelStyle}>
+            Фотографии галереи <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+          </label>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
+            Интерьерные снимки, постановочные фото — добавляются в галерею после обложки
           </div>
           <ImageUpload onImagesChange={(imgs) => setExtraImages(imgs)} />
         </div>
@@ -321,7 +326,7 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
               <FileUpload onUpload={key => setAssemblyKey(key)} />
             </div>
             <div>
-              <label style={labelStyle}>Превью для покупателей <span style={{ fontWeight: 400 }}>(до 6 фото)</span></label>
+              <label style={labelStyle}>Превью для покупателей <span style={{ fontWeight: 400 }}>(до 6 фото, видят только после покупки)</span></label>
               <ImageUpload onImagesChange={(imgs) => setExclusiveImgKeys(imgs)} />
             </div>
           </>

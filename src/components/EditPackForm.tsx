@@ -331,7 +331,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           {orderedAutoImages.length > 0 ? (
             <div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
-                Нажмите на фото, чтобы выбрать его главной обложкой пака:
+                Первая карточка определяет обложку пака в каталоге. Нажмите на другое фото, чтобы сменить обложку:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {orderedAutoImages.map((img, i) => {
@@ -360,10 +360,13 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           )}
         </div>
 
-        {/* Дополнительные фото */}
+        {/* Дополнительные фото в галерею */}
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
-            Дополнительные фото <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+          <label style={labelStyle}>
+            Фотографии галереи <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
+          </label>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
+            Интерьерные снимки, постановочные фото — добавляются в галерею после обложки
           </div>
 
           {existingExtraImages.length > 0 && (
@@ -437,7 +440,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
 
             {/* Эксклюзивные превью */}
             <div>
-              <label style={labelStyle}>Превью для покупателей</label>
+              <label style={labelStyle}>Превью для покупателей <span style={{ fontWeight: 400 }}>(видят только после покупки)</span></label>
               {existingExclImg.length > 0 && (
                 <div style={{ marginBottom: '8px' }}>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>Текущие (нажмите чтобы убрать):</div>

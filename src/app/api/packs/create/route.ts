@@ -118,20 +118,20 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // imageKeys (загруженные автором) идут первыми — они станут обложкой
-    // productImageKeys (авто из карточек) идут после
+    // productImageKeys (авто из карточек) идут первыми — первый ключ становится обложкой
+    // imageKeys (доп. фото из галереи) идут после
     if (productImageKeys.length > 0) {
       await db.packImage.createMany({
-        data: productImageKeys.map((key: string, i: number) => ({ packId: pack.id, key, position: imageKeys.length + i })),
+        data: productImageKeys.map((key: string, position: number) => ({ packId: pack.id, key, position })),
       })
     }
 
     const queue = await getQueue()
     const jobs: ScanFileJob[] = []
 
-    // Загруженные фото — позиции 0..N (первые, обложка)
+    // Дополнительные фото в галерею — позиции после productImageKeys
     imageKeys.forEach((fileKey, i) => {
-      const position = i
+      const position = productImageKeys.length + i
       const destKey = fileKey.replace('temp/images/', 'images/packs/')
       jobs.push({ fileKey, destKey, entityType: 'pack', entityId: pack.id, fieldName: 'packImage', position })
     })
