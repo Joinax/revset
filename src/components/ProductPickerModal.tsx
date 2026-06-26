@@ -209,7 +209,7 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                   Карточки не найдены
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                   {paginated.map(p => {
                     const selected = draftIds.includes(p.id)
                     const disabled = !selected && draftIds.length >= 12
@@ -217,27 +217,25 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                       <div
                         key={p.id}
                         onClick={() => !disabled && toggleProduct(p.id)}
-                        style={{ borderRadius: '10px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', transition: 'border-color 0.15s, opacity 0.15s, transform 0.15s', transform: selected ? 'none' : undefined }}>
-                        {/* Превью — фиксированная высота как в каталоге */}
-                        <div style={{ height: '160px', position: 'relative', overflow: 'hidden', background: 'var(--bg3)' }}>
+                        style={{ borderRadius: '16px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', boxShadow: 'var(--shadow-rest)', transition: 'border-color 0.15s, opacity 0.15s' }}>
+                        {/* Превью — квадрат 1:1 как в избранном */}
+                        <div style={{ aspectRatio: '1 / 1', position: 'relative', overflow: 'hidden', background: 'var(--bg3)' }}>
                           {p.images[0]
                             ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '32px', color: 'var(--muted)' }} /></div>}
+                          {selected && <div style={{ position: 'absolute', inset: 0, background: 'rgba(72,128,255,0.12)' }} />}
                           {selected && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(72,128,255,0.12)' }} />
-                          )}
-                          {selected && (
-                            <div style={{ position: 'absolute', top: '8px', right: '8px', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                            <div style={{ position: 'absolute', top: '8px', right: '8px', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>
                               <i className="ti ti-check" style={{ fontSize: '13px', color: '#fff' }} />
                             </div>
                           )}
                         </div>
                         {/* Инфо */}
-                        <div style={{ padding: '10px 12px 12px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '3px' }}>{p.name}</div>
-                          <div style={{ fontSize: '12px', color: selected ? 'var(--accent)' : 'var(--muted)', fontWeight: selected ? 600 : 400 }}>
-                            {p.price ? `${Number(p.price).toLocaleString('ru')} ₽` : 'Бесплатно'}
-                          </div>
+                        <div style={{ padding: '14px 16px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '8px', color: 'var(--text)' }}>{p.name}</div>
+                          {p.price !== null
+                            ? <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent)' }}>{Number(p.price).toLocaleString('ru')} ₽</span>
+                            : <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '3px 9px', borderRadius: '20px' }}>Бесплатно</span>}
                         </div>
                       </div>
                     )

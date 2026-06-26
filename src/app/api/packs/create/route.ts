@@ -118,19 +118,20 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Прямая запись изображений продуктов (уже проверены, сканирование не нужно)
+    // imageKeys (загруженные автором) идут первыми — они станут обложкой
+    // productImageKeys (авто из карточек) идут после
     if (productImageKeys.length > 0) {
       await db.packImage.createMany({
-        data: productImageKeys.map((key: string, position: number) => ({ packId: pack.id, key, position })),
+        data: productImageKeys.map((key: string, i: number) => ({ packId: pack.id, key, position: imageKeys.length + i })),
       })
     }
 
     const queue = await getQueue()
     const jobs: ScanFileJob[] = []
 
-    // Новые temp-изображения — позиции после productImageKeys
+    // Загруженные фото — позиции 0..N (первые, обложка)
     imageKeys.forEach((fileKey, i) => {
-      const position = productImageKeys.length + i
+      const position = i
       const destKey = fileKey.replace('temp/images/', 'images/packs/')
       jobs.push({ fileKey, destKey, entityType: 'pack', entityId: pack.id, fieldName: 'packImage', position })
     })

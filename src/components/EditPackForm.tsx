@@ -47,17 +47,26 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   const [newPdfKey,        setNewPdfKey]        = useState('')
   const [clearPdf,         setClearPdf]         = useState(false)
 
+  const [coverProductId, setCoverProductId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Авто-изображения из выбранных карточек
-  const autoImages = selectedIds
+  // Авто-изображения из выбранных карточек, с выбранной обложкой первой
+  const baseAutoImages = selectedIds
     .map(id => approvedProducts.find(p => p.id === id))
-    .filter((p): p is typeof approvedProducts[number] => !!p && p.images.length > 0)
-    .map(p => ({ fileKey: p.images[0], url: `${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`, name: p.name }))
+    .filter((p): p is PickerProduct => !!p && p.images.length > 0)
+    .map(p => ({ productId: p.id, fileKey: p.images[0], url: `${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`, name: p.name }))
 
+  const effectiveCoverId = coverProductId && selectedIds.includes(coverProductId)
+    ? coverProductId : selectedIds[0] ?? null
+
+  const orderedAutoImages = effectiveCoverId
+    ? [baseAutoImages.find(x => x.productId === effectiveCoverId), ...baseAutoImages.filter(x => x.productId !== effectiveCoverId)].filter((x): x is typeof baseAutoImages[number] => !!x)
+    : baseAutoImages
+
+  const autoImages = orderedAutoImages
   const autoImageKeySet  = new Set(autoImages.map(i => i.fileKey))
   const recentProducts   = approvedProducts.slice(0, 10)
 
@@ -99,7 +108,13 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   }, [packId])
 
   function toggleProduct(id: string) {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        if (coverProductId === id) setCoverProductId(null)
+        return prev.filter(x => x !== id)
+      }
+      return [...prev, id]
+    })
   }
 
   function toggleKeepImage(key: string) {
@@ -310,16 +325,50 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
 
       {/* Изображения */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Обложка — из авто-фото карточек */}
         <div>
-          <label style={labelStyle}>Обложка и фотографии пака</label>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
-            Загрузите фото которые будут показываться в карточке пака — обложка, интерьерные снимки и т.д. (до 6 штук)
+          <label style={labelStyle}>Обложка пака</label>
+          {orderedAutoImages.length > 0 ? (
+            <div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
+                Нажмите на фото, чтобы выбрать его главной обложкой пака:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {orderedAutoImages.map((img, i) => {
+                  const isCover = i === 0
+                  return (
+                    <div key={img.productId} onClick={() => setCoverProductId(img.productId)}
+                      title={isCover ? 'Это обложка пака' : 'Нажмите, чтобы сделать обложкой'}
+                      style={{ position: 'relative', width: '80px', cursor: 'pointer', flexShrink: 0 }}>
+                      <div style={{ width: '80px', height: '80px', borderRadius: '10px', overflow: 'hidden', border: `2px solid ${isCover ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--bg3)' }}>
+                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                      {isCover && (
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--accent)', fontSize: '9px', fontWeight: 700, color: '#fff', textAlign: 'center', padding: '3px 0', borderRadius: '0 0 8px 8px', letterSpacing: '0.03em' }}>
+                          ОБЛОЖКА
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              Выберите карточки выше — первое фото выбранной карточки станет обложкой пака
+            </div>
+          )}
+        </div>
+
+        {/* Дополнительные фото */}
+        <div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+            Дополнительные фото <span style={{ fontWeight: 400 }}>(необязательно, до 6 штук)</span>
           </div>
 
-          {/* Существующие ручные изображения */}
           {existingExtraImages.length > 0 && (
             <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Текущие фото (нажмите чтобы убрать):</div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>Текущие фото (нажмите чтобы убрать):</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {existingExtraImages.map(key => {
                   const kept = keepImageKeys.has(key)
@@ -336,22 +385,6 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
 
           <ImageUpload onImagesChange={imgs => setNewExtraImages(imgs)} />
         </div>
-
-        {/* Авто-фото из карточек — информационный блок */}
-        {autoImages.length > 0 && (
-          <div style={{ padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
-              Также автоматически добавятся главные фото выбранных карточек ({autoImages.length} шт.):
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {autoImages.map((img, i) => (
-                <div key={img.fileKey + i} style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)', opacity: 0.7 }}>
-                  <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* PDF */}
