@@ -109,8 +109,8 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: 'var(--bg)', borderRadius: '16px', width: '100%', maxWidth: '960px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ background: 'var(--bg)', borderRadius: '16px', width: '100%', maxWidth: 'min(1200px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border)' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -183,18 +183,18 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                 <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Добавлено в пак:</div>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
                   {selectedProducts.map(p => (
-                    <div key={p.id} style={{ flexShrink: 0, position: 'relative', width: '68px' }}>
-                      <div style={{ width: '68px', height: '68px', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg2)', border: '2px solid var(--accent)' }}>
+                    <div key={p.id} style={{ flexShrink: 0, width: '72px' }}>
+                      <div style={{ width: '72px', height: '72px', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg2)', border: '2px solid var(--accent)', position: 'relative' }}>
                         {p.images[0]
                           ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ color: 'var(--muted)', fontSize: '20px' }} /></div>}
+                        <button
+                          onClick={() => setDraftIds(prev => prev.filter(x => x !== p.id))}
+                          style={{ position: 'absolute', top: '4px', right: '4px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                          <i className="ti ti-x" style={{ fontSize: '10px', color: '#fff' }} />
+                        </button>
                       </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text)', marginTop: '3px', width: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                      <button
-                        onClick={() => setDraftIds(prev => prev.filter(x => x !== p.id))}
-                        style={{ position: 'absolute', top: '-5px', right: '-5px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                        <i className="ti ti-x" style={{ fontSize: '10px', color: '#fff' }} />
-                      </button>
+                      <div style={{ fontSize: '10px', color: 'var(--text)', marginTop: '4px', width: '72px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
                     </div>
                   ))}
                 </div>
@@ -217,20 +217,25 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                       <div
                         key={p.id}
                         onClick={() => !disabled && toggleProduct(p.id)}
-                        style={{ borderRadius: '10px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: selected ? 'rgba(72,128,255,0.06)' : 'var(--bg2)', transition: 'border-color 0.15s, opacity 0.15s', position: 'relative' }}>
-                        <div style={{ width: '100%', paddingTop: '72%', position: 'relative', background: 'var(--bg3)' }}>
+                        style={{ borderRadius: '10px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, background: 'var(--bg2)', transition: 'border-color 0.15s, opacity 0.15s, transform 0.15s', transform: selected ? 'none' : undefined }}>
+                        {/* Превью — фиксированная высота как в каталоге */}
+                        <div style={{ height: '160px', position: 'relative', overflow: 'hidden', background: 'var(--bg3)' }}>
                           {p.images[0]
-                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '26px', color: 'var(--muted)' }} /></div>}
+                            ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${p.images[0]}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-file-3d" style={{ fontSize: '32px', color: 'var(--muted)' }} /></div>}
                           {selected && (
-                            <div style={{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <i className="ti ti-check" style={{ fontSize: '12px', color: '#fff' }} />
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(72,128,255,0.12)' }} />
+                          )}
+                          {selected && (
+                            <div style={{ position: 'absolute', top: '8px', right: '8px', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                              <i className="ti ti-check" style={{ fontSize: '13px', color: '#fff' }} />
                             </div>
                           )}
                         </div>
-                        <div style={{ padding: '8px 10px 10px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                        {/* Инфо */}
+                        <div style={{ padding: '10px 12px 12px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '3px' }}>{p.name}</div>
+                          <div style={{ fontSize: '12px', color: selected ? 'var(--accent)' : 'var(--muted)', fontWeight: selected ? 600 : 400 }}>
                             {p.price ? `${Number(p.price).toLocaleString('ru')} ₽` : 'Бесплатно'}
                           </div>
                         </div>

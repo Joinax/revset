@@ -235,38 +235,30 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
       </div>
 
       {/* Фотографии пака */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <label style={labelStyle}>Фотографии пака</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div>
+          <label style={labelStyle}>Обложка и фотографии пака</label>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
+            Загрузите фото которые будут показываться в карточке пака — обложка, интерьерные снимки и т.д. (до 6 штук)
+          </div>
+          <ImageUpload onImagesChange={(imgs) => setExtraImages(imgs)} />
+        </div>
 
-        {/* Авто-изображения из выбранных карточек */}
+        {/* Авто-фото из карточек — информационный блок */}
         {autoImages.length > 0 && (
-          <div>
+          <div style={{ padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px' }}>
             <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
-              Главные фото выбранных карточек ({autoImages.length} шт.) — добавляются автоматически:
+              Также автоматически добавятся главные фото выбранных карточек ({autoImages.length} шт.):
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {autoImages.map((img, i) => (
-                <div key={img.fileKey + i} style={{ position: 'relative', width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <div key={img.fileKey + i} style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)', opacity: 0.7 }}>
                   <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {autoImages.length === 0 && (
-          <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-            Выберите карточки выше — их главные фото появятся здесь автоматически
-          </div>
-        )}
-
-        {/* Дополнительные фото от автора */}
-        <div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
-            Дополнительные фото (необязательно, до 6 штук):
-          </div>
-          <ImageUpload onImagesChange={(imgs) => setExtraImages(imgs)} />
-        </div>
       </div>
 
       {/* PDF-инструкция */}

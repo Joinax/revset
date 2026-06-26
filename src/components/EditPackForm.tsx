@@ -309,46 +309,49 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
       </div>
 
       {/* Изображения */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <label style={labelStyle}>Изображения пака</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div>
+          <label style={labelStyle}>Обложка и фотографии пака</label>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
+            Загрузите фото которые будут показываться в карточке пака — обложка, интерьерные снимки и т.д. (до 6 штук)
+          </div>
 
-        {/* Авто-изображения из карточек */}
+          {/* Существующие ручные изображения */}
+          {existingExtraImages.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Текущие фото (нажмите чтобы убрать):</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {existingExtraImages.map(key => {
+                  const kept = keepImageKeys.has(key)
+                  return (
+                    <div key={key} onClick={() => toggleKeepImage(key)} style={{ width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${kept ? 'var(--border)' : 'var(--danger)'}`, position: 'relative', cursor: 'pointer', opacity: kept ? 1 : 0.4 }}>
+                      <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {!kept && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}><i className="ti ti-x" style={{ color: '#fff', fontSize: '18px' }} /></div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <ImageUpload onImagesChange={imgs => setNewExtraImages(imgs)} />
+        </div>
+
+        {/* Авто-фото из карточек — информационный блок */}
         {autoImages.length > 0 && (
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Главные фото выбранных карточек (добавляются автоматически):</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+              Также автоматически добавятся главные фото выбранных карточек ({autoImages.length} шт.):
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {autoImages.map((img, i) => (
-                <div key={img.fileKey + i} style={{ width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '2px solid var(--accent)', position: 'relative' }}>
+                <div key={img.fileKey + i} style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)', opacity: 0.7 }}>
                   <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Существующие ручные изображения */}
-        {existingExtraImages.length > 0 && (
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>Ранее загруженные фото (нажмите чтобы убрать):</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {existingExtraImages.map(key => {
-                const kept = keepImageKeys.has(key)
-                return (
-                  <div key={key} onClick={() => toggleKeepImage(key)} style={{ width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${kept ? 'var(--border)' : 'var(--danger)'}`, position: 'relative', cursor: 'pointer', opacity: kept ? 1 : 0.4 }}>
-                    <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    {!kept && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}><i className="ti ti-x" style={{ color: '#fff', fontSize: '18px' }} /></div>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Новые доп. фото */}
-        <div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>Добавить новые фото (до 6 штук):</div>
-          <ImageUpload onImagesChange={imgs => setNewExtraImages(imgs)} />
-        </div>
       </div>
 
       {/* PDF */}
