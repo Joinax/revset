@@ -502,7 +502,7 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                           {/* Цена + бейдж справа */}
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: '3px' }}>
                             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                              {p.price.toLocaleString('ru')} ₽
+                              {p.price === 0 ? 'Бесплатно' : `${p.price.toLocaleString('ru')} ₽`}
                             </span>
                             {p.savingsPct > 0 && (
                               <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '1px 6px', borderRadius: '20px', border: '1px solid rgba(29,158,117,0.2)', whiteSpace: 'nowrap' }}>

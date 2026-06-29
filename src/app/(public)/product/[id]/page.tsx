@@ -20,7 +20,7 @@ export default async function ProductPage({
     db.product.findUnique({
       where: { id },
       include: {
-        author:   { select: { id: true, name: true, image: true, authorProfile: true } },
+        author:   { select: { id: true, name: true, image: true, authorProfile: { select: { bio: true, city: true, isVerified: true, totalSales: true } } } },
         category: { select: { name: true, slug: true } },
         reviews: {
           include: {

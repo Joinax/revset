@@ -58,7 +58,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['admin.revset.test:3000', 'revset.test:3000'],
+  allowedDevOrigins: ['admin.revset.test', 'revset.test'],
 
   serverExternalPackages: [
     '@prisma/client',
