@@ -32,6 +32,7 @@ const STATUSES = [
   { value: 'PENDING',      label: 'На модерации' },
   { value: 'APPROVED',     label: 'Одобрены' },
   { value: 'REJECTED',     label: 'Отклонены' },
+  { value: 'DRAFT',        label: 'Снятые' },
 ]
 
 const MODERATION_COLORS: Record<string, { label: string; color: string; bg: string }> = {
@@ -41,6 +42,7 @@ const MODERATION_COLORS: Record<string, { label: string; color: string; bg: stri
   BUNDLE_FAILED:   { label: 'Ошибка архива',          color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
   APPROVED:        { label: 'Одобрен',                color: 'var(--admin-success)', bg: 'rgba(0,182,155,0.1)' },
   REJECTED:        { label: 'Отклонён',               color: 'var(--admin-danger)',  bg: 'rgba(239,56,38,0.1)' },
+  DRAFT:           { label: 'Снят с публикации',      color: 'var(--admin-muted)',   bg: 'var(--admin-bg2)' },
 }
 
 export default function AdminPacksClient({

@@ -328,6 +328,7 @@ model Pack {
   category         Category           @relation(fields: [categoryId], references: [id])
   moderationStatus ModerationStatus   @default(DRAFT)
   moderationComment String?
+  wasPublished     Boolean            @default(false)
 
   assemblyFileKey  String?
   pdfKey           String?

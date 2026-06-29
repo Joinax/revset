@@ -12,6 +12,9 @@ export type LogEvent =
   | 'uncaught_exception'
   | 'unhandled_rejection'
   | 'worker_error'
+  | 'bundle_recovery'
+  | 'bundle_recovery_failed'
+  | 'bundle_recovery_error'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 МБ — ротация
 

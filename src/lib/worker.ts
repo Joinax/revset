@@ -5,6 +5,7 @@ import { s3, S3_BUCKET } from './s3'
 import { db } from './db'
 import { getQueue, QUEUE_SCAN_FILE, type ScanFileJob } from './queue'
 import { scanFile } from './scanner'
+import { emitAdminEvent } from './admin-events'
 
 export async function startWorker() {
   const queue = await getQueue()
@@ -123,6 +124,7 @@ async function markPending(
         where: { id: entityId },
         data:  { moderationStatus: 'PENDING' },
       })
+      emitAdminEvent({ type: 'product', id: entityId })
     }
 
   } else if (entityType === 'avatar') {
@@ -163,6 +165,7 @@ async function markPending(
         where: { id: entityId },
         data:  { moderationStatus: 'PENDING' },
       })
+      emitAdminEvent({ type: 'pack', id: entityId })
     }
   }
 }

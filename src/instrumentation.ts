@@ -57,6 +57,28 @@ export async function register() {
       })
     })
 
+    // --- Восстановление паков застрявших в BUILDING_BUNDLE ---
+    // Если сервер был перезапущен во время генерации архива, паки остаются
+    // в статусе BUILDING_BUNDLE. Перезапускаем генерацию при старте.
+    Promise.all([
+      import('./lib/db'),
+      import('./lib/generate-pack-bundle'),
+    ]).then(async ([{ db }, { generatePackBundle }]) => {
+      const stuck = await db.pack.findMany({
+        where:  { moderationStatus: 'BUILDING_BUNDLE' },
+        select: { id: true, name: true },
+      })
+      for (const pack of stuck) {
+        logSystem('info', 'bundle_recovery', `Восстановление генерации архива: пак ${pack.id} («${pack.name}»)`)
+        generatePackBundle(pack.id).catch(err => {
+          logSystem('error', 'bundle_recovery_failed',
+            `Ошибка восстановления архива для пака ${pack.id}: ${err.message}`, { stack: err.stack })
+        })
+      }
+    }).catch(err => {
+      logSystem('error', 'bundle_recovery_error', `Не удалось проверить паки в BUILDING_BUNDLE: ${err.message}`)
+    })
+
     // --- Запись факта старта ---
     logSystem('info', 'startup', `Сервер запущен (PID ${process.pid})`, {
       nodeVersion: process.version,

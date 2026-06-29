@@ -384,6 +384,7 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [avatarLoading,    setAvatarLoading]    = useState(false)
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
+  const [unpublishLoading, setUnpublishLoading] = useState<string | null>(null)
   const [packSearch,       setPackSearch]       = useState('')
   const [packStatusFilter, setPackStatusFilter] = useState<'all' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all')
   const [editPackId,       setEditPackId]       = useState<string | null>(null)
@@ -410,6 +411,20 @@ export default function AccountClient({ user, orders, favorites, followings = []
     }, 20000)
     return () => clearInterval(interval)
   }, [router, user.isAuthor])
+
+  async function handlePackUnpublish(packId: string) {
+    setUnpublishLoading(packId)
+    try {
+      await fetch(`/api/packs/${packId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ unpublish: true }),
+      })
+      router.refresh()
+    } finally {
+      setUnpublishLoading(null)
+    }
+  }
 
   async function handlePackResubmit(packId: string) {
     setResubmitLoading(packId)
@@ -1514,6 +1529,8 @@ export default function AccountClient({ user, orders, favorites, followings = []
                     const badge          = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
                     const isRejected     = pack.moderationStatus === 'REJECTED'
                     const isResubmitting = resubmitLoading === pack.id
+                    const isInModeration = ['PENDING', 'PENDING_SCAN', 'BUILDING_BUNDLE'].includes(pack.moderationStatus)
+                    const isApproved     = pack.moderationStatus === 'APPROVED'
                     return (
                       <div key={pack.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 20px', borderBottom: i < filteredPacks.length - 1 ? '1px solid var(--border)' : 'none' }} className="model-row">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -1545,13 +1562,13 @@ export default function AccountClient({ user, orders, favorites, followings = []
 
                           {/* Действия */}
                           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                            {pack.moderationStatus === 'APPROVED' && (
+                            {isApproved && (
                               <Link href={`/pack/${pack.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', transition: 'border-color 0.15s, color 0.15s' }} className="model-action-btn">
                                 <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                                 Просмотр
                               </Link>
                             )}
-                            {(pack.moderationStatus === 'DRAFT' || pack.moderationStatus === 'REJECTED' || pack.moderationStatus === 'PENDING') && (
+                            {!isInModeration && (
                               <button onClick={() => { setEditPackId(pack.id); setActiveTab('author-edit-pack') }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', cursor: 'pointer', fontFamily: 'inherit' }}
                                 className="model-edit-btn">

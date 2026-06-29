@@ -62,6 +62,7 @@ const patchSchema = z.object({
   categoryId:      z.string().optional(),
   productIds:      z.array(z.string()).min(2).max(12).optional(),
   submit:          z.boolean().optional(),
+  unpublish:       z.boolean().optional(),
   productImageKeys: z.array(z.string()).max(12).optional(),
   keepImageKeys:   z.array(z.string()).max(6).optional(),
   newImageKeys:    z.array(z.string()).max(6).optional(),
@@ -85,8 +86,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const pack = await db.pack.findFirst({ where: { id, authorId: session.user.id } })
     if (!pack) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (!['DRAFT', 'REJECTED'].includes(pack.moderationStatus)) {
-      return NextResponse.json({ error: 'Редактирование возможно только для черновиков и отклонённых паков' }, { status: 400 })
+    if (['PENDING', 'PENDING_SCAN', 'BUILDING_BUNDLE'].includes(pack.moderationStatus)) {
+      return NextResponse.json({ error: 'Пак сейчас на модерации — дождитесь решения' }, { status: 400 })
     }
 
     const parsed = patchSchema.safeParse(await req.json())
@@ -95,14 +96,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const {
-      productIds, submit,
+      productIds, submit, unpublish,
       productImageKeys, keepImageKeys, newImageKeys,
       assemblyFileKey: newAssemblyKey, pdfKey: newPdfKey,
       ...rest
     } = parsed.data
 
-    if (submit === true && pack.moderationStatus !== 'REJECTED') {
-      return NextResponse.json({ error: 'Повторная отправка возможна только для отклонённого пака' }, { status: 400 })
+    // Снятие с публикации — возвращает в черновик без модерации
+    if (unpublish === true) {
+      if (pack.moderationStatus !== 'APPROVED') {
+        return NextResponse.json({ error: 'Снять с публикации можно только опубликованный пак' }, { status: 400 })
+      }
+      const updated = await db.pack.update({
+        where: { id },
+        data:  { moderationStatus: 'DRAFT' },
+        include: {
+          products: { include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } }, orderBy: { position: 'asc' } },
+          images:   { orderBy: { position: 'asc' } },
+        },
+      })
+      return NextResponse.json(serializeDecimal(updated))
+    }
+
+    if (submit === true && !['REJECTED', 'DRAFT'].includes(pack.moderationStatus)) {
+      return NextResponse.json({ error: 'Отправка на проверку возможна только для черновиков и отклонённых паков' }, { status: 400 })
     }
 
     if (newImageKeys?.length && !newImageKeys.every(k => k.startsWith('temp/images/'))) {
@@ -165,6 +182,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const scanCount = (newImageKeys?.length ?? 0) + (newAssemblyKey ? 1 : 0) + (newPdfKey ? 1 : 0)
     const hasImageUpdate = productImageKeys !== undefined || keepImageKeys !== undefined || newImageKeys !== undefined
 
+    // Если пак был опубликован и автор вносит изменения без файлов — отправить на повторную модерацию
+    const needsRemoderation = pack.moderationStatus === 'APPROVED' && scanCount === 0 && submit !== true
+
     const updated = await db.$transaction(async (tx) => {
       if (productIds) {
         const existing = await tx.packProduct.findMany({ where: { packId: id }, select: { productId: true } })
@@ -200,6 +220,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ...(newPdfKey      === null && { pdfKey:          null }),
           ...(scanCount > 0 && { moderationStatus: 'PENDING_SCAN', pendingScanCount: scanCount }),
           ...(submit === true && scanCount === 0 && { moderationStatus: 'PENDING', moderationComment: null }),
+          ...(needsRemoderation && { moderationStatus: 'PENDING', moderationComment: null }),
         },
         include: {
           products: { include: { product: { select: { id: true, name: true, price: true, moderationStatus: true } } }, orderBy: { position: 'asc' } },

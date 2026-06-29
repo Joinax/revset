@@ -132,6 +132,7 @@ export default function AdminPackDetailClient({ pack }: Props) {
 
   const isUpdated = (new Date(pack.updatedAt).getTime() - new Date(pack.createdAt).getTime()) > 60_000
 
+
   async function handleAction(action: 'approve' | 'reject' | 'retry_bundle') {
     setError(null)
     setLoading(true)
@@ -360,11 +361,13 @@ export default function AdminPackDetailClient({ pack }: Props) {
               </div>
             )}
 
-            {isBundleFailed && (
+            {(isBundleFailed || isBuilding) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--admin-danger)', padding: '12px', background: 'rgba(239,56,38,0.08)', borderRadius: '10px' }}>
-                  <i className="ti ti-alert-triangle" style={{ marginRight: '6px' }} />
-                  Ошибка формирования архива. Файлы пака доступны, попробуйте повторить.
+                <div style={{ fontSize: '13px', color: isBundleFailed ? 'var(--admin-danger)' : 'var(--admin-accent)', padding: '12px', background: isBundleFailed ? 'rgba(239,56,38,0.08)' : 'rgba(72,128,255,0.08)', borderRadius: '10px' }}>
+                  <i className={`ti ${isBundleFailed ? 'ti-alert-triangle' : 'ti-loader'}`} style={{ marginRight: '6px' }} />
+                  {isBundleFailed
+                    ? 'Ошибка формирования архива. Файлы пака доступны, попробуйте повторить.'
+                    : 'Архив формируется. Если процесс завис — запустите повторно.'}
                 </div>
                 <button onClick={() => handleAction('retry_bundle')} disabled={loading}
                   style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: 'var(--admin-accent)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: loading ? 0.6 : 1 }}>

@@ -9,6 +9,7 @@ import { useModerationCount } from '@/hooks/useModerationCount'
 import { useReviewsCount } from '@/hooks/useReviewsCount'
 import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
 import { usePacksModerationCount } from '@/hooks/usePacksModerationCount'
+import { useAdminEvents } from '@/hooks/useAdminEvents'
 
 const links = [
   { href: '/admin/dashboard',    icon: 'ti-layout-dashboard', label: 'Дашборд' },
@@ -30,6 +31,8 @@ export default function AdminSidebar() {
   const [expanded, setExpanded] = useState(true)
   const [hovered, setHovered]   = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
+
+  useAdminEvents()
 
   const { count: verificationCount,    isLoading: vLoading }  = useVerificationCount()
   const { count: moderationCount,      isLoading: mLoading }  = useModerationCount()

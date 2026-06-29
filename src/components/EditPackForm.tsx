@@ -41,9 +41,12 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
   const [newPdfKey,        setNewPdfKey]        = useState('')
   const [clearPdf,         setClearPdf]         = useState(false)
 
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState(false)
+  const [saving,           setSaving]           = useState(false)
+  const [error,            setError]            = useState('')
+  const [success,          setSuccess]          = useState(false)
+  const [packStatus,       setPackStatus]       = useState('')
+  const [unpublishConfirm, setUnpublishConfirm] = useState(false)
+  const [unpublishing,     setUnpublishing]     = useState(false)
 
   // Авто-фото из выбранных карточек — порядок selectedIds определяет обложку
   const autoImages = selectedIds
@@ -97,6 +100,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         setDescription(pack.description ?? '')
         setPrice(pack.price > 0 ? String(pack.price) : '')
         setCategoryId(pack.categoryId ?? '')
+        setPackStatus(pack.moderationStatus ?? '')
         setSelectedIds((pack.products ?? []).map((pp: { productId: string }) => pp.productId))
 
         const imgKeys: string[] = (pack.images ?? []).map((i: { key: string }) => i.key)
@@ -128,7 +132,22 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
     })
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleUnpublish() {
+    setUnpublishing(true)
+    try {
+      await fetch(`/api/packs/${packId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ unpublish: true }),
+      })
+      onSuccess()
+    } catch {
+      setError('Ошибка соединения')
+      setUnpublishing(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent, submitForReview = false) {
     e.preventDefault()
     setError('')
 
@@ -165,6 +184,7 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           newImageKeys:     newExtraImages.map(i => i.fileKey),
           assemblyFileKey:  clearAssembly ? null : (newAssemblyKey || undefined),
           pdfKey:           clearPdf      ? null : (newPdfKey      || undefined),
+          ...(submitForReview && { submit: true }),
         }),
       })
 
@@ -434,6 +454,32 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
         </div>
       )}
 
+      {packStatus === 'APPROVED' && (
+        <div style={{ padding: '14px', borderRadius: '10px', border: '1px solid rgba(226,75,74,0.25)', background: 'rgba(226,75,74,0.06)' }}>
+          {!unpublishConfirm ? (
+            <button type="button" onClick={() => setUnpublishConfirm(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+              <i className="ti ti-eye-off" style={{ fontSize: '15px' }} />
+              Снять с публикации
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--danger)', fontWeight: 600 }}>Пак будет снят с публикации и переведён в черновик. Вы уверены?</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" onClick={() => setUnpublishConfirm(false)}
+                  style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Отмена
+                </button>
+                <button type="button" onClick={handleUnpublish} disabled={unpublishing}
+                  style={{ flex: 1, padding: '9px', borderRadius: '8px', border: 'none', background: 'var(--danger)', color: '#fff', fontSize: '13px', cursor: unpublishing ? 'not-allowed' : 'pointer', opacity: unpublishing ? 0.7 : 1, fontFamily: 'inherit' }}>
+                  {unpublishing ? 'Снимаем...' : 'Да, снять'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <button type="button" onClick={onCancel}
           style={{ padding: '13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '13px', cursor: 'pointer' }}>
@@ -444,6 +490,17 @@ export default function EditPackForm({ packId, categories, approvedProducts, onS
           {saving ? 'Сохраняем...' : 'Сохранить изменения'}
         </button>
       </div>
+
+      {['DRAFT', 'REJECTED'].includes(packStatus) && (
+        <button
+          type="submit"
+          onClick={e => handleSubmit(e, true)}
+          disabled={saving || selectedIds.length < 2}
+          style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: saving || selectedIds.length < 2 ? 'var(--bg3)' : '#1D9E75', color: '#fff', fontSize: '13px', fontFamily: 'var(--font-unbounded), sans-serif', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+        >
+          {packStatus === 'REJECTED' ? 'Отправить на повторную проверку' : 'Отправить на модерацию'}
+        </button>
+      )}
 
     </form>
   )

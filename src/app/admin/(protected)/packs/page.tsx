@@ -19,7 +19,7 @@ export default async function AdminPacksPage({
   const page     = Math.max(1, Number(params.page ?? 1))
   const PER_PAGE = 15
 
-  const VALID_STATUSES = ['PENDING_SCAN', 'PENDING', 'APPROVED', 'REJECTED', 'BUILDING_BUNDLE', 'BUNDLE_FAILED']
+  const VALID_STATUSES = ['PENDING_SCAN', 'PENDING', 'APPROVED', 'REJECTED', 'BUILDING_BUNDLE', 'BUNDLE_FAILED', 'DRAFT']
 
   const where: Record<string, unknown> = {}
   if (VALID_STATUSES.includes(status)) where.moderationStatus = status

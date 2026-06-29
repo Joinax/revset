@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { z } from 'zod'
 import { logAdminAction } from '@/lib/audit-log'
 import { generatePackBundle } from '@/lib/generate-pack-bundle'
+import { emitAdminEvent } from '@/lib/admin-events'
 
 const schema = z.object({
   packId:            z.string().min(1).max(50),
@@ -37,8 +38,8 @@ export async function POST(request: NextRequest) {
 
   // Повторная генерация архива при ошибке
   if (action === 'retry_bundle') {
-    if (pack.moderationStatus !== 'BUNDLE_FAILED') {
-      return NextResponse.json({ error: 'Повторная генерация возможна только при статусе BUNDLE_FAILED' }, { status: 400 })
+    if (!['BUNDLE_FAILED', 'BUILDING_BUNDLE'].includes(pack.moderationStatus)) {
+      return NextResponse.json({ error: 'Повторная генерация возможна только при статусе BUNDLE_FAILED или BUILDING_BUNDLE' }, { status: 400 })
     }
 
     await db.pack.update({
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       data:  { moderationStatus: 'BUILDING_BUNDLE', moderationComment: null },
     })
 
+    emitAdminEvent({ type: 'pack', id: packId })
     // ZIP собирается в фоне; уведомление автору отправится внутри generatePackBundle
     generatePackBundle(packId).catch(err =>
       console.error(`[admin/packs] bundle generation failed for ${packId}:`, err)
@@ -101,6 +103,8 @@ export async function POST(request: NextRequest) {
         moderationComment: moderationComment?.trim() || null,
       },
     })
+
+    emitAdminEvent({ type: 'pack', id: packId })
 
     await db.notification.create({
       data: {

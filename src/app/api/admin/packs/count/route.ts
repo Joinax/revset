@@ -16,7 +16,12 @@ export async function GET() {
   }
 
   const count = await db.pack.count({
-    where: { moderationStatus: { in: ['PENDING', 'PENDING_SCAN'] } },
+    where: {
+      OR: [
+        { moderationStatus: { in: ['PENDING', 'PENDING_SCAN'] } },
+        { moderationStatus: 'DRAFT', wasPublished: true },
+      ],
+    },
   })
 
   return NextResponse.json({ count })
