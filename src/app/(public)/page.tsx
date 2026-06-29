@@ -1,8 +1,8 @@
 // src/app/page.tsx
-import Hero             from '@/components/Hero'
-import CategoryGrid     from '@/components/CategoryGrid'
-import { ProductCard }  from '@/components/ProductCard'
-import CTABlock         from '@/components/CTABlock'
+import Hero               from '@/components/Hero'
+import CategoryGrid       from '@/components/CategoryGrid'
+import TrendingCarousel   from '@/components/TrendingCarousel'
+import CTABlock           from '@/components/CTABlock'
 import { db }           from '@/lib/db'
 import { auth }         from '@/lib/auth'
 import { headers }      from 'next/headers'
@@ -100,11 +100,7 @@ export default async function HomePage() {
               Смотреть все →
             </Link>
           </div>
-          <div className="home-products-grid">
-            {mappedProducts.map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <TrendingCarousel products={mappedProducts} />
         </section>
 
         <CTABlock />
@@ -118,19 +114,8 @@ export default async function HomePage() {
           margin: 0 auto;
           padding: 0 48px 40px;
         }
-        .home-products-grid {
-          display: grid;
-          grid-template-columns: repeat(5, 1fr);
-          gap: 16px;
-        }
-        @media (max-width: 1200px) { .home-products-grid { grid-template-columns: repeat(4, 1fr); } }
-        @media (max-width: 900px)  { .home-products-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 768px)  {
-          .home-products-grid { grid-template-columns: repeat(2, 1fr); }
-          .page-content { padding: 0 16px; }
-        }
-        @media (max-width: 480px)  { .home-products-grid { grid-template-columns: 1fr; } }
-        @media (min-width: 641px)  { .bottom-spacer { display: none; } }
+        @media (max-width: 768px) { .page-content { padding: 0 16px; } }
+        @media (min-width: 641px) { .bottom-spacer { display: none; } }
       `}</style>
     </div>
   )
