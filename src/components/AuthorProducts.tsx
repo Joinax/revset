@@ -3,8 +3,10 @@
 
 import { useState, useMemo } from 'react'
 import { ProductCard } from './ProductCard'
+import { PackCard } from './PackCard'
 
-type Product = {
+type ProductItem = {
+  kind: 'product'
   id: string; name: string; author: string
   price: number | null; rating: number | null
   reviewCount: number; isNew: boolean
@@ -12,9 +14,17 @@ type Product = {
   categoryName: string; revitVersions: string[]
 }
 
+type PackItem = {
+  kind: 'pack'
+  id: string; name: string; author: string
+  price: number; rating: number | null; reviewCount: number
+  coverImage: string | null; cardCount: number; categoryName: string
+}
+
+type CatalogItem = ProductItem | PackItem
+
 type Props = {
-  products: Product[]
-  authorName: string
+  items: CatalogItem[]
 }
 
 const SORT_OPTIONS = [
@@ -27,7 +37,7 @@ const SORT_OPTIONS = [
 
 const REVIT_VERSIONS = ['2025', '2024', '2023', '2022', '2021']
 
-export default function AuthorProducts({ products, authorName }: Props) {
+export default function AuthorProducts({ items }: Props) {
   const [search,    setSearch]    = useState('')
   const [sort,      setSort]      = useState('popular')
   const [category,  setCategory]  = useState('')
@@ -36,31 +46,48 @@ export default function AuthorProducts({ products, authorName }: Props) {
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const categories = useMemo(() => {
-    const set = new Set(products.map(p => p.categoryName))
+    const set = new Set(items.map(p => p.categoryName))
     return Array.from(set).sort()
-  }, [products])
+  }, [items])
 
   const filtered = useMemo(() => {
-    let list = [...products]
+    let list = [...items]
 
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(p => p.name.toLowerCase().includes(q))
     }
     if (category) list = list.filter(p => p.categoryName === category)
-    if (priceType === 'free') list = list.filter(p => p.price === null)
-    if (priceType === 'paid') list = list.filter(p => p.price !== null)
-    if (versions.length > 0) list = list.filter(p => versions.some(v => p.revitVersions.includes(v)))
+    if (priceType === 'free') list = list.filter(p => p.price === null || p.price === 0)
+    if (priceType === 'paid') list = list.filter(p => p.price !== null && p.price > 0)
+    // Фильтр версий применяется только к карточкам; паки всегда проходят
+    if (versions.length > 0) {
+      list = list.filter(p =>
+        p.kind === 'pack' || versions.some(v => p.revitVersions.includes(v))
+      )
+    }
 
     switch (sort) {
-      case 'newest':    list.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0)); break
-      case 'cheap':     list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0)); break
-      case 'expensive': list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0)); break
-      case 'rating':    list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)); break
+      case 'newest':
+        list.sort((a, b) => {
+          const an = a.kind === 'product' ? (a.isNew ? 1 : 0) : 0
+          const bn = b.kind === 'product' ? (b.isNew ? 1 : 0) : 0
+          return bn - an
+        })
+        break
+      case 'cheap':
+        list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+        break
+      case 'expensive':
+        list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+        break
+      case 'rating':
+        list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        break
     }
 
     return list
-  }, [products, search, sort, category, priceType, versions])
+  }, [items, search, sort, category, priceType, versions])
 
   const hasFilters = category || priceType !== 'all' || versions.length > 0
 
@@ -72,12 +99,13 @@ export default function AuthorProducts({ products, authorName }: Props) {
     setCategory(''); setPriceType('all'); setVersions([])
   }
 
+  const total = items.length
+
   return (
     <div>
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
 
-        {/* Кнопка фильтров — слева, согласована с остальным тулбаром */}
         <button
           onClick={() => setFiltersOpen(o => !o)}
           className="filters-btn"
@@ -100,30 +128,27 @@ export default function AuthorProducts({ products, authorName }: Props) {
           )}
         </button>
 
-        {/* Поиск */}
         <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
           <i className="ti ti-search" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '15px', color: 'var(--muted)', pointerEvents: 'none' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск по семействам..."
-            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px 10px 40px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border-color .15s' }}
+            placeholder="Поиск..."
+            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 36px 10px 40px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border-color .15s' }}
             className="author-search-input"
           />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="ti ti-x" style={{ fontSize: '14px' }} />
+            </button>
+          )}
         </div>
 
-        {/* Сортировка */}
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <select
             value={sort}
             onChange={e => setSort(e.target.value)}
-            style={{
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: '10px', padding: '10px 40px 10px 14px',
-              fontSize: '13px', color: 'var(--text)', outline: 'none',
-              cursor: 'pointer', fontFamily: 'inherit',
-              appearance: 'none', WebkitAppearance: 'none',
-            }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 40px 10px 14px', fontSize: '13px', color: 'var(--text)', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', appearance: 'none', WebkitAppearance: 'none' }}
             className="author-sort-select"
           >
             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -136,7 +161,6 @@ export default function AuthorProducts({ products, authorName }: Props) {
       {filtersOpen && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
 
-          {/* Категория */}
           {categories.length > 0 && (
             <div>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Категория</div>
@@ -155,7 +179,6 @@ export default function AuthorProducts({ products, authorName }: Props) {
             </div>
           )}
 
-          {/* Цена */}
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Цена</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -168,7 +191,6 @@ export default function AuthorProducts({ products, authorName }: Props) {
             </div>
           </div>
 
-          {/* Версия Revit */}
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Версия Revit</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -181,7 +203,6 @@ export default function AuthorProducts({ products, authorName }: Props) {
             </div>
           </div>
 
-          {/* Сброс */}
           {hasFilters && (
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
               <button onClick={resetFilters} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} className="reset-filters-btn">
@@ -192,7 +213,7 @@ export default function AuthorProducts({ products, authorName }: Props) {
         </div>
       )}
 
-      {/* Активные фильтры — теги */}
+      {/* Активные фильтры */}
       {hasFilters && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
           {category && (
@@ -218,10 +239,9 @@ export default function AuthorProducts({ products, authorName }: Props) {
 
       {/* Счётчик */}
       <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
-        {filtered.length === products.length
-          ? `${products.length} семейств`
-          : `Найдено ${filtered.length} из ${products.length}`
-        }
+        {filtered.length === total
+          ? `${total} ${total === 1 ? 'работа' : total < 5 ? 'работы' : 'работ'}`
+          : `Найдено ${filtered.length} из ${total}`}
       </div>
 
       {/* Сетка */}
@@ -233,7 +253,11 @@ export default function AuthorProducts({ products, authorName }: Props) {
         </div>
       ) : (
         <div className="author-products-grid">
-          {filtered.map(p => <ProductCard key={p.id} product={p} />)}
+          {filtered.map(item =>
+            item.kind === 'pack'
+              ? <PackCard key={`pack-${item.id}`} pack={item} />
+              : <ProductCard key={`product-${item.id}`} product={item} />
+          )}
         </div>
       )}
 

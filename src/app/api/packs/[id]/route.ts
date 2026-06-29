@@ -118,7 +118,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (productIds) {
       const validProducts = await db.product.findMany({
         where: { id: { in: productIds }, authorId: session.user.id, moderationStatus: 'APPROVED' },
-        select: { id: true, images: true },
+        select: { id: true, images: true, price: true },
       })
       if (validProducts.length !== productIds.length) {
         return NextResponse.json({ error: 'Все карточки должны быть одобрены и принадлежать вам' }, { status: 403 })
@@ -127,6 +127,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const validSet = new Set(validProducts.flatMap((p: { id: string; images: string[] }) => p.images))
         if (productImageKeys.some((k: string) => !validSet.has(k))) {
           return NextResponse.json({ error: 'Некорректные ключи изображений продуктов' }, { status: 400 })
+        }
+      }
+
+      const paidPrices = validProducts
+        .map(p => (p.price ? Number(p.price) : null))
+        .filter((v): v is number => v !== null && v > 0)
+      if (paidPrices.length > 0) {
+        const minCardPrice = Math.min(...paidPrices)
+        const effectivePrice = rest.price !== undefined ? rest.price : Number(pack.price)
+        if (effectivePrice < minCardPrice) {
+          return NextResponse.json(
+            { error: `Пак содержит платные карточки. Минимальная цена пака: ${minCardPrice} ₽` },
+            { status: 400 }
+          )
+        }
+      }
+    } else if (rest.price !== undefined) {
+      const currentProducts = await db.product.findMany({
+        where: { packs: { some: { packId: id } } },
+        select: { price: true },
+      })
+      const paidPrices = currentProducts
+        .map(p => (p.price ? Number(p.price) : null))
+        .filter((v): v is number => v !== null && v > 0)
+      if (paidPrices.length > 0) {
+        const minCardPrice = Math.min(...paidPrices)
+        if (rest.price < minCardPrice) {
+          return NextResponse.json(
+            { error: `Пак содержит платные карточки. Минимальная цена пака: ${minCardPrice} ₽` },
+            { status: 400 }
+          )
         }
       }
     }

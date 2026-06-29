@@ -42,6 +42,7 @@ export default async function ProductPage({
         pack: {
           select: {
             id: true, name: true, price: true,
+            images: { orderBy: { position: 'asc' as const }, take: 1 },
             products: { include: { product: { select: { price: true } } } },
           },
         },
@@ -59,7 +60,7 @@ export default async function ProductPage({
     const packPrice = Number(pp.pack.price)
     const savingsPct = totalProductsPrice > 0
       ? Math.round((totalProductsPrice - packPrice) / totalProductsPrice * 100) : 0
-    return { id: pp.pack.id, name: pp.pack.name, price: packPrice, savingsPct }
+    return { id: pp.pack.id, name: pp.pack.name, price: packPrice, savingsPct, coverImage: pp.pack.images[0]?.key ?? null }
   })
 
   // Проверяем куплен ли товар и в избранном ли он

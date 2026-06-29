@@ -34,7 +34,7 @@ type Product = {
 }
 
 type Category = { slug: string; name: string }
-type Props = { product: Product; categories: Category[] }
+type Props = { product: Product; categories: Category[]; backTo?: string }
 
 const REVIT_VERSIONS = ['2022', '2023', '2024', '2025']
 
@@ -141,7 +141,7 @@ function FileBlock({
   )
 }
 
-export default function AdminFamilyDetailClient({ product, categories }: Props) {
+export default function AdminFamilyDetailClient({ product, categories, backTo }: Props) {
   const router = useRouter()
   const { mutate: mutateModerationCount } = useModerationCount()
   const isBlocked = product.isBlocked
@@ -157,6 +157,9 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
   const [fileError,         setFileError]         = useState('')
   const [retryLoading,      setRetryLoading]      = useState(false)
   const [retryError,        setRetryError]        = useState('')
+  const [sidebarComment,    setSidebarComment]    = useState(product.moderationComment ?? '')
+  const [sidebarLoading,    setSidebarLoading]    = useState(false)
+  const [sidebarError,      setSidebarError]      = useState<string | null>(null)
 
   async function handleRetryBundle() {
     setRetryLoading(true)
@@ -240,6 +243,38 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
     setTimeout(() => { setSaved(false); router.refresh() }, 1500)
   }
 
+  async function handleQuickAction(action: 'approve' | 'reject') {
+    if (action === 'reject' && !sidebarComment.trim()) {
+      setSidebarError('Укажите причину отклонения — автор должен понимать, что исправить')
+      return
+    }
+    setSidebarError(null)
+    setSidebarLoading(true)
+    const res = await fetch(`/api/products/${product.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, description,
+        price:             price || null,
+        categorySlug,
+        revitVersions:     versions,
+        isPublished:       action === 'approve',
+        isNew,
+        asAdmin:           true,
+        moderationComment: sidebarComment.trim() || null,
+      }),
+    })
+    setSidebarLoading(false)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Ошибка сервера' }))
+      setSidebarError(err.error ?? 'Ошибка сервера')
+      return
+    }
+    mutateModerationCount()
+    if (action === 'approve') router.push('/admin/families')
+    else router.refresh()
+  }
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })
 
@@ -250,14 +285,21 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Back */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={() => router.back()} style={{
-          display: 'flex', alignItems: 'center', gap: '6px',
-          fontSize: '13px', color: 'var(--admin-muted)',
-          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-        }}>
-          <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
-          Назад
-        </button>
+        {backTo ? (
+          <Link href={backTo} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--admin-muted)', textDecoration: 'none' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
+            Вернуться к модерации пака
+          </Link>
+        ) : (
+          <button onClick={() => router.back()} style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            fontSize: '13px', color: 'var(--admin-muted)',
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+          }}>
+            <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
+            Назад
+          </button>
+        )}
         <Link href={`/product/${product.id}`} target="_blank" style={{
           fontSize: '13px', color: 'var(--admin-accent)', textDecoration: 'none',
           display: 'flex', alignItems: 'center', gap: '4px',
@@ -386,161 +428,221 @@ export default function AdminFamilyDetailClient({ product, categories }: Props) 
         </div>
       </div>
 
-      {/* Author */}
-      <Section title="Автор">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--admin-text)' }}>{product.authorName}</div>
-            <div style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>{product.authorEmail}</div>
-          </div>
-          <Link href={`/admin/users/${product.authorId}`} style={{
-            fontSize: '13px', color: 'var(--admin-accent)', textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: '4px',
-          }}>
-            Профиль <i className="ti ti-arrow-right" style={{ fontSize: '14px' }} />
-          </Link>
-        </div>
-      </Section>
+      <div style={!isBlocked ? { display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start' } : {}}>
 
-      {/* Материалы на проверку */}
-      <Section title="Материалы на проверку">
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>
-            Фото ({product.images.length})
-          </label>
-          {product.images.length === 0 ? (
-            <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Автор не приложил фото</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
-              {product.images.map((img, i) => (
-                <a key={img + i} href={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} target="_blank" rel="noreferrer"
-                  style={{ display: 'block', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
-                  <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>RFA файл</label>
-          {!bimFileName ? (
-            <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Файл не найден</p>
-          ) : (
-            <FileBlock
-              bimFileName={bimFileName ?? ""}
-              bimUploadedAt={bimUploadedAt}
-              productCreatedAt={product.createdAt}
-              fileDownloading={fileDownloading}
-              fileError={fileError}
-              onDownload={handleDownloadFile}
-            />
-          )}
-
-        </div>
-      </Section>
-
-      {/* Edit form */}
-      {!isBlocked && <Section title="Редактирование">
-        {/* Name */}
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Название</label>
-          <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} />
-        </div>
-
-        {/* Description */}
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Описание</label>
-          <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-            value={description} onChange={e => setDescription(e.target.value)} />
-        </div>
-
-        {/* Category + Price */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Категория</label>
-            <select style={inputStyle} value={categorySlug} onChange={e => setCategorySlug(e.target.value)}>
-              {categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Цена (₽) — пусто = бесплатно</label>
-            <input style={inputStyle} type="number" min="0" value={price}
-              onChange={e => setPrice(e.target.value)} placeholder="Бесплатно" />
-          </div>
-        </div>
-
-        {/* Revit versions */}
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>Версии Revit</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {REVIT_VERSIONS.map(v => (
-              <button key={v} type="button" onClick={() => toggleVersion(v)} style={{
-                padding: '6px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer',
-                border: `1px solid ${versions.includes(v) ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
-                background: versions.includes(v) ? 'rgba(72,128,255,0.1)' : 'transparent',
-                color: versions.includes(v) ? 'var(--admin-accent)' : 'var(--admin-muted)',
-                fontWeight: versions.includes(v) ? 600 : 400,
+          {/* Author */}
+          <Section title="Автор">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--admin-text)' }}>{product.authorName}</div>
+                <div style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>{product.authorEmail}</div>
+              </div>
+              <Link href={`/admin/users/${product.authorId}`} style={{
+                fontSize: '13px', color: 'var(--admin-accent)', textDecoration: 'none',
+                display: 'flex', alignItems: 'center', gap: '4px',
               }}>
-                {v}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Toggles */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Опубликовано</div>
-              <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Видно всем пользователям</div>
+                Профиль <i className="ti ti-arrow-right" style={{ fontSize: '14px' }} />
+              </Link>
             </div>
-            <Toggle checked={isPublished} onChange={setIsPublished} />
-          </div>
+          </Section>
 
-          {!isPublished && (
+          {/* Материалы на проверку */}
+          <Section title="Материалы на проверку">
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-danger)', display: 'block', marginBottom: '6px' }}>
-                Причина отклонения — видна автору
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>
+                Фото ({product.images.length})
               </label>
-              <textarea
-                style={{ ...inputStyle, resize: 'vertical', minHeight: '70px', borderColor: !comment.trim() ? 'rgba(239,56,38,0.4)' : 'var(--admin-border)' }}
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Например: замените фото на скрин из Revit, без водяных знаков; уточните описание категории применения"
-              />
+              {product.images.length === 0 ? (
+                <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Автор не приложил фото</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+                  {product.images.map((img, i) => (
+                    <a key={img + i} href={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} target="_blank" rel="noreferrer"
+                      style={{ display: 'block', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
+                      <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${img}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>RFA файл</label>
+              {!bimFileName ? (
+                <p style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>Файл не найден</p>
+              ) : (
+                <FileBlock
+                  bimFileName={bimFileName ?? ''}
+                  bimUploadedAt={bimUploadedAt}
+                  productCreatedAt={product.createdAt}
+                  fileDownloading={fileDownloading}
+                  fileError={fileError}
+                  onDownload={handleDownloadFile}
+                />
+              )}
+            </div>
+          </Section>
+
+          {/* Edit form */}
+          {!isBlocked && (
+            <Section title="Редактирование">
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Название</label>
+                <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Описание</label>
+                <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
+                  value={description} onChange={e => setDescription(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Категория</label>
+                  <select style={inputStyle} value={categorySlug} onChange={e => setCategorySlug(e.target.value)}>
+                    {categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '6px' }}>Цена (₽) — пусто = бесплатно</label>
+                  <input style={inputStyle} type="number" min="0" value={price}
+                    onChange={e => setPrice(e.target.value)} placeholder="Бесплатно" />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--admin-muted)', display: 'block', marginBottom: '8px' }}>Версии Revit</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {REVIT_VERSIONS.map(v => (
+                    <button key={v} type="button" onClick={() => toggleVersion(v)} style={{
+                      padding: '6px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer',
+                      border: `1px solid ${versions.includes(v) ? 'var(--admin-accent)' : 'var(--admin-border)'}`,
+                      background: versions.includes(v) ? 'rgba(72,128,255,0.1)' : 'transparent',
+                      color: versions.includes(v) ? 'var(--admin-accent)' : 'var(--admin-muted)',
+                      fontWeight: versions.includes(v) ? 600 : 400,
+                    }}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Новинка</div>
+                  <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Отображается бейдж "Новинка"</div>
+                </div>
+                <Toggle checked={isNew} onChange={setIsNew} />
+              </div>
+
+              {error && (
+                <div style={{ fontSize: '13px', color: 'var(--admin-danger)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ti ti-alert-circle" style={{ fontSize: '15px' }} />{error}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {/* Save */}
+          {!isBlocked && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={handleSave} disabled={saving} style={{
+                padding: '11px 28px', borderRadius: '10px', border: 'none',
+                background: saved ? 'var(--admin-success)' : 'var(--admin-accent)',
+                color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                transition: 'background 0.2s',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}>
+                <i className={`ti ${saved ? 'ti-check' : 'ti-device-floppy'}`} />
+                {saving ? 'Сохранение...' : saved ? 'Сохранено!' : 'Сохранить изменения'}
+              </button>
             </div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)' }}>Новинка</div>
-              <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>Отображается бейдж "Новинка"</div>
-            </div>
-            <Toggle checked={isNew} onChange={setIsNew} />
-          </div>
         </div>
 
-        {error && (
-          <div style={{ fontSize: '13px', color: 'var(--admin-danger)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="ti ti-alert-circle" style={{ fontSize: '15px' }} />{error}
+        {/* Right sidebar — decision panel */}
+        {!isBlocked && (
+          <div style={{ position: 'sticky', top: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '14px', padding: '20px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px', color: 'var(--admin-text)' }}>Решение модератора</div>
+
+              <textarea
+                value={sidebarComment}
+                onChange={e => setSidebarComment(e.target.value)}
+                placeholder="Комментарий автору (необязательно для одобрения, рекомендуется для отклонения)"
+                style={{ width: '100%', minHeight: '80px', padding: '10px', background: 'var(--admin-bg2)', border: '1px solid var(--admin-border)', borderRadius: '8px', fontSize: '13px', color: 'var(--admin-text)', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none', marginBottom: '12px' }}
+              />
+
+              {product.moderationStatus === 'PENDING' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button onClick={() => handleQuickAction('approve')} disabled={sidebarLoading} style={{
+                    width: '100%', padding: '11px', borderRadius: '10px', border: 'none',
+                    background: 'var(--admin-success)', color: '#fff', fontSize: '13px', fontWeight: 700,
+                    cursor: sidebarLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: sidebarLoading ? 0.6 : 1,
+                  }}>
+                    <i className="ti ti-check" /> Одобрить семейство
+                  </button>
+                  <button onClick={() => handleQuickAction('reject')} disabled={sidebarLoading} style={{
+                    width: '100%', padding: '11px', borderRadius: '10px', border: '1px solid var(--admin-border)',
+                    background: 'transparent', color: 'var(--admin-danger)', fontSize: '13px', fontWeight: 700,
+                    cursor: sidebarLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: sidebarLoading ? 0.6 : 1,
+                  }}>
+                    <i className="ti ti-x" /> Отклонить
+                  </button>
+                  {sidebarError && <div style={{ color: 'var(--admin-danger)', fontSize: '13px' }}>{sidebarError}</div>}
+                </div>
+              )}
+
+              {product.moderationStatus === 'APPROVED' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(0,182,155,0.08)', fontSize: '13px', color: 'var(--admin-success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ti ti-check" /> Семейство опубликовано
+                  </div>
+                  <button onClick={() => handleQuickAction('reject')} disabled={sidebarLoading} style={{
+                    width: '100%', padding: '11px', borderRadius: '10px', border: '1px solid var(--admin-border)',
+                    background: 'transparent', color: 'var(--admin-danger)', fontSize: '13px', fontWeight: 700,
+                    cursor: sidebarLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: sidebarLoading ? 0.6 : 1,
+                  }}>
+                    <i className="ti ti-x" /> Снять с публикации
+                  </button>
+                  {sidebarError && <div style={{ color: 'var(--admin-danger)', fontSize: '13px' }}>{sidebarError}</div>}
+                </div>
+              )}
+
+              {product.moderationStatus === 'REJECTED' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,56,38,0.08)', fontSize: '13px', color: 'var(--admin-danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ti ti-x" /> Отклонено
+                  </div>
+                  {product.moderationComment && (
+                    <div style={{ fontSize: '12px', color: 'var(--admin-muted)', lineHeight: 1.5 }}>{product.moderationComment}</div>
+                  )}
+                  <button onClick={() => handleQuickAction('approve')} disabled={sidebarLoading} style={{
+                    width: '100%', padding: '11px', borderRadius: '10px', border: 'none',
+                    background: 'var(--admin-success)', color: '#fff', fontSize: '13px', fontWeight: 700,
+                    cursor: sidebarLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: sidebarLoading ? 0.6 : 1,
+                  }}>
+                    <i className="ti ti-check" /> Одобрить
+                  </button>
+                  {sidebarError && <div style={{ color: 'var(--admin-danger)', fontSize: '13px' }}>{sidebarError}</div>}
+                </div>
+              )}
+            </div>
           </div>
         )}
-      </Section>}
-
-      {/* Save */}
-      {!isBlocked && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={handleSave} disabled={saving}
-          style={{
-            padding: '11px 28px', borderRadius: '10px', border: 'none',
-            background: saved ? 'var(--admin-success)' : 'var(--admin-accent)',
-            color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-            transition: 'background 0.2s',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
-          <i className={`ti ${saved ? 'ti-check' : 'ti-device-floppy'}`} />
-          {saving ? 'Сохранение...' : saved ? 'Сохранено!' : 'Сохранить изменения'}
-        </button>
-      </div>}
+      </div>
     </div>
   )
 }

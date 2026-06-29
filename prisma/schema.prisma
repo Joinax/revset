@@ -404,3 +404,17 @@ model DownloadLog {
   @@index([userId, packId])
   @@index([userId, createdAt])
 }
+
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   // info | warn | error | fatal
+  event     String   // startup | shutdown | memory_warning | uncaught_exception | unhandled_rejection | worker_error
+  message   String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([level])
+  @@index([event])
+}

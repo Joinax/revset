@@ -61,10 +61,23 @@ export async function POST(req: NextRequest) {
 
     const products = await db.product.findMany({
       where: { id: { in: productIds }, authorId: session.user.id, moderationStatus: 'APPROVED' },
-      select: { id: true, images: true },
+      select: { id: true, images: true, price: true },
     })
     if (products.length !== productIds.length) {
       return NextResponse.json({ error: 'Все карточки должны быть одобрены и принадлежать вам' }, { status: 403 })
+    }
+
+    const paidPrices = products
+      .map(p => (p.price ? Number(p.price) : null))
+      .filter((v): v is number => v !== null && v > 0)
+    if (paidPrices.length > 0) {
+      const minCardPrice = Math.min(...paidPrices)
+      if (price < minCardPrice) {
+        return NextResponse.json(
+          { error: `Пак содержит платные карточки. Минимальная цена пака: ${minCardPrice} ₽` },
+          { status: 400 }
+        )
+      }
     }
 
     if (productImageKeys.length > 0) {

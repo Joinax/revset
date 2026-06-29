@@ -1,6 +1,7 @@
 import { ZipArchive } from 'archiver'
-import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
-import { Readable } from 'stream'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
+import { PassThrough, Readable } from 'stream'
 import { s3, S3_BUCKET } from './s3'
 import { db } from './db'
 import { notifyAdmins } from './notify-admins'
@@ -17,13 +18,29 @@ export async function generatePackBundle(packId: string): Promise<void> {
   })
   if (!pack) throw new Error(`Pack ${packId} not found`)
 
+  const bundleKey = `packs/${packId}/bundle.zip`
+
   try {
     const archive = new ZipArchive({ zlib: { level: 6 } })
-    const chunks: Buffer[] = []
-    archive.on('data', (chunk: Buffer) => chunks.push(chunk))
+    const passThrough = new PassThrough()
 
-    const waitFinalize = new Promise<void>((resolve, reject) => {
-      archive.on('finish', resolve)
+    // Стрим архива напрямую в S3 — никакого буфера в памяти
+    archive.pipe(passThrough)
+
+    const upload = new Upload({
+      client: s3,
+      params: {
+        Bucket:      S3_BUCKET,
+        Key:         bundleKey,
+        Body:        passThrough,
+        ContentType: 'application/zip',
+      },
+      queueSize:  4,
+      partSize:   10 * 1024 * 1024, // 10 МБ на часть
+      leavePartsOnError: false,
+    })
+
+    const archiveError = new Promise<never>((_, reject) => {
       archive.on('error', reject)
     })
 
@@ -41,7 +58,6 @@ export async function generatePackBundle(packId: string): Promise<void> {
       if (!obj.Body) continue
       const ext = fileKey.split('.').pop() ?? 'rfa'
       const safeName = item.product.name.replace(/[^a-zA-Z0-9а-яА-Я _-]/g, '_')
-      // Prefix with position to prevent filename collisions
       archive.append(obj.Body as Readable, { name: `${item.position + 1}_${safeName}.${ext}` })
     }
 
@@ -61,19 +77,10 @@ export async function generatePackBundle(packId: string): Promise<void> {
     }
 
     await archive.finalize()
-    await waitFinalize
 
-    const zipBuffer = Buffer.concat(chunks)
-    const bundleKey = `packs/${packId}/bundle.zip`
+    // Ждём завершения стрима или ошибки архиватора
+    await Promise.race([upload.done(), archiveError])
 
-    await s3.send(new PutObjectCommand({
-      Bucket:      S3_BUCKET,
-      Key:         bundleKey,
-      Body:        zipBuffer,
-      ContentType: 'application/zip',
-    }))
-
-    // Архив готов — публикуем пак и уведомляем автора
     await db.pack.update({
       where: { id: packId },
       data:  { bundleKey, moderationStatus: 'APPROVED' },
@@ -90,7 +97,6 @@ export async function generatePackBundle(packId: string): Promise<void> {
     }).catch(() => {})
 
   } catch (err) {
-    // Генерация провалилась — уведомляем модераторов
     await db.pack.update({
       where: { id: packId },
       data:  { moderationStatus: 'BUNDLE_FAILED' },

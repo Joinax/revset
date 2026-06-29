@@ -8,6 +8,7 @@ import { useVerificationCount } from '@/hooks/useVerificationCount'
 import { useModerationCount } from '@/hooks/useModerationCount'
 import { useReviewsCount } from '@/hooks/useReviewsCount'
 import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
+import { usePacksModerationCount } from '@/hooks/usePacksModerationCount'
 
 const links = [
   { href: '/admin/dashboard',    icon: 'ti-layout-dashboard', label: 'Дашборд' },
@@ -30,26 +31,29 @@ export default function AdminSidebar() {
   const [hovered, setHovered]   = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
 
-  const { count: verificationCount, isLoading: vLoading } = useVerificationCount()
-  const { count: moderationCount,     isLoading: mLoading } = useModerationCount()
-  const { count: reviewsCount,         isLoading: rLoading } = useReviewsCount()
+  const { count: verificationCount,    isLoading: vLoading }  = useVerificationCount()
+  const { count: moderationCount,      isLoading: mLoading }  = useModerationCount()
+  const { count: reviewsCount,         isLoading: rLoading }  = useReviewsCount()
   const { count: reviewCommentsCount,  isLoading: rcLoading } = useReviewCommentsCount()
+  const { count: packsCount,           isLoading: pLoading }  = usePacksModerationCount()
 
   // Карта badge-счётчиков по href — легко добавлять новые в будущем
   const badgeCounts: Record<string, number> = {
-    '/admin/verification': verificationCount,
-    '/admin/families':          moderationCount,
-    '/admin/reviews':           reviewsCount,
-    '/admin/review-comments':  reviewCommentsCount,
+    '/admin/verification':   verificationCount,
+    '/admin/families':       moderationCount,
+    '/admin/packs':          packsCount,
+    '/admin/reviews':        reviewsCount,
+    '/admin/review-comments': reviewCommentsCount,
   }
 
   // До первой загрузки SWR не показываем бейдж вообще —
   // иначе на долю секунды мигнёт "0" перед реальным значением
   const badgeLoading: Record<string, boolean> = {
-    '/admin/verification': vLoading,
-    '/admin/families':          mLoading,
-    '/admin/reviews':           rLoading,
-    '/admin/review-comments':  rcLoading,
+    '/admin/verification':   vLoading,
+    '/admin/families':       mLoading,
+    '/admin/packs':          pLoading,
+    '/admin/reviews':        rLoading,
+    '/admin/review-comments': rcLoading,
   }
 
   const W = expanded ? 240 : 72

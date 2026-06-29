@@ -20,7 +20,7 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
   const { id } = await params
   const { from } = await searchParams
 
-  const [author, session] = await Promise.all([
+  const [author, packs, session] = await Promise.all([
     db.user.findUnique({
       where: { id },
       include: {
@@ -35,6 +35,16 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
           },
         },
         _count: { select: { followers: true } },
+      },
+    }),
+    db.pack.findMany({
+      where:   { authorId: id, moderationStatus: 'APPROVED' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        images:   { orderBy: { position: 'asc' }, take: 1 },
+        reviews:  { select: { rating: true } },
+        category: { select: { name: true } },
+        _count:   { select: { products: true, reviews: true } },
       },
     }),
     auth.api.getSession({ headers: await headers() }),
@@ -61,10 +71,22 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
       return MONTHS_GENITIVE[w] ?? w
     })
 
-  const mappedProducts = author.products.map(p => ({
+  const authorName = author.name ?? 'Автор'
+
+  type CatalogItem =
+    | { kind: 'product'; id: string; name: string; author: string; price: number | null
+        rating: number | null; reviewCount: number; isNew: boolean
+        emoji: string; previewBg: string; images: string[]
+        categoryName: string; revitVersions: string[] }
+    | { kind: 'pack'; id: string; name: string; author: string; price: number
+        rating: number | null; reviewCount: number
+        coverImage: string | null; cardCount: number; categoryName: string }
+
+  const mappedProducts: CatalogItem[] = author.products.map(p => ({
+    kind:          'product' as const,
     id:            p.id,
     name:          p.name,
-    author:        author.name ?? 'Автор',
+    author:        authorName,
     price:         p.price !== null ? Number(p.price) : null,
     rating:        p.reviews.length > 0
       ? Math.round(p.reviews.reduce((s, r) => s + r.rating, 0) / p.reviews.length * 10) / 10
@@ -77,6 +99,23 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
     categoryName:  p.category.name,
     revitVersions: p.revitVersions,
   }))
+
+  const mappedPacks: CatalogItem[] = packs.map(p => ({
+    kind:         'pack' as const,
+    id:           p.id,
+    name:         p.name,
+    author:       authorName,
+    price:        Number(p.price),
+    rating:       p.reviews.length > 0
+      ? Math.round(p.reviews.reduce((s, r) => s + r.rating, 0) / p.reviews.length * 10) / 10
+      : null,
+    reviewCount:  p._count.reviews,
+    coverImage:   p.images[0]?.key ?? null,
+    cardCount:    p._count.products,
+    categoryName: p.category.name,
+  }))
+
+  const allItems: CatalogItem[] = [...mappedProducts, ...mappedPacks]
 
   const isOwnProfile = session?.user?.id === id
 
@@ -145,16 +184,14 @@ export default async function AuthorPage({ params, searchParams }: { params: Pro
         </div>
 
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 64px 48px' }}>
-
-
-          {mappedProducts.length === 0 ? (
+          {allItems.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--muted)' }}>
               <i className="ti ti-file-3d" style={{ fontSize: '48px', display: 'block', marginBottom: '16px', opacity: 0.25 }} />
-              <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>Нет опубликованных моделей</p>
+              <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>Нет опубликованных работ</p>
               <p style={{ fontSize: '13px' }}>Этот автор пока не загрузил ни одной модели</p>
             </div>
           ) : (
-            <AuthorProducts products={mappedProducts} authorName={author.name ?? 'Автор'} />
+            <AuthorProducts items={allItems} />
           )}
         </div>
       </div>

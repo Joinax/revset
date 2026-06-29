@@ -8,18 +8,54 @@ import AdminLogsClient from './AdminLogsClient'
 export default async function AdminLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; adminId?: string; page?: string }>
+  searchParams: Promise<{ action?: string; adminId?: string; page?: string; tab?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session || session.user.role !== 'admin') redirect('/')
 
-  const params  = await searchParams
-  const action  = params.action  ?? 'all'
-  const adminId = params.adminId ?? 'all'
-  const page    = Math.max(1, Number(params.page ?? 1))
+  const params = await searchParams
+  const tab    = params.tab === 'system' ? 'system' : 'admin'
+  const page   = Math.max(1, Number(params.page ?? 1))
   const PER_PAGE = 30
 
-  const where: any = {}
+  if (tab === 'system') {
+    const [systemLogs, total] = await Promise.all([
+      db.systemLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
+      }),
+      db.systemLog.count(),
+    ])
+
+    return (
+      <AdminLogsClient
+        tab="system"
+        logs={[]}
+        admins={[]}
+        total={0}
+        currentPage={1}
+        perPage={PER_PAGE}
+        currentAction="all"
+        currentAdminId="all"
+        systemLogs={systemLogs.map(l => ({
+          id:        l.id,
+          level:     l.level,
+          event:     l.event,
+          message:   l.message,
+          details:   l.details as Record<string, unknown> | null,
+          createdAt: l.createdAt.toISOString(),
+        }))}
+        systemTotal={total}
+        systemPage={page}
+      />
+    )
+  }
+
+  const action  = params.action  ?? 'all'
+  const adminId = params.adminId ?? 'all'
+
+  const where: Record<string, unknown> = {}
   if (action !== 'all')  where.action  = action
   if (adminId !== 'all') where.adminId = adminId
 
@@ -34,7 +70,6 @@ export default async function AdminLogsPage({
       },
     }),
     db.adminAuditLog.count({ where }),
-    // Список админов для фильтра — только те, кто реально что-то делал
     db.adminAuditLog.findMany({
       distinct: ['adminId'],
       select: { admin: { select: { id: true, name: true } } },
@@ -43,6 +78,7 @@ export default async function AdminLogsPage({
 
   return (
     <AdminLogsClient
+      tab="admin"
       logs={logs.map(l => ({
         id:         l.id,
         action:     l.action,
@@ -60,6 +96,9 @@ export default async function AdminLogsPage({
       perPage={PER_PAGE}
       currentAction={action}
       currentAdminId={adminId}
+      systemLogs={[]}
+      systemTotal={0}
+      systemPage={1}
     />
   )
 }

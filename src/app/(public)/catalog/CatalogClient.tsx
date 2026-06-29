@@ -5,20 +5,30 @@ import { useState, useTransition, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { ProductCard } from '@/components/ProductCard'
+import { PackCard } from '@/components/PackCard'
 
-type Product = {
+type ProductItem = {
+  kind: 'product'
   id: string; name: string; author: string; price: number | null
   rating: number | null; reviewCount: number; isNew: boolean
   emoji: string; previewBg: string; revitVersions: string[]; categorySlug: string
   isFavorited?: boolean; isInCart?: boolean; isPurchased?: boolean; images?: string[]
 }
+type PackItem = {
+  kind: 'pack'
+  id: string; name: string; author: string; price: number
+  rating: number | null; reviewCount: number
+  coverImage: string | null; cardCount: number
+  isInCart?: boolean; isPurchased?: boolean
+}
+type CatalogItem = ProductItem | PackItem
 type Category = { slug: string; name: string; emoji: string; iconBg: string; id: string }
 type CurrentParams = {
   q: string; sort: string; page: string; category: string
   versions: string; price: string; priceMin: string; priceMax: string
 }
 type Props = {
-  products: Product[]; categories: Category[]
+  items: CatalogItem[]; categories: Category[]
   total: number; perPage: number; currentPage: number; currentParams: CurrentParams
 }
 
@@ -30,7 +40,7 @@ const SORT_OPTIONS = [
 ]
 const REVIT_VERSIONS = ['2025', '2024', '2023', '2022', '2021 и ниже']
 
-export default function CatalogClient({ products, categories, total, perPage, currentPage, currentParams }: Props) {
+export default function CatalogClient({ items, categories, total, perPage, currentPage, currentParams }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
@@ -183,7 +193,7 @@ export default function CatalogClient({ products, categories, total, perPage, cu
               {/* Заголовок + поиск + сортировка */}
               <div style={{ marginBottom: '24px' }}>
                 <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 16px', letterSpacing: '-0.02em' }}>
-                  {activeCategory ? activeCategory.name : `${total} семейств`}
+                  {activeCategory ? activeCategory.name : `${total} позиций`}
                 </h1>
 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -192,8 +202,13 @@ export default function CatalogClient({ products, categories, total, perPage, cu
                     <i className="ti ti-search" style={{ position: 'absolute', left: '14px', fontSize: '16px', color: 'var(--muted)', pointerEvents: 'none' }} />
                     <input value={search} onChange={e => handleSearch(e.target.value)}
                       placeholder="Поиск в каталоге..."
-                      style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px 10px 40px', color: 'var(--text)', fontSize: '14px', outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }}
+                      style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 36px 10px 40px', color: 'var(--text)', fontSize: '14px', outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }}
                       className="catalog-search" />
+                    {search && (
+                      <button onClick={() => handleSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <i className="ti ti-x" style={{ fontSize: '14px' }} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Сортировка */}
@@ -242,9 +257,13 @@ export default function CatalogClient({ products, categories, total, perPage, cu
               )}
 
               {/* Сетка товаров */}
-              {products.length > 0 ? (
+              {items.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', opacity: isPending ? 0.6 : 1, transition: 'opacity .2s' }}>
-                  {products.map(p => <ProductCard key={p.id} product={p} />)}
+                  {items.map(item =>
+                    item.kind === 'pack'
+                      ? <PackCard key={`pack-${item.id}`} pack={item} />
+                      : <ProductCard key={`product-${item.id}`} product={item} />
+                  )}
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--muted)' }}>
@@ -303,7 +322,7 @@ export default function CatalogClient({ products, categories, total, perPage, cu
             <div style={{ padding: '0 20px 24px' }}>
               <button onClick={() => setDrawerOpen(false)}
                 style={{ width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '10px', padding: '13px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
-                Показать {total} моделей
+                Показать {total}
               </button>
             </div>
           </div>

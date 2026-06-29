@@ -69,6 +69,11 @@ export default function Navbar() {
                 placeholder="Поиск семейств для Revit..."
                 className="nav-search-input"
               />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <i className="ti ti-x" style={{ fontSize: '16px' }} />
+                </button>
+              )}
             </form>
           )}
 
@@ -147,13 +152,20 @@ export default function Navbar() {
       {menuOpen && (
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '12px 20px 20px' }}>
           <form onSubmit={e => { handleSearch(e); setMenuOpen(false) }} style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Поиск по моделям..."
-              style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '9px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none' }}
-            />
-            <button type="submit" style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '9px 14px', color: '#fff', cursor: 'pointer' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Поиск по моделям..."
+                style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '9px 36px 9px 14px', color: 'var(--text)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+                  <i className="ti ti-x" style={{ fontSize: '14px' }} />
+                </button>
+              )}
+            </div>
+            <button type="submit" style={{ background: 'var(--accent)', border: 'none', borderRadius: '8px', padding: '9px 14px', color: '#fff', cursor: 'pointer', flexShrink: 0 }}>
               <i className="ti ti-search" style={{ fontSize: '16px' }} />
             </button>
           </form>

@@ -1,16 +1,16 @@
 // src/lib/queue.ts
 import { PgBoss } from 'pg-boss'
 
-let boss: PgBoss | null = null
+// Promise-singleton: гарантирует одну инициализацию при любом числе
+// конкурентных вызовов (worker + API-роуты стартуют параллельно).
+let bossPromise: Promise<PgBoss> | null = null
 
-export async function getQueue(): Promise<PgBoss> {
-  if (boss) return boss
-
+async function initQueue(): Promise<PgBoss> {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set')
   }
 
-  boss = new PgBoss(process.env.DATABASE_URL)
+  const boss = new PgBoss(process.env.DATABASE_URL)
 
   boss.on('error', (err) => {
     console.error('[pg-boss error]', err)
@@ -19,6 +19,17 @@ export async function getQueue(): Promise<PgBoss> {
   await boss.start()
   await boss.createQueue(QUEUE_SCAN_FILE)
   return boss
+}
+
+export function getQueue(): Promise<PgBoss> {
+  if (!bossPromise) {
+    bossPromise = initQueue().catch(err => {
+      // Сбрасываем промис при ошибке — следующий вызов попробует снова
+      bossPromise = null
+      throw err
+    })
+  }
+  return bossPromise
 }
 
 export const QUEUE_SCAN_FILE = 'scan-file'

@@ -42,7 +42,7 @@ type AuthorFilters = { status: string; price: string; sort: string; query: strin
 type AuthorPack = {
   id: string; name: string; price: number
   moderationStatus: string; moderationComment: string | null
-  createdAt: string; images: string[]
+  createdAt: string; images: string[]; cardCount: number
 }
 
 type AuthorReview = {
@@ -100,7 +100,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 
 const MODERATION_LABELS: Record<ModerationStatus, { label: string; color: string; bg: string }> = {
   DRAFT:           { label: 'Черновик',              color: 'var(--muted)',  bg: 'var(--bg3)' },
-  PENDING_SCAN:    { label: 'Проверка безопасности', color: '#6366F1',       bg: 'rgba(99,102,241,0.1)' },
+  PENDING_SCAN:    { label: 'На модерации',           color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
   PENDING:         { label: 'На модерации',          color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
   BUILDING_BUNDLE: { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
   BUNDLE_FAILED:   { label: 'На модерации', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
@@ -165,9 +165,14 @@ function SubscriptionsTab({ followings }: { followings: Following[] }) {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Поиск по авторам..."
-              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px 10px 40px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border-color .15s' }}
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 36px 10px 40px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border-color .15s' }}
               className="sub-search"
             />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="ti ti-x" style={{ fontSize: '14px' }} />
+              </button>
+            )}
           </div>
 
           {filtered.length === 0 ? (
@@ -379,6 +384,8 @@ export default function AccountClient({ user, orders, favorites, followings = []
   const [avatarLoading,    setAvatarLoading]    = useState(false)
   const [resubmitLoading,  setResubmitLoading]  = useState<string | null>(null)
   const [resubmitError,    setResubmitError]    = useState<Record<string, string>>({})
+  const [packSearch,       setPackSearch]       = useState('')
+  const [packStatusFilter, setPackStatusFilter] = useState<'all' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all')
   const [editPackId,       setEditPackId]       = useState<string | null>(null)
   const [editProductId,    setEditProductId]    = useState<string | null>(null)
 
@@ -451,6 +458,11 @@ export default function AccountClient({ user, orders, favorites, followings = []
   }, [search])
 
   const filteredAP = authorProducts
+  const filteredPacks = authorPacks.filter(p => {
+    if (packStatusFilter !== 'all' && p.moderationStatus !== packStatusFilter) return false
+    if (packSearch && !p.name.toLowerCase().includes(packSearch.toLowerCase())) return false
+    return true
+  })
   const nav         = buildNav(user.isAuthor, authorStats?.totalProducts ?? 0, authorStats?.rejectedCount ?? 0)
   const stats       = authorStats
 
@@ -1168,8 +1180,15 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 </button>
               </div>
 
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
-                style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', color: 'var(--text)', fontSize: '13px', outline: 'none', marginBottom: '12px', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
+                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 36px 10px 16px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                {search && (
+                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="ti ti-x" style={{ fontSize: '14px' }} />
+                  </button>
+                )}
+              </div>
 
               <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '4px', background: 'var(--bg2)', borderRadius: '10px', padding: '4px' }}>
@@ -1449,76 +1468,111 @@ export default function AccountClient({ user, orders, favorites, followings = []
 
           {/* ── Мои паки ── */}
           {activeTab === 'author-packs' && user.isAuthor && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div id="author-packs">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700 }}>Мои паки</div>
-                <button
-                  onClick={() => setActiveTab('author-create-pack')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  <i className="ti ti-plus" />
-                  Создать пак
+                <button onClick={() => setActiveTab('author-create-pack')} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+                  <i className="ti ti-plus" style={{ fontSize: '15px' }} />Создать пак
                 </button>
               </div>
 
-              {authorPacks.length === 0 ? (
-                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+              <div style={{ position: 'relative', marginBottom: '12px' }}>
+                <input value={packSearch} onChange={e => setPackSearch(e.target.value)} placeholder="Поиск по названию..."
+                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 36px 10px 16px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                {packSearch && (
+                  <button onClick={() => setPackSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="ti ti-x" style={{ fontSize: '14px' }} />
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg2)', borderRadius: '10px', padding: '4px' }}>
+                  {([['all', 'Все'], ['DRAFT', 'Черновик'], ['PENDING', 'На модерации'], ['APPROVED', 'Опубликовано'], ['REJECTED', 'Отклонено']] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => setPackStatusFilter(val)} style={{
+                      padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                      background: packStatusFilter === val ? 'var(--bg)' : 'transparent',
+                      color: packStatusFilter === val ? 'var(--accent)' : 'var(--muted)',
+                      border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                      boxShadow: packStatusFilter === val ? 'var(--shadow-rest)' : 'none',
+                    }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredPacks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
                   <i className="ti ti-package" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.3 }} />
-                  <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>Паков пока нет</p>
-                  <p style={{ fontSize: '13px' }}>Создайте первый пак из ваших одобренных моделей</p>
+                  <p style={{ marginBottom: '16px', fontSize: '14px' }}>{packSearch || packStatusFilter !== 'all' ? 'Ничего не найдено' : 'У вас пока нет паков'}</p>
+                  {!packSearch && packStatusFilter === 'all' && <button onClick={() => setActiveTab('author-create-pack')} className="btn-primary">Создать первый пак</button>}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {authorPacks.map(pack => {
-                    const badge         = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
-                    const isRejected    = pack.moderationStatus === 'REJECTED'
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }} className="content-card sales-card">
+                  {filteredPacks.map((pack, i) => {
+                    const badge          = MODERATION_LABELS[pack.moderationStatus as ModerationStatus] ?? MODERATION_LABELS['DRAFT']
+                    const isRejected     = pack.moderationStatus === 'REJECTED'
                     const isResubmitting = resubmitLoading === pack.id
                     return (
-                      <div key={pack.id} style={{ background: 'var(--bg2)', border: `1px solid ${isRejected ? 'rgba(226,75,74,0.3)' : 'var(--border)'}`, borderRadius: '16px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div style={{ width: '60px', height: '50px', borderRadius: '10px', background: 'var(--bg3)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div key={pack.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 20px', borderBottom: i < filteredPacks.length - 1 ? '1px solid var(--border)' : 'none' }} className="model-row">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          {/* Превью */}
+                          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                             {pack.images[0]
-                              ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${pack.images[0]}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <i className="ti ti-package" style={{ fontSize: '22px', opacity: 0.3 }} />}
+                              ? <img src={`${S3_ENDPOINT}/${S3_BUCKET}/${pack.images[0]}`} alt={pack.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <i className="ti ti-package" style={{ fontSize: '20px', opacity: 0.3 }} />}
                           </div>
+
+                          {/* Название + мета */}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                              {pack.price > 0 ? `${pack.price.toLocaleString('ru')} ₽` : 'Бесплатно'} · {new Date(pack.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px' }}>
+                              <span><i className="ti ti-cards" style={{ fontSize: '11px' }} /> {pack.cardCount} карточек</span>
+                              <span>{new Date(pack.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: badge.color, background: badge.bg, padding: '3px 10px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
-                              {badge.label}
-                            </span>
+
+                          {/* Цена */}
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+                            {pack.price > 0 ? `${pack.price.toLocaleString('ru')} ₽` : 'Бесплатно'}
+                          </span>
+
+                          {/* Статус */}
+                          <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', flexShrink: 0, background: badge.bg, color: badge.color, border: `1px solid ${badge.color}40` }}>
+                            {badge.label}
+                          </span>
+
+                          {/* Действия */}
+                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                             {pack.moderationStatus === 'APPROVED' && (
-                              <Link href={`/pack/${pack.id}`} style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>Открыть →</Link>
+                              <Link href={`/pack/${pack.id}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textDecoration: 'none', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', transition: 'border-color 0.15s, color 0.15s' }} className="model-action-btn">
+                                <i className="ti ti-eye" style={{ fontSize: '14px' }} />
+                                Просмотр
+                              </Link>
                             )}
-                            {(pack.moderationStatus === 'DRAFT' || pack.moderationStatus === 'REJECTED') && (
+                            {(pack.moderationStatus === 'DRAFT' || pack.moderationStatus === 'REJECTED' || pack.moderationStatus === 'PENDING') && (
                               <button onClick={() => { setEditPackId(pack.id); setActiveTab('author-edit-pack') }}
-                                style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-                                Редактировать →
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(72,128,255,0.25)', background: 'rgba(72,128,255,0.1)', cursor: 'pointer', fontFamily: 'inherit' }}
+                                className="model-edit-btn">
+                                <i className="ti ti-pencil" style={{ fontSize: '14px' }} />
+                                Изменить
                               </button>
                             )}
                           </div>
                         </div>
 
                         {isRejected && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '58px' }}>
                             <div style={{ display: 'flex', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,56,38,0.06)', border: '1px solid rgba(239,56,38,0.2)' }}>
-                              <i className="ti ti-alert-triangle" style={{ fontSize: '14px', color: 'var(--danger)', flexShrink: 0, marginTop: '2px' }} />
+                              <i className="ti ti-alert-triangle" style={{ fontSize: '15px', color: 'var(--danger)', flexShrink: 0, marginTop: '1px' }} />
                               <div>
-                                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--danger)', marginBottom: '2px' }}>Пак отклонён модератором</div>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
-                                  {pack.moderationComment || 'Причина не указана.'}
-                                </div>
+                                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--danger)', marginBottom: '3px' }}>Модератор отклонил — нужно исправить</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{pack.moderationComment || 'Причина не указана.'}</div>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handlePackResubmit(pack.id)}
-                              disabled={isResubmitting}
-                              style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: isResubmitting ? 'not-allowed' : 'pointer', opacity: isResubmitting ? 0.6 : 1 }}
-                            >
+                            <button onClick={() => handlePackResubmit(pack.id)} disabled={isResubmitting}
+                              style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: isResubmitting ? 'not-allowed' : 'pointer', opacity: isResubmitting ? 0.6 : 1 }}>
                               <i className="ti ti-send" />
                               {isResubmitting ? 'Отправляем...' : 'Отправить на повторную проверку'}
                             </button>

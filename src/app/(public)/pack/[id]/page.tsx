@@ -16,7 +16,7 @@ export default async function PackPage({
   const pack = await db.pack.findUnique({
     where: { id },
     include: {
-      author:   { select: { id: true, name: true, image: true } },
+      author:   { select: { id: true, name: true, image: true, authorProfile: { select: { bio: true, city: true, isVerified: true, totalSales: true } } } },
       category: { select: { id: true, name: true, slug: true } },
       images:   { orderBy: { position: 'asc' } },
       products: {
@@ -45,26 +45,31 @@ export default async function PackPage({
   const productIds = pack.products.map(p => p.productId)
   const productReviews = await db.review.findMany({
     where: { productId: { in: productIds }, moderationStatus: 'APPROVED' },
-    include: { user: { select: { name: true } }, product: { select: { id: true, name: true } } },
+    include: { user: { select: { name: true } }, product: { select: { id: true, name: true, images: true } } },
     orderBy: { createdAt: 'desc' },
   })
 
   let isPurchased = false
   let hasDownloaded = false
   let isOwnPack = false
+  let isInCart = false
 
   if (session?.user) {
     isOwnPack = pack.authorId === session.user.id
-    const [order, downloadLog] = await Promise.all([
+    const [order, downloadLog, cartItem] = await Promise.all([
       Number(pack.price) > 0
         ? db.order.findFirst({
             where: { userId: session.user.id, status: 'PAID', items: { some: { packId: id } } },
           })
         : Promise.resolve(true), // free pack = always "purchased"
       db.downloadLog.findFirst({ where: { userId: session.user.id, packId: id } }),
+      Number(pack.price) > 0
+        ? db.cart.findFirst({ where: { userId: session.user.id, items: { some: { packId: id } } } })
+        : Promise.resolve(null),
     ])
     isPurchased = !!order
     hasDownloaded = !!downloadLog
+    isInCart = !!cartItem
   }
 
   // Sum of child product prices (current prices)
@@ -103,9 +108,11 @@ export default async function PackPage({
       id: r.id, rating: r.rating, text: r.text ?? '',
       createdAt: r.createdAt, userName: r.user.name,
       source: 'product' as const,
+      productId: r.product.id,
       productName: r.product.name,
+      productImage: r.product.images[0] ?? null,
     })),
-    author: pack.author,
+    author: { ...pack.author, authorProfile: pack.author.authorProfile },
     category: pack.category,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as PackClientPack
@@ -116,6 +123,7 @@ export default async function PackPage({
       isPurchased={isPurchased}
       hasDownloaded={hasDownloaded}
       isOwnPack={isOwnPack}
+      isInCart={isInCart}
       totalProductsPrice={totalProductsPrice}
       savings={savings}
       savingsPct={savingsPct}

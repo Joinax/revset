@@ -163,9 +163,15 @@ export default function ProductPickerModal({ isOpen, onClose, products, selected
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                   placeholder="Поиск по названию..."
-                  style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px 8px 34px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 32px 8px 34px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
+                {search && (
+                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="ti ti-x" style={{ fontSize: '14px' }} />
+                  </button>
+                )}
               </div>
               <select
                 value={sort}

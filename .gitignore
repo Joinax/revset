@@ -41,3 +41,12 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# claude code
+.docs
+/docs
+.claude
+.superpowers
+
+# server logs
+/logs/

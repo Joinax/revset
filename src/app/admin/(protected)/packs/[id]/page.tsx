@@ -48,6 +48,7 @@ export default async function AdminPackDetailPage({ params }: { params: Promise<
           user:             { id: r.user.id, name: r.user.name },
         })),
         createdAt: pack.createdAt.toISOString(),
+        updatedAt: pack.updatedAt.toISOString(),
       }}
     />
   )

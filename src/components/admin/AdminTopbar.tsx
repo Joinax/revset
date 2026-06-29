@@ -17,6 +17,11 @@ export default function AdminTopbar({ currentUser }: { currentUser: CurrentUser 
   const name  = currentUser?.name  ?? 'Admin'
   const email = currentUser?.email ?? ''
   const initial = name.charAt(0).toUpperCase()
+  const [siteUrl, setSiteUrl] = useState('/')
+  useEffect(() => {
+    const { protocol, host } = window.location
+    setSiteUrl(`${protocol}//${host.replace(/^admin\./, '')}`)
+  }, [])
 
   // Закрытие по клику снаружи
   useEffect(() => {
@@ -144,7 +149,7 @@ export default function AdminTopbar({ currentUser }: { currentUser: CurrentUser 
                 Настройки платформы
               </Link>
 
-              <Link href="/" target="_blank" onClick={() => setMenuOpen(false)} style={{
+              <a href={siteUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)} style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '10px 16px', fontSize: '13px', color: 'var(--admin-text)',
                 textDecoration: 'none',
@@ -154,7 +159,7 @@ export default function AdminTopbar({ currentUser }: { currentUser: CurrentUser 
               >
                 <i className="ti ti-external-link" style={{ fontSize: '16px', color: 'var(--admin-muted)' }} />
                 Открыть сайт
-              </Link>
+              </a>
 
               <div style={{ borderTop: '1px solid var(--admin-border)' }} />
 

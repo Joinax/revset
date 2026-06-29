@@ -5,11 +5,18 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import AdminFamilyDetailClient from './AdminFamilyDetailClient'
 
-export default async function AdminFamilyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminFamilyDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string }>
+}) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session || session.user.role !== 'admin') redirect('/')
 
   const { id } = await params
+  const { from } = await searchParams
 
   const [product, categories] = await Promise.all([
     db.product.findUnique({
@@ -64,6 +71,7 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
         authorEmail:   product.author.email,
       }}
       categories={categories.map(c => ({ slug: c.slug, name: c.name }))}
+      backTo={from && from.startsWith('/admin/') ? from : undefined}
     />
   )
 }

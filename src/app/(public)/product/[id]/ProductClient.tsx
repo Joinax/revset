@@ -42,7 +42,7 @@ type Props = {
   isInCart: boolean
   isOwnProduct: boolean
   cameFromAccount?: string | null
-  packsWithSavings?: { id: string; name: string; price: number; savingsPct: number }[]
+  packsWithSavings?: { id: string; name: string; price: number; savingsPct: number; coverImage: string | null }[]
 }
 
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
@@ -366,33 +366,6 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                 </div>
               )}
 
-              {/* Входит в состав пака */}
-              {(packsWithSavings?.length ?? 0) > 0 && (
-                <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(72,128,255,0.04)', border: '1px solid rgba(72,128,255,0.15)', borderRadius: '14px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ti ti-package" style={{ color: 'var(--accent)' }} />
-                    Входит в состав пака
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {packsWithSavings!.map(p => (
-                      <Link key={p.id} href={`/pack/${p.id}`} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px',
-                        border: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)',
-                        fontSize: '13px',
-                      }}>
-                        <span style={{ fontWeight: 600 }}>{p.name}</span>
-                        <span>
-                          <span style={{ color: 'var(--muted)', marginRight: '8px' }}>{p.price.toLocaleString('ru')} ₽</span>
-                          {p.savingsPct > 0 && (
-                            <span style={{ color: 'var(--success)', fontWeight: 700 }}>Экономия {p.savingsPct}% →</span>
-                          )}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* ══ Правая ══ */}
@@ -445,10 +418,6 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                     {product.priceOld && <span style={{ fontSize: '16px', color: 'var(--muted)', textDecoration: 'line-through' }}>{product.priceOld.toLocaleString('ru')} ₽</span>}
                     {discount && <span style={{ background: 'rgba(226,75,74,0.1)', color: 'var(--danger)', fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '7px', border: '1px solid rgba(226,75,74,0.15)' }}>−{discount}%</span>}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <i className="ti ti-license" style={{ fontSize: '12px' }} />
-                    Стандартная лицензия · Бессрочный доступ
-                  </div>
                 </div>
 
                 {/* Кнопки */}
@@ -498,6 +467,55 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
                   )}
                 </div>
               </div>
+
+              {/* Входит в состав пака */}
+              {(packsWithSavings?.length ?? 0) > 0 && (
+                <div className="product-price-box" style={{
+                  background: 'var(--bg)', border: '1px solid rgba(99,102,241,0.25)',
+                  borderRadius: '18px', padding: '16px 20px',
+                  boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-stack-2" style={{ fontSize: '13px' }} />
+                    Входит в пак
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {packsWithSavings!.map(p => {
+                      const cover = p.coverImage ? `${S3}/${BKT}/${p.coverImage}` : null
+                      return (
+                        <Link key={p.id} href={`/pack/${p.id}`} style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          padding: '10px 12px', background: 'var(--bg2)', borderRadius: '10px',
+                          border: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)',
+                          transition: 'border-color .15s, background .15s',
+                        }} className="pack-link-row">
+                          {/* Обложка пака */}
+                          <div style={{ width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: '#141428', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {cover
+                              ? <img src={cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <i className="ti ti-stack-2" style={{ fontSize: '16px', color: '#6366F1' }} />}
+                          </div>
+                          {/* Название */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                          </div>
+                          {/* Цена + бейдж справа */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: '3px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                              {p.price.toLocaleString('ru')} ₽
+                            </span>
+                            {p.savingsPct > 0 && (
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)', background: 'rgba(29,158,117,0.1)', padding: '1px 6px', borderRadius: '20px', border: '1px solid rgba(29,158,117,0.2)', whiteSpace: 'nowrap' }}>
+                                −{p.savingsPct}%
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Характеристики в сайдбаре */}
               <div className="product-specs-box" style={{
@@ -609,8 +627,9 @@ export default function ProductClient({ product, isPurchased, isFavorited, isInC
         .main-img:hover   { transform: scale(1.02); }
         .product-image-box { transition: box-shadow 0.25s; }
         .product-image-box:hover { box-shadow: var(--shadow-hover); }
-        .fav-btn:hover    { border-color: var(--accent) !important; color: var(--accent) !important; }
-        .cart-btn:hover   { border-color: var(--accent) !important; color: var(--accent) !important; }
+        .fav-btn:hover     { border-color: var(--accent) !important; color: var(--accent) !important; }
+        .cart-btn:hover    { border-color: var(--accent) !important; color: var(--accent) !important; }
+        .pack-link-row:hover { border-color: rgba(99,102,241,0.4) !important; background: rgba(99,102,241,0.04) !important; }
 
         .dark .product-price-box,
         .dark .product-author-box,

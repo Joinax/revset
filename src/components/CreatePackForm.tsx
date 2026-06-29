@@ -31,6 +31,13 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
 
   const recentProducts = approvedProducts.slice(0, 10)
 
+  const minPaidCardPrice = (() => {
+    const paid = selectedIds
+      .map(id => approvedProducts.find(p => p.id === id)?.price)
+      .filter((v): v is number => v !== null && v !== undefined && v > 0)
+    return paid.length > 0 ? Math.min(...paid) : null
+  })()
+
   // Авто-фото из выбранных карточек — порядок selectedIds определяет обложку (первый = обложка)
   const autoImages = selectedIds
     .map(id => approvedProducts.find(p => p.id === id))
@@ -75,6 +82,10 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
     if (!categoryId)             { setError('Выберите категорию'); return }
 
     const priceNum = price ? parseFloat(price) : 0
+    if (minPaidCardPrice !== null && priceNum < minPaidCardPrice) {
+      setError(`В паке есть платные карточки. Минимальная цена пака: ${minPaidCardPrice.toLocaleString('ru')} ₽`)
+      return
+    }
     if (priceNum !== 0 && (priceNum < 200 || priceNum > 350000)) {
       setError('Цена должна быть 0 (бесплатно) или от 200 до 350 000 ₽')
       return
@@ -157,7 +168,18 @@ export default function CreatePackForm({ categories, approvedProducts, onSuccess
         </div>
         <div>
           <label style={labelStyle}>Цена (₽) — 0 = бесплатно</label>
-          <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" min="0" style={inputStyle} />
+          <input type="number" value={price} onChange={e => setPrice(e.target.value)}
+            placeholder={minPaidCardPrice !== null ? String(minPaidCardPrice) : '0'}
+            min={minPaidCardPrice ?? 0}
+            style={{ ...inputStyle, borderColor: minPaidCardPrice !== null && (!price || parseFloat(price) < minPaidCardPrice) ? 'var(--danger)' : undefined }} />
+          {minPaidCardPrice !== null && (!price || parseFloat(price) < minPaidCardPrice) && (
+            <div style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(226,75,74,0.12)', border: '1px solid rgba(226,75,74,0.5)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="ti ti-alert-triangle-filled" style={{ fontSize: '14px', color: 'var(--danger)', flexShrink: 0 }} />
+              <span style={{ fontSize: '12px', color: 'var(--danger)', lineHeight: 1.4 }}>
+                В паке платные карточки — минимальная цена <strong>{minPaidCardPrice.toLocaleString('ru')} ₽</strong>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

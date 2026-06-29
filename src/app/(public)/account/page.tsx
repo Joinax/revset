@@ -205,7 +205,7 @@ export default async function AccountPage({
 
     const rawAuthorPacks = await db.pack.findMany({
       where:   { authorId: user.id },
-      include: { images: { orderBy: { position: 'asc' }, take: 1 } },
+      include: { images: { orderBy: { position: 'asc' }, take: 1 }, _count: { select: { products: true } } },
       orderBy: { createdAt: 'desc' },
     })
     authorPacks = rawAuthorPacks.map(p => ({
@@ -216,6 +216,7 @@ export default async function AccountPage({
       moderationComment: p.moderationComment ?? null,
       createdAt:        p.createdAt.toISOString(),
       images:           p.images.map((i: { key: string }) => i.key),
+      cardCount:        p._count.products,
     }))
   }
 

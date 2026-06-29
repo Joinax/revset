@@ -22,6 +22,13 @@ export async function GET() {
               author: { select: { name: true } },
             },
           },
+          pack: {
+            select: {
+              id: true, name: true, price: true,
+              images: { orderBy: { position: 'asc' }, take: 1 },
+              author: { select: { name: true } },
+            },
+          },
         },
       },
     },
@@ -32,6 +39,9 @@ export async function GET() {
     product: i.product
       ? { ...i.product, price: i.product.price !== null ? Number(i.product.price) : null }
       : null,
+    pack: i.pack
+      ? { ...i.pack, price: Number(i.pack.price) }
+      : null,
   }))
   return NextResponse.json({ items })
 }
@@ -41,24 +51,53 @@ export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { productId } = await req.json()
-  if (!productId) return NextResponse.json({ error: 'productId required' }, { status: 400 })
+  const body = await req.json()
+  const { productId, packId } = body as { productId?: string; packId?: string }
 
-  // Проверяем что товар существует и платный
+  if (!productId && !packId) return NextResponse.json({ error: 'productId or packId required' }, { status: 400 })
+
+  if (packId) {
+    const pack = await db.pack.findUnique({
+      where: { id: packId, moderationStatus: 'APPROVED' },
+      select: { id: true, price: true },
+    })
+    if (!pack) return NextResponse.json({ error: 'Pack not found' }, { status: 404 })
+    if (Number(pack.price) === 0) return NextResponse.json({ error: 'Free packs cannot be added to cart' }, { status: 400 })
+
+    const purchased = await db.order.findFirst({
+      where: { userId: session.user.id, status: 'PAID', items: { some: { packId } } },
+    })
+    if (purchased) return NextResponse.json({ error: 'Already purchased' }, { status: 400 })
+
+    const cart = await db.cart.upsert({
+      where:  { userId: session.user.id },
+      create: { userId: session.user.id },
+      update: {},
+    })
+
+    await db.cartItem.upsert({
+      where:  { cartId_packId: { cartId: cart.id, packId } },
+      create: { cartId: cart.id, packId },
+      update: {},
+    })
+
+    const count = await db.cartItem.count({ where: { cartId: cart.id } })
+    return NextResponse.json({ ok: true, count })
+  }
+
+  // --- productId path ---
   const product = await db.product.findUnique({
-    where: { id: productId, isPublished: true },
+    where: { id: productId!, isPublished: true },
     select: { id: true, price: true },
   })
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   if (product.price === null) return NextResponse.json({ error: 'Free products cannot be added to cart' }, { status: 400 })
 
-  // Проверяем что не куплен
   const purchased = await db.order.findFirst({
     where: { userId: session.user.id, status: 'PAID', items: { some: { productId } } },
   })
   if (purchased) return NextResponse.json({ error: 'Already purchased' }, { status: 400 })
 
-  // Upsert корзину и добавляем товар
   const cart = await db.cart.upsert({
     where:  { userId: session.user.id },
     create: { userId: session.user.id },
@@ -66,7 +105,7 @@ export async function POST(req: NextRequest) {
   })
 
   await db.cartItem.upsert({
-    where:  { cartId_productId: { cartId: cart.id, productId } },
+    where:  { cartId_productId: { cartId: cart.id, productId: productId! } },
     create: { cartId: cart.id, productId },
     update: {},
   })
@@ -80,14 +119,17 @@ export async function DELETE(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { productId } = await req.json()
+  const body = await req.json()
+  const { productId, packId } = body as { productId?: string; packId?: string }
 
   const cart = await db.cart.findUnique({ where: { userId: session.user.id } })
-  if (!cart) return NextResponse.json({ ok: true })
+  if (!cart) return NextResponse.json({ ok: true, count: 0 })
 
-  await db.cartItem.deleteMany({
-    where: { cartId: cart.id, productId },
-  })
+  if (packId) {
+    await db.cartItem.deleteMany({ where: { cartId: cart.id, packId } })
+  } else {
+    await db.cartItem.deleteMany({ where: { cartId: cart.id, productId } })
+  }
 
   const count = await db.cartItem.count({ where: { cartId: cart.id } })
   return NextResponse.json({ ok: true, count })

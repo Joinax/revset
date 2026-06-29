@@ -8,25 +8,33 @@ import { useRouter } from 'next/navigation'
 const S3 = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
 const BKT = process.env.NEXT_PUBLIC_S3_BUCKET ?? 'revset'
 
-type Item = {
-  id: string; productId: string; name: string
-  price: number; priceOld: number | null
-  emoji: string; previewBg: string; images: string[]
-  author: string; authorId: string; category: string
-}
+export type CartItem =
+  | {
+      kind: 'product'
+      id: string; productId: string; name: string
+      price: number; priceOld: number | null
+      emoji: string; previewBg: string; images: string[]
+      author: string; authorId: string; category: string
+    }
+  | {
+      kind: 'pack'
+      id: string; packId: string; name: string
+      price: number; coverImage: string | null
+      author: string; authorId: string; cardCount: number
+    }
 
 function dispatchCartUpdate(count: number) {
   window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count } }))
 }
 
-export default function CartClient({ items: initial }: { items: Item[] }) {
+export default function CartClient({ items: initial }: { items: CartItem[] }) {
   const [items, setItems] = useState(initial)
   const [removing, setRemoving] = useState<string | null>(null)
   const router = useRouter()
 
   const total = items.reduce((s, i) => s + i.price, 0)
 
-  async function removeItem(productId: string) {
+  async function removeProduct(productId: string) {
     setRemoving(productId)
     const res = await fetch('/api/cart', {
       method: 'DELETE',
@@ -35,14 +43,28 @@ export default function CartClient({ items: initial }: { items: Item[] }) {
     })
     if (res.ok) {
       const data = await res.json()
-      setItems(prev => prev.filter(i => i.productId !== productId))
+      setItems(prev => prev.filter(i => !(i.kind === 'product' && i.productId === productId)))
+      dispatchCartUpdate(data.count)
+    }
+    setRemoving(null)
+  }
+
+  async function removePack(packId: string) {
+    setRemoving(packId)
+    const res = await fetch('/api/cart', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packId }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setItems(prev => prev.filter(i => !(i.kind === 'pack' && i.packId === packId)))
       dispatchCartUpdate(data.count)
     }
     setRemoving(null)
   }
 
   async function checkout() {
-    // Создаём заказ из корзины
     const res = await fetch('/api/cart/checkout', { method: 'POST' })
     const data = await res.json()
     if (data.paymentUrl) {
@@ -66,15 +88,92 @@ export default function CartClient({ items: initial }: { items: Item[] }) {
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 48px 64px', minHeight: 'calc(100vh - 64px)' }}>
       <h1 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '8px', letterSpacing: '-0.02em' }}>Корзина</h1>
-      <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '28px' }}>{items.length} {items.length === 1 ? 'товар' : items.length < 5 ? 'товара' : 'товаров'}</p>
+      <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '28px' }}>
+        {items.length} {items.length === 1 ? 'позиция' : items.length < 5 ? 'позиции' : 'позиций'}
+      </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', alignItems: 'start' }}>
 
-        {/* Список товаров */}
+        {/* Список */}
         <div style={{ display: 'grid', gap: '10px' }}>
           {items.map(item => {
+            if (item.kind === 'pack') {
+              const imgUrl = item.coverImage ? `${S3}/${BKT}/${item.coverImage}` : null
+              const isRemoving = removing === item.packId
+              return (
+                <div key={item.id} style={{
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: '16px', padding: '16px 20px',
+                  display: 'flex', alignItems: 'center', gap: '16px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                  transition: 'opacity 0.2s',
+                  opacity: isRemoving ? 0.5 : 1,
+                }} className="cart-item">
+                  {/* Превью */}
+                  <Link href={`/pack/${item.packId}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
+                    <div style={{
+                      width: '72px', height: '72px', borderRadius: '12px',
+                      background: imgUrl ? '#f5f5f5' : '#141428',
+                      overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      position: 'relative',
+                    }}>
+                      {imgUrl
+                        ? <img src={imgUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <i className="ti ti-stack-2" style={{ fontSize: '28px', color: '#6366F1' }} />
+                      }
+                      <span style={{
+                        position: 'absolute', bottom: '3px', right: '3px',
+                        background: 'rgba(99,102,241,0.9)', color: '#fff',
+                        fontSize: '8px', fontWeight: 700, padding: '1px 4px', borderRadius: '4px',
+                      }}>ПАК</span>
+                    </div>
+                  </Link>
+
+                  {/* Инфо */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Link href={`/pack/${item.packId}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.name}
+                      </div>
+                    </Link>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                      <Link href={`/author/${item.authorId}`} style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>
+                        {item.author}
+                      </Link>
+                      {' · '}{item.cardCount} {item.cardCount === 1 ? 'модель' : item.cardCount < 5 ? 'модели' : 'моделей'}
+                    </div>
+                  </div>
+
+                  {/* Цена */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-unbounded)', fontSize: '16px', fontWeight: 700, color: 'var(--accent)' }}>
+                      {item.price.toLocaleString('ru')} ₽
+                    </div>
+                  </div>
+
+                  {/* Удалить */}
+                  <button
+                    onClick={() => removePack(item.packId)}
+                    disabled={isRemoving}
+                    style={{
+                      background: 'none', border: '1px solid var(--border)',
+                      borderRadius: '8px', width: '34px', height: '34px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', color: 'var(--muted)', flexShrink: 0,
+                      transition: 'all .15s',
+                    }}
+                    className="cart-remove-btn"
+                  >
+                    <i className="ti ti-trash" style={{ fontSize: '15px' }} />
+                  </button>
+                </div>
+              )
+            }
+
+            // kind === 'product'
             const imgUrl = item.images.length > 0 ? `${S3}/${BKT}/${item.images[0]}` : null
             const discount = item.priceOld ? Math.round((1 - item.price / item.priceOld) * 100) : null
+            const isRemoving = removing === item.productId
 
             return (
               <div key={item.id} style={{
@@ -83,7 +182,7 @@ export default function CartClient({ items: initial }: { items: Item[] }) {
                 display: 'flex', alignItems: 'center', gap: '16px',
                 boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
                 transition: 'opacity 0.2s',
-                opacity: removing === item.productId ? 0.5 : 1,
+                opacity: isRemoving ? 0.5 : 1,
               }} className="cart-item">
                 {/* Превью */}
                 <Link href={`/product/${item.productId}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
@@ -136,8 +235,8 @@ export default function CartClient({ items: initial }: { items: Item[] }) {
 
                 {/* Удалить */}
                 <button
-                  onClick={() => removeItem(item.productId)}
-                  disabled={removing === item.productId}
+                  onClick={() => removeProduct(item.productId)}
+                  disabled={isRemoving}
                   style={{
                     background: 'none', border: '1px solid var(--border)',
                     borderRadius: '8px', width: '34px', height: '34px',
@@ -166,7 +265,10 @@ export default function CartClient({ items: initial }: { items: Item[] }) {
           <div style={{ display: 'grid', gap: '10px', marginBottom: '20px' }}>
             {items.map(i => (
               <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', gap: '12px' }}>
-                <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{i.name}</span>
+                <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {i.kind === 'pack' && <i className="ti ti-stack-2" style={{ fontSize: '11px', color: '#6366F1', marginRight: '4px' }} />}
+                  {i.name}
+                </span>
                 <span style={{ fontWeight: 600, flexShrink: 0 }}>{i.price.toLocaleString('ru')} ₽</span>
               </div>
             ))}
