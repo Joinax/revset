@@ -115,6 +115,7 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
     { key: 'favorites',      label: 'Избранное',   icon: 'ti-heart',       badge: null, badgeVariant: null },
     { key: 'subscriptions', label: 'Подписки',    icon: 'ti-users',       badge: null, badgeVariant: null },
     { key: 'my-reviews', label: 'Мои отзывы',  icon: 'ti-message-star', badge: null, badgeVariant: null },
+    { key: 'support',   label: 'Поддержка',     icon: 'ti-headset',          badge: null, badgeVariant: null },
     { key: 'profile',   label: 'Профиль',       icon: 'ti-user',             badge: null, badgeVariant: null },
     { key: 'security',  label: 'Безопасность',  icon: 'ti-shield-lock',      badge: null, badgeVariant: null },
   ]
@@ -130,7 +131,7 @@ function buildNav(isAuthor: boolean, productCount: number, rejectedCount: number
   ]
 }
 
-type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'profile' | 'security'
+type Tab = 'overview' | 'orders' | 'favorites' | 'subscriptions' | 'my-reviews' | 'support' | 'profile' | 'security'
          | 'author-products' | 'author-upload' | 'author-stats' | 'author-sales' | 'author-reviews' | 'author-packs' | 'author-create-pack' | 'author-edit-pack' | 'author-edit-product'
 
 
@@ -335,11 +336,395 @@ function AuthorReviewsTab({ reviews, user }: { reviews: AuthorReview[]; user: Us
   )
 }
 
+// ─────────────── Support Tab ───────────────
+
+type TicketListItem = {
+  id: string; number: number; subject: string; category: string
+  priority: string; status: string
+  updatedAt: string; createdAt: string; messageCount: number
+}
+
+type TicketMessage = {
+  id: string; text: string | null; isStaff: boolean; isInternal: boolean
+  authorId: string; createdAt: string
+  attachments: { id: string; fileKey: string; status: string; threat: string | null }[]
+}
+
+type TicketDetail = TicketListItem & {
+  assignedTo: string | null; orderId: string | null
+  userReadAt: string | null; staffReadAt: string | null
+  messages: TicketMessage[]
+}
+
+type SupportView = 'list' | 'create-step1' | 'create-step2' | 'detail'
+
+const TICKET_CATS = [
+  { key: 'ORDER',    label: 'Заказ / оплата', icon: 'ti-shopping-bag' },
+  { key: 'DOWNLOAD', label: 'Скачивание',      icon: 'ti-download'    },
+  { key: 'ACCOUNT',  label: 'Аккаунт',         icon: 'ti-user'        },
+  { key: 'CONTENT',  label: 'Контент',          icon: 'ti-file-3d'    },
+  { key: 'OTHER',    label: 'Другое',           icon: 'ti-help-circle' },
+]
+
+const TICKET_STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  AWAITING_SUPPORT: { label: 'На рассмотрении',         color: 'var(--muted)',  bg: 'var(--bg3, rgba(0,0,0,0.06))' },
+  AWAITING_USER:    { label: 'Требуется ваш ответ',     color: '#F59E0B',       bg: 'rgba(245,158,11,0.1)' },
+  CLOSED:           { label: 'Закрыт',                  color: 'var(--muted)',  bg: 'var(--bg3, rgba(0,0,0,0.06))' },
+}
+
+function getCatLabel(key: string) {
+  return TICKET_CATS.find(c => c.key === key)?.label ?? key
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'только что'
+  if (m < 60) return `${m} мин`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} ч`
+  const d = Math.floor(h / 24)
+  return `${d} д`
+}
+
+function SupportTab({ userId }: { userId: string }) {
+  const [view, setView]             = useState<SupportView>('list')
+  const [tickets, setTickets]       = useState<TicketListItem[]>([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [selected, setSelected]     = useState<TicketDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+
+  // Create flow state
+  const [createCategory, setCreateCategory] = useState('')
+  const [createSubject,  setCreateSubject]  = useState('')
+  const [createText,     setCreateText]     = useState('')
+  const [createOrderId,  setCreateOrderId]  = useState('')
+  const [createLoading,  setCreateLoading]  = useState(false)
+  const [createError,    setCreateError]    = useState('')
+
+  // Compose state (detail view)
+  const [replyText,     setReplyText]     = useState('')
+  const [isInternal,    setIsInternal]    = useState(false)
+  const [sendLoading,   setSendLoading]   = useState(false)
+  const [sendError,     setSendError]     = useState('')
+
+  useEffect(() => {
+    fetchTickets()
+  }, [])
+
+  async function fetchTickets() {
+    setLoadingList(true)
+    try {
+      const res = await fetch('/api/support')
+      if (res.ok) setTickets(await res.json())
+    } finally {
+      setLoadingList(false)
+    }
+  }
+
+  async function openTicket(id: string) {
+    setLoadingDetail(true)
+    setView('detail')
+    try {
+      const res = await fetch(`/api/support/${id}`)
+      if (res.ok) setSelected(await res.json())
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  async function handleCreate() {
+    setCreateError('')
+    if (!createSubject.trim()) { setCreateError('Укажите тему'); return }
+    if (!createText.trim())    { setCreateError('Опишите проблему'); return }
+    setCreateLoading(true)
+    try {
+      const res = await fetch('/api/support', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ subject: createSubject, text: createText, category: createCategory, orderId: createOrderId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCreateError(data.error ?? 'Ошибка'); return }
+      // Reset and go to detail
+      setCreateCategory(''); setCreateSubject(''); setCreateText(''); setCreateOrderId('')
+      await fetchTickets()
+      openTicket(data.id)
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
+  async function handleSend() {
+    if (!selected || !replyText.trim()) return
+    setSendLoading(true); setSendError('')
+    try {
+      const res = await fetch(`/api/support/${selected.id}/message`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: replyText, isInternal }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSendError(data.error ?? 'Ошибка'); return }
+      setSelected(prev => prev ? { ...prev, messages: [...prev.messages, data] } : prev)
+      setReplyText(''); setIsInternal(false)
+    } finally {
+      setSendLoading(false)
+    }
+  }
+
+  // ── LIST VIEW ──
+  if (view === 'list') {
+    return (
+      <div>
+        {/* Security notice */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', marginBottom: '20px' }}>
+          <i className="ti ti-shield-lock" style={{ fontSize: '15px', color: '#F59E0B', flexShrink: 0 }} />
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>Поддержка не запрашивает пароли и коды доступа</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Обращения</h2>
+          <button
+            onClick={() => setView('create-step1')}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '10px', padding: '9px 18px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}
+          >
+            <i className="ti ti-plus" style={{ fontSize: '15px' }} />
+            Создать обращение
+          </button>
+        </div>
+
+        {loadingList ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
+            <i className="ti ti-loader-2" style={{ fontSize: '28px', opacity: 0.4, display: 'block', marginBottom: '8px' }} />
+            Загрузка...
+          </div>
+        ) : tickets.length === 0 ? (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '64px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'var(--bg3, rgba(0,0,0,0.06))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <i className="ti ti-headset" style={{ fontSize: '28px', opacity: 0.4 }} />
+            </div>
+            <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px', color: 'var(--text)' }}>Обращений пока нет</p>
+            <p style={{ fontSize: '13px', marginBottom: '20px' }}>Если у вас возник вопрос — создайте обращение и мы поможем</p>
+            <button onClick={() => setView('create-step1')} className="btn-primary">Создать первое обращение</button>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: 'var(--shadow-rest)' }}>
+            {tickets.map((t, i) => {
+              const st = TICKET_STATUS_LABELS[t.status] ?? TICKET_STATUS_LABELS['AWAITING_SUPPORT']
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => openTicket(t.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', padding: '14px 18px', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: i < tickets.length - 1 ? '1px solid var(--border)' : 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+                  className="purchase-row"
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>#{t.number} · {getCatLabel(t.category)}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px', color: st.color, background: st.bg }}>{st.label}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{relativeTime(t.updatedAt)}</span>
+                  </div>
+                  <i className="ti ti-chevron-right" style={{ fontSize: '15px', color: 'var(--muted)', flexShrink: 0 }} />
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── CREATE STEP 1 — Category ──
+  if (view === 'create-step1') {
+    return (
+      <div>
+        <button onClick={() => setView('list')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '20px' }} className="back-link">
+          <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} /> Назад
+        </button>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>Создать обращение</h2>
+        <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '24px' }}>Выберите тему обращения</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+          {TICKET_CATS.map(cat => (
+            <button
+              key={cat.key}
+              onClick={() => { setCreateCategory(cat.key); setView('create-step2') }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '18px 12px', borderRadius: '12px', border: `1px solid ${createCategory === cat.key ? 'var(--accent)' : 'var(--border)'}`, background: createCategory === cat.key ? 'rgba(72,128,255,0.08)' : 'var(--bg)', cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color 0.15s, background 0.15s' }}
+            >
+              <i className={`ti ${cat.icon}`} style={{ fontSize: '22px', color: 'var(--accent)' }} />
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.3 }}>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── CREATE STEP 2 — Form ──
+  if (view === 'create-step2') {
+    const cat = TICKET_CATS.find(c => c.key === createCategory)
+    return (
+      <div style={{ maxWidth: '560px' }}>
+        <button onClick={() => setView('create-step1')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '20px' }} className="back-link">
+          <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} /> Выбор темы
+        </button>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>Опишите проблему</h2>
+        {cat && <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}><i className={`ti ${cat.icon}`} style={{ fontSize: '14px', color: 'var(--accent)' }} />{cat.label}</p>}
+
+        {/* FAQ deflector placeholder */}
+        <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(72,128,255,0.06)', border: '1px solid rgba(72,128,255,0.15)', marginBottom: '20px', fontSize: '13px', color: 'var(--muted)' }}>
+          Не нашли ответ? Опишите проблему — мы ответим в течение 24 часов
+        </div>
+
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text)' }}>Тема обращения *</label>
+            <input
+              value={createSubject}
+              onChange={e => setCreateSubject(e.target.value)}
+              placeholder="Кратко опишите проблему"
+              maxLength={120}
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text)' }}>Описание *</label>
+            <textarea
+              value={createText}
+              onChange={e => setCreateText(e.target.value)}
+              placeholder="Подробно опишите вашу ситуацию..."
+              rows={5}
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+            />
+          </div>
+          {createCategory === 'ORDER' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text)' }}>ID заказа (необязательно)</label>
+              <input
+                value={createOrderId}
+                onChange={e => setCreateOrderId(e.target.value)}
+                placeholder="Например: clxyz123..."
+                style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            </div>
+          )}
+          {createError && <p style={{ fontSize: '13px', color: 'var(--danger)', margin: 0 }}>{createError}</p>}
+          <button
+            onClick={handleCreate}
+            disabled={createLoading}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '10px', padding: '12px 24px', fontSize: '14px', fontWeight: 700, cursor: createLoading ? 'not-allowed' : 'pointer', opacity: createLoading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+          >
+            <i className="ti ti-send" style={{ fontSize: '16px' }} />
+            {createLoading ? 'Отправляем...' : 'Отправить обращение'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── DETAIL VIEW ──
+  if (view === 'detail') {
+    if (loadingDetail || !selected) {
+      return (
+        <div>
+          <button onClick={() => { setView('list'); setSelected(null) }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '20px' }} className="back-link">
+            <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} /> Обращения
+          </button>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>Загрузка...</div>
+        </div>
+      )
+    }
+
+    const st = TICKET_STATUS_LABELS[selected.status] ?? TICKET_STATUS_LABELS['AWAITING_SUPPORT']
+    const isClosed = selected.status === 'CLOSED'
+
+    return (
+      <div>
+        <button onClick={() => { setView('list'); setSelected(null) }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--muted)', fontSize: '13px', cursor: 'pointer', padding: 0, marginBottom: '16px' }} className="back-link">
+          <i className="ti ti-arrow-left" style={{ fontSize: '15px' }} /> Обращения
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+          <div>
+            <h2 style={{ fontSize: '17px', fontWeight: 700, margin: '0 0 4px' }}>{selected.subject}</h2>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>#{selected.number} · {getCatLabel(selected.category)}</div>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: '20px', color: st.color, background: st.bg, flexShrink: 0 }}>{st.label}</span>
+        </div>
+
+        {/* Security notice */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', marginBottom: '20px' }}>
+          <i className="ti ti-shield-lock" style={{ fontSize: '15px', color: '#F59E0B', flexShrink: 0 }} />
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>Поддержка не запрашивает пароли и коды доступа</span>
+        </div>
+
+        {/* Messages thread */}
+        <div style={{ display: 'grid', gap: '12px', marginBottom: '20px' }}>
+          {selected.messages.map(msg => {
+            const isUser = !msg.isStaff
+            return (
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '80%',
+                  padding: '12px 14px',
+                  borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                  background: isUser ? 'rgba(72,128,255,0.1)' : 'var(--bg2)',
+                  border: `1px solid ${isUser ? 'rgba(72,128,255,0.2)' : 'var(--border)'}`,
+                  fontSize: '13px', lineHeight: 1.5, color: 'var(--text)',
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                }}>
+                  {msg.text}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', padding: '0 4px' }}>
+                  {isUser ? 'Вы' : 'Поддержка'} · {new Date(msg.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Composer */}
+        {!isClosed ? (
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px', display: 'grid', gap: '10px' }}>
+            <textarea
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder="Ваш ответ..."
+              rows={4}
+              style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+            />
+            {sendError && <p style={{ fontSize: '12px', color: 'var(--danger)', margin: 0 }}>{sendError}</p>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleSend}
+                disabled={sendLoading || !replyText.trim()}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 700, cursor: sendLoading || !replyText.trim() ? 'not-allowed' : 'pointer', opacity: sendLoading || !replyText.trim() ? 0.6 : 1, fontFamily: 'inherit' }}
+              >
+                <i className="ti ti-send" style={{ fontSize: '14px' }} />
+                {sendLoading ? 'Отправка...' : 'Отправить'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '20px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+            Обращение закрыто
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
 export default function AccountClient({ user, orders, favorites, followings = [], authorProducts = [], authorStats, authorPagination, authorTopProducts, authorFilters, authorSales = [], authorSalesPagination, hasPendingAuthorApplication = false, myReviews = [], authorReviews = [], authorPacks = [], categories = [], approvedProductsForPack = [] }: Props) {
   const searchParams = useSearchParams()
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const tabParam = searchParams.get('tab') as Tab | null
-    const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'profile', 'security']
+    const BASE_TABS: Tab[] = ['overview', 'orders', 'favorites', 'subscriptions', 'my-reviews', 'support', 'profile', 'security']
     const AUTHOR_TABS: Tab[] = ['author-products', 'author-upload', 'author-stats', 'author-sales', 'author-reviews', 'author-packs', 'author-create-pack', 'author-edit-pack', 'author-edit-product']
     const VALID_TABS: Tab[] = user.isAuthor ? [...BASE_TABS, ...AUTHOR_TABS] : BASE_TABS
     return tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
@@ -1658,6 +2043,11 @@ export default function AccountClient({ user, orders, favorites, followings = []
                 onCancel={() => { setActiveTab('author-packs'); setEditPackId(null) }}
               />
             </div>
+          )}
+
+          {/* ── Поддержка ── */}
+          {activeTab === 'support' && (
+            <SupportTab userId={user.id} />
           )}
 
         </main>

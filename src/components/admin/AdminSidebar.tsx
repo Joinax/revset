@@ -9,6 +9,7 @@ import { useModerationCount } from '@/hooks/useModerationCount'
 import { useReviewsCount } from '@/hooks/useReviewsCount'
 import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
 import { usePacksModerationCount } from '@/hooks/usePacksModerationCount'
+import { useSupportCount } from '@/hooks/useSupportCount'
 import { useAdminEvents } from '@/hooks/useAdminEvents'
 
 const links = [
@@ -16,6 +17,7 @@ const links = [
   { href: '/admin/families',     icon: 'ti-box',              label: 'Семейства' },
   { href: '/admin/packs',         icon: 'ti-package',          label: 'Паки' },
   { href: '/admin/pack-reviews', icon: 'ti-message-2',        label: 'Отзывы на паки' },
+  { href: '/admin/support',      icon: 'ti-headset',          label: 'Поддержка' },
   { href: '/admin/users',        icon: 'ti-users',            label: 'Пользователи' },
   { href: '/admin/verification', icon: 'ti-shield-check',     label: 'Верификация' },
   { href: '/admin/transactions',    icon: 'ti-credit-card',    label: 'Транзакции' },
@@ -39,6 +41,7 @@ export default function AdminSidebar() {
   const { count: reviewsCount,         isLoading: rLoading }  = useReviewsCount()
   const { count: reviewCommentsCount,  isLoading: rcLoading } = useReviewCommentsCount()
   const { count: packsCount,           isLoading: pLoading }  = usePacksModerationCount()
+  const { count: supportCount,         isLoading: sLoading }  = useSupportCount()
 
   // Карта badge-счётчиков по href — легко добавлять новые в будущем
   const badgeCounts: Record<string, number> = {
@@ -47,6 +50,7 @@ export default function AdminSidebar() {
     '/admin/packs':          packsCount,
     '/admin/reviews':        reviewsCount,
     '/admin/review-comments': reviewCommentsCount,
+    '/admin/support':        supportCount,
   }
 
   // До первой загрузки SWR не показываем бейдж вообще —
@@ -57,6 +61,7 @@ export default function AdminSidebar() {
     '/admin/packs':          pLoading,
     '/admin/reviews':        rLoading,
     '/admin/review-comments': rcLoading,
+    '/admin/support':        sLoading,
   }
 
   const W = expanded ? 240 : 72
