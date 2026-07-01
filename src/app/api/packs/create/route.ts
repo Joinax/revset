@@ -46,13 +46,13 @@ export async function POST(req: NextRequest) {
     if (productImageKeys.length + imageKeys.length < 1) {
       return NextResponse.json({ error: 'Необходимо хотя бы одно изображение' }, { status: 400 })
     }
-    if (imageKeys.length && !imageKeys.every(k => k.startsWith('temp/images/'))) {
+    if (imageKeys.length && !imageKeys.every(k => k.startsWith(`temp/images/${session.user.id}/`))) {
       return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
     }
-    if (assemblyFileKey && !assemblyFileKey.startsWith('temp/rfa/')) {
+    if (assemblyFileKey && !assemblyFileKey.startsWith(`temp/rfa/${session.user.id}/`)) {
       return NextResponse.json({ error: 'Некорректный ключ сборного файла' }, { status: 400 })
     }
-    if (pdfKey && !pdfKey.startsWith('temp/pdf/')) {
+    if (pdfKey && !pdfKey.startsWith(`temp/pdf/${session.user.id}/`)) {
       return NextResponse.json({ error: 'Некорректный ключ PDF' }, { status: 400 })
     }
 

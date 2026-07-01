@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Файл обязателен' }, { status: 400 })
     }
 
-    // fileKey должен быть в temp/ — автор не может подсунуть чужой постоянный ключ
-    if (!fileKey.startsWith('temp/rfa/')) {
+    // fileKey должен принадлежать этому пользователю — namespace temp/rfa/{userId}/
+    if (!fileKey.startsWith(`temp/rfa/${session.user.id}/`)) {
       return NextResponse.json({ error: 'Некорректный ключ файла' }, { status: 400 })
     }
 
@@ -90,8 +90,8 @@ export async function POST(req: NextRequest) {
       if (!imageKeys.every((k: unknown) => typeof k === 'string')) {
         return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
       }
-      // Изображения тоже должны быть из temp/
-      if (!imageKeys.every((k: string) => k.startsWith('temp/images/'))) {
+      // Изображения должны принадлежать этому пользователю — namespace temp/images/{userId}/
+      if (!imageKeys.every((k: string) => k.startsWith(`temp/images/${session.user.id}/`))) {
         return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
       }
     }

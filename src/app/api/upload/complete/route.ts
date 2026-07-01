@@ -64,6 +64,17 @@ export async function POST(req: NextRequest) {
 
     const destKey = fileKey.replace(`${tempFolder}/`, `${destFolder}/`)
 
+    // Для продукта — проверяем владение: нельзя ставить файлы в чужие продукты
+    if (entityType === 'product') {
+      const product = await db.product.findUnique({
+        where:  { id: entityId },
+        select: { authorId: true },
+      })
+      if (!product || product.authorId !== session.user.id) {
+        return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 })
+      }
+    }
+
     // Для аватарки — сразу показываем пользователю, не ждём worker
     // Worker проверит ClamAV и обновит на постоянный ключ (или удалит при вирусе)
     if (entityType === 'avatar') {

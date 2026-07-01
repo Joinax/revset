@@ -122,13 +122,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Отправка на проверку возможна только для черновиков и отклонённых паков' }, { status: 400 })
     }
 
-    if (newImageKeys?.length && !newImageKeys.every(k => k.startsWith('temp/images/'))) {
+    if (newImageKeys?.length && !newImageKeys.every(k => k.startsWith(`temp/images/${session.user.id}/`))) {
       return NextResponse.json({ error: 'Некорректные ключи изображений' }, { status: 400 })
     }
-    if (newAssemblyKey && !newAssemblyKey.startsWith('temp/rfa/')) {
+    if (newAssemblyKey && !newAssemblyKey.startsWith(`temp/rfa/${session.user.id}/`)) {
       return NextResponse.json({ error: 'Некорректный ключ сборного файла' }, { status: 400 })
     }
-    if (newPdfKey && !newPdfKey.startsWith('temp/pdf/')) {
+    if (newPdfKey && !newPdfKey.startsWith(`temp/pdf/${session.user.id}/`)) {
       return NextResponse.json({ error: 'Некорректный ключ PDF' }, { status: 400 })
     }
 

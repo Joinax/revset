@@ -150,13 +150,13 @@ export async function PATCH(
       if (!Array.isArray(newImageKeys) || newImageKeys.length > MAX_IMAGES) {
         return NextResponse.json({ error: `Максимум ${MAX_IMAGES} изображений` }, { status: 400 })
       }
-      if (!newImageKeys.every((k: unknown) => typeof k === 'string' && (k as string).startsWith('temp/images/'))) {
+      if (!newImageKeys.every((k: unknown) => typeof k === 'string' && (k as string).startsWith(`temp/images/${session.user.id}/`))) {
         return NextResponse.json({ error: 'Некорректные ключи новых изображений' }, { status: 400 })
       }
     }
 
     if (newPdfKey !== undefined && newPdfKey !== null) {
-      if (typeof newPdfKey !== 'string' || !newPdfKey.startsWith('temp/pdf/')) {
+      if (typeof newPdfKey !== 'string' || !newPdfKey.startsWith(`temp/pdf/${session.user.id}/`)) {
         return NextResponse.json({ error: 'Некорректный ключ PDF' }, { status: 400 })
       }
     }
