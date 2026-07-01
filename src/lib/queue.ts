@@ -10,7 +10,10 @@ async function initQueue(): Promise<PgBoss> {
     throw new Error('DATABASE_URL is not set')
   }
 
-  const boss = new PgBoss(process.env.DATABASE_URL)
+  const boss = new PgBoss({
+    connectionString: process.env.DATABASE_URL,
+    max: 2,
+  })
 
   boss.on('error', (err) => {
     console.error('[pg-boss error]', err)

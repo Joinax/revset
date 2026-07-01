@@ -42,11 +42,11 @@ const securityHeaders = [
       // шрифты — только свои
       "font-src 'self' https://cdn.jsdelivr.net",
       // изображения — свои + data: (для base64) + S3
-      `img-src 'self' data: blob: ${process.env.S3_ENDPOINT ?? ''} ${process.env.S3_PUBLIC_ENDPOINT ?? ''}`.trim(),
+      `img-src 'self' data: blob: ${process.env.S3_ENDPOINT ?? ''} ${process.env.NEXT_PUBLIC_S3_ENDPOINT ?? ''}`.trim(),
       // медиа — только свои
       "media-src 'self'",
       // API запросы — только свои домены
-      `connect-src 'self' https://cdn.jsdelivr.net ${process.env.S3_ENDPOINT ?? ''} ${process.env.S3_PUBLIC_ENDPOINT ?? ''}`.trim(),
+      `connect-src 'self' https://cdn.jsdelivr.net ${process.env.S3_ENDPOINT ?? ''} ${process.env.NEXT_PUBLIC_S3_ENDPOINT ?? ''}`.trim(),
       // объекты (Flash и т.п.) — запрещены
       "object-src 'none'",
       // базовый URL — только свой домен

@@ -19,6 +19,8 @@ export type LogEvent =
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 МБ — ротация
 
 function writeToFile(level: LogLevel, event: LogEvent, message: string, details?: unknown) {
+  // process.cwd недоступен в Edge Runtime — выходим
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') return
   try {
     // Ленивый импорт — не ломает Edge Runtime при сборке
     // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -58,7 +58,7 @@ if (!result.success) {
   }
   
   console.error('\nПроверь файл .env и перезапусти приложение.\n')
-  process.exit(1)
+  throw new Error('Invalid environment configuration — see errors above')
 }
 
 export const env = result.data

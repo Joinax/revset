@@ -1,24 +1,13 @@
 import { ZipArchive } from 'archiver'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
-import { PassThrough } from 'stream'
+import { PassThrough, Readable } from 'stream'
 import { s3, S3_BUCKET } from './s3'
 import { db } from './db'
 import { notifyAdmins } from './notify-admins'
 import { emitAdminEvent } from './admin-events'
 
 const BUNDLE_TIMEOUT_MS = 3 * 60 * 1000 // 3 минуты максимум
-
-async function fetchS3Buffer(key: string): Promise<Buffer | null> {
-  try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }))
-    if (!obj.Body) return null
-    const bytes = await obj.Body.transformToByteArray()
-    return Buffer.from(bytes)
-  } catch {
-    return null
-  }
-}
 
 export async function generatePackBundle(packId: string): Promise<void> {
   const pack = await db.pack.findUnique({
@@ -35,7 +24,10 @@ export async function generatePackBundle(packId: string): Promise<void> {
   const bundleKey = `packs/${packId}/bundle.zip`
 
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Bundle generation timed out after 10 minutes')), BUNDLE_TIMEOUT_MS)
+    setTimeout(
+      () => reject(new Error(`Bundle generation timed out after ${BUNDLE_TIMEOUT_MS / 60_000} minutes`)),
+      BUNDLE_TIMEOUT_MS,
+    )
   )
 
   try {
@@ -96,13 +88,32 @@ async function _buildBundle(
       Body:        passThrough,
       ContentType: 'application/zip',
     },
-    queueSize:         4,
+    // queueSize: 1 — минимизирует буферизацию в памяти при загрузке
+    queueSize:         1,
     partSize:          10 * 1024 * 1024,
     leavePartsOnError: false,
   })
 
-  // Скачиваем все файлы в буферы ДО начала архивирования —
-  // AWS SDK v3 SdkStream плохо работает с archiver в потоковом режиме
+  const archiveError = new Promise<never>((_, reject) => {
+    archive.on('error', reject)
+    passThrough.on('error', reject)
+  })
+
+  // Стримим файл из S3 напрямую в архив без буферизации в памяти.
+  // Readable.fromWeb конвертирует Web ReadableStream (AWS SDK v3) в Node.js Readable.
+  async function appendFromS3(fileKey: string, archiveName: string): Promise<void> {
+    try {
+      const obj = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: fileKey }))
+      if (!obj.Body) return
+      const nodeStream = Readable.fromWeb(
+        obj.Body as unknown as import('stream/web').ReadableStream,
+      )
+      archive.append(nodeStream, { name: archiveName })
+    } catch {
+      // Файл недоступен — пропускаем
+    }
+  }
+
   for (const item of pack.products) {
     let fileKey: string | null = null
     try {
@@ -113,35 +124,21 @@ async function _buildBundle(
 
     if (!fileKey) continue
 
-    const buf = await fetchS3Buffer(fileKey)
-    if (!buf) continue
-
     const ext      = fileKey.split('.').pop() ?? 'rfa'
     const safeName = item.product.name.replace(/[^a-zA-Z0-9а-яА-Я _-]/g, '_')
-    archive.append(buf, { name: `${item.position + 1}_${safeName}.${ext}` })
+    await appendFromS3(fileKey, `${item.position + 1}_${safeName}.${ext}`)
   }
 
   if (pack.assemblyFileKey) {
-    const buf = await fetchS3Buffer(pack.assemblyFileKey)
-    if (buf) {
-      const ext = pack.assemblyFileKey.split('.').pop() ?? 'rvt'
-      archive.append(buf, { name: `assembly.${ext}` })
-    }
+    const ext = pack.assemblyFileKey.split('.').pop() ?? 'rvt'
+    await appendFromS3(pack.assemblyFileKey, `assembly.${ext}`)
   }
 
   if (pack.pdfKey) {
-    const buf = await fetchS3Buffer(pack.pdfKey)
-    if (buf) {
-      archive.append(buf, { name: 'instruction.pdf' })
-    }
+    await appendFromS3(pack.pdfKey, 'instruction.pdf')
   }
 
-  const archiveError = new Promise<never>((_, reject) => {
-    archive.on('error', reject)
-  })
+  archive.finalize()
 
-  await Promise.race([
-    Promise.all([archive.finalize(), upload.done()]),
-    archiveError,
-  ])
+  await Promise.race([upload.done(), archiveError])
 }
