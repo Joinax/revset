@@ -6,6 +6,7 @@ type AuditAction =
   | 'user.role_change'
   | 'user.ban'
   | 'user.unban'
+  | 'user.flag_change'
   | 'verification.approve'
   | 'verification.reject'
   | 'verification.toggle_auto_publish'
@@ -22,8 +23,29 @@ type AuditAction =
   | 'pack.retry_bundle'
   | 'pack_review.approve'
   | 'pack_review.reject'
+  | 'ticket.status_change'
+  | 'ticket.priority_change'
+  | 'ticket.assign'
+  | 'ticket.reassign'
+  | 'ticket.escalate'
+  | 'ticket.close'
+  | 'idea.approve'
+  | 'idea.reject'
+  | 'idea.status_change'
+  | 'idea_comment.approve'
+  | 'idea_comment.reject'
 
-type AuditTargetType = 'User' | 'Product' | 'Order' | 'Category' | 'Setting' | 'Pack' | 'PackReview'
+type AuditTargetType =
+  | 'User'
+  | 'Product'
+  | 'Order'
+  | 'Category'
+  | 'Setting'
+  | 'Pack'
+  | 'PackReview'
+  | 'SupportTicket'
+  | 'Idea'
+  | 'IdeaComment'
 
 type LogAdminActionParams = {
   adminId: string

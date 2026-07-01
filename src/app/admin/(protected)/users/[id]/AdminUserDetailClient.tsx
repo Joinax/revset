@@ -11,6 +11,7 @@ const avatarSrc   = (img: string) => img.startsWith('http') ? img : `${S3_ENDPOI
 type User = {
   id: string; name: string; email: string; image: string | null
   role: string; emailVerified: boolean; isBanned: boolean
+  isModerator: boolean; isSupport: boolean
   createdAt: string; updatedAt: string
   ordersCount: number; productsCount: number; reviewsCount: number; favoritesCount: number
 }
@@ -95,6 +96,8 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
 
   const [role,        setRole]        = useState(user.role)
   const [isBanned,    setIsBanned]    = useState(user.isBanned)
+  const [isModerator, setIsModerator] = useState(user.isModerator)
+  const [isSupport,   setIsSupport]   = useState(user.isSupport)
   const [autoPublish, setAutoPublish] = useState(authorProfile?.autoPublish ?? false)
   const [isVerified,  setIsVerified]  = useState(authorProfile?.isVerified ?? false)
   const [saving,      setSaving]      = useState(false)
@@ -107,7 +110,7 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
     setSaving(true)
     await fetch('/api/admin/user', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, role, isBanned }),
+      body: JSON.stringify({ userId: user.id, role, isBanned, isModerator, isSupport }),
     })
     if (authorProfile) {
       await fetch('/api/admin/verify', {
@@ -211,6 +214,31 @@ export default function AdminUserDetailClient({ user, authorProfile, orders, pro
                 <option key={r} value={r}>{r === 'user' ? 'Покупатель' : r === 'author' ? 'Автор' : 'Администратор'}</option>
               ))}
             </select>
+          </div>
+
+          {/* Staff capabilities */}
+          <div style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--admin-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Права сотрудника</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ti ti-shield-check" style={{ fontSize: '15px', color: 'var(--admin-accent)' }} />
+                  Модератор моделей
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--admin-muted)', marginTop: '2px' }}>Проверяет и одобряет/отклоняет семейства</div>
+              </div>
+              <Toggle checked={isModerator} onChange={setIsModerator} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ti ti-headset" style={{ fontSize: '15px', color: 'var(--admin-accent)' }} />
+                  Агент поддержки
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--admin-muted)', marginTop: '2px' }}>Обрабатывает тикеты и FAQ</div>
+              </div>
+              <Toggle checked={isSupport} onChange={setIsSupport} />
+            </div>
           </div>
 
           {/* Author settings */}

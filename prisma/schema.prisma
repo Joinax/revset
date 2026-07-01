@@ -16,24 +16,33 @@ model User {
   updatedAt     DateTime
   role          String    @default("user")
   isBanned      Boolean   @default(false)
+  isModerator   Boolean   @default(false)
+  isSupport     Boolean   @default(false)
 
-  authorProfile AuthorProfile?
-  products      Product[]
-  orders        Order[]
-  favorites     Favorite[]
-  reviews       Review[]
-  sessions      Session[]
-  accounts      Account[]
-  following     Follow[]  @relation("Follower")
-  followers     Follow[]  @relation("Following")
-  cart          Cart?
-  auditLogs     AdminAuditLog[] @relation("AdminAuditLogs")
-  notifications     Notification[]
-  reviewComments    ReviewComment[]  @relation("ReviewComments")
-  reviewLikes       ReviewLike[]     @relation("ReviewLikes")
-  packs        Pack[]
-  packReviews  PackReview[]
-  downloadLogs DownloadLog[]
+  authorProfile    AuthorProfile?
+  products         Product[]
+  orders           Order[]
+  favorites        Favorite[]
+  reviews          Review[]
+  sessions         Session[]
+  accounts         Account[]
+  following        Follow[]         @relation("Follower")
+  followers        Follow[]         @relation("Following")
+  cart             Cart?
+  auditLogs        AdminAuditLog[]  @relation("AdminAuditLogs")
+  notifications    Notification[]
+  reviewComments   ReviewComment[]  @relation("ReviewComments")
+  reviewLikes      ReviewLike[]     @relation("ReviewLikes")
+  packs            Pack[]
+  packReviews      PackReview[]
+  downloadLogs     DownloadLog[]
+  supportTickets   SupportTicket[]  @relation("TicketUser")
+  assignedTickets  SupportTicket[]  @relation("TicketAgent")
+  ticketMessages   TicketMessage[]
+  ideas            Idea[]
+  ideaVotes        IdeaVote[]
+  ideaComments     IdeaComment[]
+  cannedResponses  CannedResponse[]
 
   @@map("user")
 }
@@ -418,4 +427,160 @@ model SystemLog {
   @@index([createdAt(sort: Desc)])
   @@index([level])
   @@index([event])
+}
+
+// ── Тикеты поддержки ──────────────────────────────────────────────────────────
+
+enum TicketStatus {
+  AWAITING_SUPPORT
+  AWAITING_USER
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AttachmentStatus {
+  SCANNING
+  CLEAN
+  REJECTED
+}
+
+model SupportTicket {
+  id          String         @id @default(cuid())
+  number      Int            @unique @default(autoincrement())
+  userId      String
+  user        User           @relation("TicketUser",  fields: [userId],     references: [id])
+  assignedTo  String?
+  assignee    User?          @relation("TicketAgent", fields: [assignedTo], references: [id])
+  subject     String
+  category    String
+  priority    TicketPriority
+  status      TicketStatus   @default(AWAITING_SUPPORT)
+  orderId     String?
+  userReadAt  DateTime?
+  staffReadAt DateTime?
+  messages    TicketMessage[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, priority])
+  @@index([assignedTo, status])
+  @@index([userId])
+}
+
+model TicketMessage {
+  id          String             @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User               @relation(fields: [authorId], references: [id])
+  isStaff     Boolean            @default(false)
+  isInternal  Boolean            @default(false)
+  text        String?            @db.Text
+  attachments TicketAttachment[]
+  createdAt   DateTime           @default(now())
+
+  @@index([ticketId])
+}
+
+model TicketAttachment {
+  id        String           @id @default(cuid())
+  messageId String
+  message   TicketMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileKey   String
+  status    AttachmentStatus @default(SCANNING)
+  threat    String?
+  createdAt DateTime         @default(now())
+
+  @@index([messageId])
+}
+
+model CannedResponse {
+  id        String   @id @default(cuid())
+  title     String
+  text      String   @db.Text
+  category  String?
+  createdBy String
+  creator   User     @relation(fields: [createdBy], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ── FAQ ───────────────────────────────────────────────────────────────────────
+
+model FaqArticle {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String   @db.Text
+  category    String?
+  position    Int      @default(0)
+  isPublished Boolean  @default(true)
+  helpfulYes  Int      @default(0)
+  helpfulNo   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, isPublished])
+  @@index([isPublished, position])
+}
+
+// ── Доска идей ────────────────────────────────────────────────────────────────
+
+enum IdeaStatus {
+  UNDER_REVIEW
+  PLANNED
+  IN_PROGRESS
+  DONE
+  DECLINED
+}
+
+model Idea {
+  id                String           @id @default(cuid())
+  number            Int              @unique @default(autoincrement())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  title             String
+  description       String           @db.Text
+  category          String?
+  moderationStatus  ModerationStatus @default(PENDING)
+  moderationComment String?
+  status            IdeaStatus       @default(UNDER_REVIEW)
+  voteCount         Int              @default(0)
+  votes             IdeaVote[]
+  comments          IdeaComment[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([moderationStatus, status, voteCount])
+  @@index([userId])
+}
+
+model IdeaVote {
+  id     String @id @default(cuid())
+  ideaId String
+  idea   Idea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([ideaId, userId])
+}
+
+model IdeaComment {
+  id               String           @id @default(cuid())
+  ideaId           String
+  idea             Idea             @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User             @relation(fields: [userId], references: [id])
+  text             String           @db.Text
+  moderationStatus ModerationStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+
+  @@index([ideaId, moderationStatus])
 }

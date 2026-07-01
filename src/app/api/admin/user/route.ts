@@ -21,21 +21,25 @@ export async function POST(request: NextRequest) {
   }
 
   const userActionSchema = z.object({
-    userId:   z.string().min(1).max(50),
-    role:     z.enum(['user', 'author', 'admin']).optional(),
-    isBanned: z.boolean().optional(),
+    userId:      z.string().min(1).max(50),
+    role:        z.enum(['user', 'author', 'admin']).optional(),
+    isBanned:    z.boolean().optional(),
+    isModerator: z.boolean().optional(),
+    isSupport:   z.boolean().optional(),
   })
 
-  let userId: string, role: string | undefined, isBanned: boolean | undefined
+  let parsed: z.infer<typeof userActionSchema>
   try {
     const result = userActionSchema.safeParse(await request.json())
     if (!result.success) {
       return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
     }
-    ;({ userId, role, isBanned } = result.data)
+    parsed = result.data
   } catch {
     return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
+
+  const { userId, role, isBanned, isModerator, isSupport } = parsed
 
   // Нельзя изменить собственную роль или заблокировать самого себя —
   // иначе администратор может случайно лишить себя доступа к системе
@@ -44,14 +48,16 @@ export async function POST(request: NextRequest) {
   }
 
   const before = await db.user.findUnique({
-    where: { id: userId },
-    select: { role: true, isBanned: true },
+    where:  { id: userId },
+    select: { role: true, isBanned: true, isModerator: true, isSupport: true },
   })
   if (!before) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const data: Record<string, unknown> = {}
-  if (role !== undefined) data.role = role
-  if (isBanned !== undefined) data.isBanned = isBanned
+  if (role        !== undefined) data.role        = role
+  if (isBanned    !== undefined) data.isBanned    = isBanned
+  if (isModerator !== undefined) data.isModerator = isModerator
+  if (isSupport   !== undefined) data.isSupport   = isSupport
 
   await db.user.update({ where: { id: userId }, data })
 
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
   // и пользователь продолжит действовать со старой ролью (например, автор
   // после отзыва статуса продолжит видеть авторские вкладки и вызывать API).
   const roleChanged = data.role !== undefined && data.role !== before.role
-  const bannedNow = data.isBanned === true
+  const bannedNow   = data.isBanned === true
 
   if (bannedNow || roleChanged) {
     await db.session.deleteMany({ where: { userId } })
@@ -69,20 +75,37 @@ export async function POST(request: NextRequest) {
 
   if (roleChanged) {
     await logAdminAction({
-      adminId: session.user.id,
-      action: 'user.role_change',
+      adminId:    session.user.id,
+      action:     'user.role_change',
       targetType: 'User',
-      targetId: userId,
-      details: { from: before.role, to: data.role },
+      targetId:   userId,
+      details:    { from: before.role, to: data.role },
     })
   }
 
   if (data.isBanned !== undefined && data.isBanned !== before.isBanned) {
     await logAdminAction({
-      adminId: session.user.id,
-      action: data.isBanned ? 'user.ban' : 'user.unban',
+      adminId:    session.user.id,
+      action:     data.isBanned ? 'user.ban' : 'user.unban',
       targetType: 'User',
-      targetId: userId,
+      targetId:   userId,
+    })
+  }
+
+  const flagChanged =
+    (isModerator !== undefined && isModerator !== before.isModerator) ||
+    (isSupport   !== undefined && isSupport   !== before.isSupport)
+
+  if (flagChanged) {
+    await logAdminAction({
+      adminId:    session.user.id,
+      action:     'user.flag_change',
+      targetType: 'User',
+      targetId:   userId,
+      details: {
+        isModerator: { from: before.isModerator, to: isModerator ?? before.isModerator },
+        isSupport:   { from: before.isSupport,   to: isSupport   ?? before.isSupport   },
+      },
     })
   }
 
