@@ -8,7 +8,7 @@ if (!g._adminEmitter) {
 }
 const emitter = g._adminEmitter
 
-export type AdminEventType = 'pack' | 'product' | 'verification' | 'user' | 'review'
+export type AdminEventType = 'pack' | 'product' | 'verification' | 'user' | 'review' | 'attachment_clean' | 'attachment_rejected'
 
 export interface AdminEvent {
   type: AdminEventType

@@ -167,6 +167,14 @@ async function markPending(
       })
       emitAdminEvent({ type: 'pack', id: entityId })
     }
+
+  } else if (entityType === 'ticket_attachment') {
+    // No pendingScanCount or moderationStatus — just mark CLEAN and update the permanent key
+    await db.ticketAttachment.update({
+      where: { id: entityId },
+      data:  { status: 'CLEAN', fileKey: destKey },
+    })
+    emitAdminEvent({ type: 'attachment_clean', id: entityId })
   }
 }
 
@@ -264,5 +272,32 @@ async function markRejected(
         link:    '/account?tab=author-packs',
       },
     })
+
+  } else if (entityType === 'ticket_attachment') {
+    const att = await db.ticketAttachment.findUnique({
+      where:   { id: entityId },
+      include: { message: { select: { ticketId: true, ticket: { select: { userId: true } } } } },
+    })
+    if (!att) return
+
+    await db.ticketAttachment.update({
+      where: { id: entityId },
+      data:  { status: 'REJECTED', threat: reason },
+    })
+
+    // Notify ticket owner
+    if (att.message?.ticket?.userId) {
+      await db.notification.create({
+        data: {
+          userId:  att.message.ticket.userId,
+          type:    'attachment_rejected',
+          title:   'Скриншот удалён',
+          message: 'Вложение не прошло проверку безопасности и было удалено.',
+          link:    `/account?tab=support&ticket=${att.message.ticketId}`,
+        },
+      })
+    }
+
+    emitAdminEvent({ type: 'attachment_rejected', id: entityId })
   }
 }
