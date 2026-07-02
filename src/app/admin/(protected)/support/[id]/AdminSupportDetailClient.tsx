@@ -68,6 +68,9 @@ export default function AdminSupportDetailClient({
 
   const [cannedOpen, setCannedOpen] = useState(false)
 
+  type PendingMsg = { _tempId: string; text: string; isInternal: boolean; status: 'sending' | 'error'; createdAt: string }
+  const [pendingMsgs, setPendingMsgs] = useState<PendingMsg[]>([])
+
   const [assigning,    setAssigning]    = useState(false)
   const [changingPri,  setChangingPri]  = useState(false)
   const [changingSt,   setChangingSt]   = useState(false)
@@ -77,19 +80,39 @@ export default function AdminSupportDetailClient({
   const st       = STATUS_LABELS[ticket.status] ?? STATUS_LABELS['AWAITING_SUPPORT']
   const priColor = PRIORITY_COLOR[ticket.priority] ?? '#B9B9C2'
 
-  async function handleSend() {
+  async function handleSend(retryTempId?: string) {
     if (!replyText.trim()) return
+    const text      = replyText.trim()
+    const internal  = isInternal
+    const tempId    = retryTempId ?? `tmp-${Date.now()}`
+    const createdAt = new Date().toISOString()
+
+    if (!retryTempId) {
+      setPendingMsgs(prev => [...prev, { _tempId: tempId, text, isInternal: internal, status: 'sending', createdAt }])
+      setReplyText('')
+    } else {
+      setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'sending' } : m))
+    }
     setSendLoading(true); setSendError('')
+
     try {
       const res = await fetch(`/api/support/${ticket.id}/message`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text: replyText, isInternal }),
+        body:    JSON.stringify({ text, isInternal: internal }),
       })
       const data = await res.json()
-      if (!res.ok) { setSendError(data.error ?? 'Ошибка'); return }
+      if (!res.ok) {
+        setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'error' } : m))
+        setSendError(data.error ?? 'Ошибка')
+        return
+      }
+      setPendingMsgs(prev => prev.filter(m => m._tempId !== tempId))
       setMessages(prev => [...prev, data])
-      setReplyText(''); setIsInternal(false)
+      setIsInternal(false)
+    } catch {
+      setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'error' } : m))
+      setSendError('Ошибка сети')
     } finally {
       setSendLoading(false)
     }
@@ -202,12 +225,50 @@ export default function AdminSupportDetailClient({
                 }}>
                   {msg.text}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--admin-muted)', marginTop: '4px', padding: '0 2px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--admin-muted)', marginTop: '4px', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   {msg.isStaff ? 'Вы' : (owner?.name ?? 'Клиент')} · {new Date(msg.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {msg.isStaff && (() => {
+                    const isRead = ticket.userReadAt && new Date(ticket.userReadAt) >= new Date(msg.createdAt)
+                    return isRead
+                      ? <i className="ti ti-checks" style={{ fontSize: '13px', color: 'var(--admin-accent)' }} />
+                      : <i className="ti ti-check"  style={{ fontSize: '13px', color: 'var(--admin-muted)' }} />
+                  })()}
                 </div>
               </div>
             )
           })}
+
+          {/* Optimistic messages */}
+          {pendingMsgs.map(pm => (
+            <div key={pm._tempId} style={{ display: 'flex', flexDirection: 'column', alignItems: pm.isInternal ? 'stretch' : 'flex-end' }}>
+              {pm.isInternal ? (
+                <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#FFF8EC', border: '1px solid rgba(245,158,11,0.25)', opacity: 0.7, display: 'flex', gap: '8px' }}>
+                  <i className="ti ti-lock" style={{ fontSize: '14px', color: '#F59E0B', flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#F59E0B', fontWeight: 600, marginBottom: '4px' }}>Внутренняя заметка</div>
+                    <div style={{ fontSize: '13px', color: '#6B5B00', whiteSpace: 'pre-wrap' }}>{pm.text}</div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: '12px 4px 12px 12px', background: 'rgba(72,128,255,0.1)', border: '1px solid rgba(72,128,255,0.2)', fontSize: '13px', lineHeight: 1.5, color: 'var(--admin-text)', whiteSpace: 'pre-wrap', opacity: pm.status === 'sending' ? 0.7 : 1 }}>
+                  {pm.text}
+                </div>
+              )}
+              <div style={{ fontSize: '11px', color: 'var(--admin-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Вы · только что
+                {pm.status === 'sending' && <i className="ti ti-clock"        style={{ fontSize: '13px', color: 'var(--admin-muted)' }} />}
+                {pm.status === 'error'   && <i className="ti ti-alert-circle" style={{ fontSize: '13px', color: 'var(--admin-danger)' }} />}
+              </div>
+              {pm.status === 'error' && (
+                <div style={{ fontSize: '11px', color: 'var(--admin-danger)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  Не отправлено ·
+                  <button onClick={() => { setReplyText(pm.text); setIsInternal(pm.isInternal); setPendingMsgs(p => p.filter(m => m._tempId !== pm._tempId)) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--admin-danger)', fontSize: '11px', padding: 0, textDecoration: 'underline', fontFamily: 'inherit' }}>
+                    <i className="ti ti-refresh" /> Отправить снова
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Composer */}
@@ -275,7 +336,7 @@ export default function AdminSupportDetailClient({
 
               {/* Send button — right-aligned */}
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={sendLoading || !replyText.trim()}
                 style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--admin-accent)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: sendLoading || !replyText.trim() ? 'not-allowed' : 'pointer', opacity: sendLoading || !replyText.trim() ? 0.6 : 1, fontFamily: 'inherit' }}
               >

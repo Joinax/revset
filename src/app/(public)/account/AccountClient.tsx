@@ -408,6 +408,10 @@ function SupportTab({ userId }: { userId: string }) {
   const [sendLoading,   setSendLoading]   = useState(false)
   const [sendError,     setSendError]     = useState('')
 
+  // Optimistic / pending messages (not yet confirmed by server)
+  type PendingMsg = { _tempId: string; text: string; status: 'sending' | 'error'; createdAt: string }
+  const [pendingMsgs, setPendingMsgs] = useState<PendingMsg[]>([])
+
   // FAQ deflector state
   type FaqItem = { id: string; question: string; answer: string }
   const [faqArticles, setFaqArticles] = useState<FaqItem[]>([])
@@ -517,19 +521,40 @@ function SupportTab({ userId }: { userId: string }) {
     }
   }
 
-  async function handleSend() {
+  async function handleSend(retryTempId?: string) {
     if (!selected || !replyText.trim()) return
+    const text      = replyText.trim()
+    const tempId    = retryTempId ?? `tmp-${Date.now()}`
+    const createdAt = new Date().toISOString()
+
+    // Optimistic: show message immediately as "sending"
+    if (!retryTempId) {
+      setPendingMsgs(prev => [...prev, { _tempId: tempId, text, status: 'sending', createdAt }])
+      setReplyText('')
+    } else {
+      setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'sending' } : m))
+    }
     setSendLoading(true); setSendError('')
+
     try {
       const res = await fetch(`/api/support/${selected.id}/message`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text: replyText, isInternal }),
+        body:    JSON.stringify({ text, isInternal }),
       })
       const data = await res.json()
-      if (!res.ok) { setSendError(data.error ?? 'Ошибка'); return }
+      if (!res.ok) {
+        setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'error' } : m))
+        setSendError(data.error ?? 'Ошибка')
+        return
+      }
+      // Confirmed: move from pending to real messages
+      setPendingMsgs(prev => prev.filter(m => m._tempId !== tempId))
       setSelected(prev => prev ? { ...prev, messages: [...prev.messages, data] } : prev)
-      setReplyText(''); setIsInternal(false)
+      setIsInternal(false)
+    } catch {
+      setPendingMsgs(prev => prev.map(m => m._tempId === tempId ? { ...m, status: 'error' } : m))
+      setSendError('Ошибка сети')
     } finally {
       setSendLoading(false)
     }
@@ -780,11 +805,11 @@ function SupportTab({ userId }: { userId: string }) {
         <div style={{ display: 'grid', gap: '12px', marginBottom: '20px' }}>
           {selected.messages.map(msg => {
             const isUser = !msg.isStaff
+            const isRead = isUser && selected.staffReadAt && new Date(selected.staffReadAt) >= new Date(msg.createdAt)
             return (
               <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                 <div style={{
-                  maxWidth: '80%',
-                  padding: '12px 14px',
+                  maxWidth: '80%', padding: '12px 14px',
                   borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
                   background: isUser ? 'rgba(72,128,255,0.1)' : 'var(--bg2)',
                   border: `1px solid ${isUser ? 'rgba(72,128,255,0.2)' : 'var(--border)'}`,
@@ -793,12 +818,47 @@ function SupportTab({ userId }: { userId: string }) {
                 }}>
                   {msg.text}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', padding: '0 4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   {isUser ? 'Вы' : 'Поддержка'} · {new Date(msg.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {isUser && (
+                    isRead
+                      ? <i className="ti ti-checks" style={{ fontSize: '13px', color: 'var(--accent)' }} />
+                      : <i className="ti ti-check"  style={{ fontSize: '13px', color: 'var(--muted)' }} />
+                  )}
                 </div>
               </div>
             )
           })}
+
+          {/* Optimistic / pending messages */}
+          {pendingMsgs.map(pm => (
+            <div key={pm._tempId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div style={{
+                maxWidth: '80%', padding: '12px 14px',
+                borderRadius: '12px 12px 4px 12px',
+                background: 'rgba(72,128,255,0.1)',
+                border: '1px solid rgba(72,128,255,0.2)',
+                fontSize: '13px', lineHeight: 1.5, color: 'var(--text)',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                opacity: pm.status === 'sending' ? 0.7 : 1,
+              }}>
+                {pm.text}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Вы · {new Date(pm.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {pm.status === 'sending' && <i className="ti ti-clock" style={{ fontSize: '13px', color: 'var(--muted)' }} />}
+                {pm.status === 'error'   && <i className="ti ti-alert-circle" style={{ fontSize: '13px', color: 'var(--danger)' }} />}
+              </div>
+              {pm.status === 'error' && (
+                <div style={{ fontSize: '11px', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  Не отправлено ·
+                  <button onClick={() => { setReplyText(pm.text); setPendingMsgs(p => p.filter(m => m._tempId !== pm._tempId)) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '11px', padding: 0, textDecoration: 'underline', fontFamily: 'inherit' }}>
+                    <i className="ti ti-refresh" style={{ fontSize: '11px' }} /> Отправить снова
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Composer */}
@@ -820,7 +880,7 @@ function SupportTab({ userId }: { userId: string }) {
             {sendError && <p style={{ fontSize: '12px', color: 'var(--danger)', margin: 0 }}>{sendError}</p>}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={sendLoading || !replyText.trim()}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 700, cursor: sendLoading || !replyText.trim() ? 'not-allowed' : 'pointer', opacity: sendLoading || !replyText.trim() ? 0.6 : 1, fontFamily: 'inherit' }}
               >

@@ -15,7 +15,8 @@ type FaqArticle = {
 }
 
 type Props = {
-  articles: FaqArticle[]
+  articles:    FaqArticle[]
+  isLoggedIn:  boolean
 }
 
 const CAT_ICONS: Record<string, string> = {
@@ -130,9 +131,36 @@ function FaqAccordionItem({ article }: { article: FaqArticle }) {
   )
 }
 
-export default function FaqClient({ articles }: Props) {
-  const [search,      setSearch]   = useState('')
-  const [activeTab,   setActiveTab] = useState<string>('ALL')
+export default function FaqClient({ articles, isLoggedIn }: Props) {
+  const [search,        setSearch]     = useState('')
+  const [activeTab,     setActiveTab]  = useState<string>('ALL')
+  const [showContact,   setShowContact] = useState(false)
+  const [cName,         setCName]       = useState('')
+  const [cEmail,        setCEmail]      = useState('')
+  const [cSubject,      setCSubject]    = useState('')
+  const [cMessage,      setCMessage]    = useState('')
+  const [cLoading,      setCLoading]    = useState(false)
+  const [cSent,         setCSent]       = useState(false)
+  const [cError,        setCError]      = useState('')
+
+  async function handleContact(e: React.FormEvent) {
+    e.preventDefault()
+    setCLoading(true); setCError('')
+    try {
+      const res = await fetch('/api/contact', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name: cName, email: cEmail, subject: cSubject, message: cMessage }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCError(data.error ?? 'Ошибка'); return }
+      setCSent(true)
+    } catch {
+      setCError('Ошибка сети')
+    } finally {
+      setCLoading(false)
+    }
+  }
 
   // Derive unique categories from articles
   const categories = Array.from(
@@ -232,19 +260,74 @@ export default function FaqClient({ articles }: Props) {
         )}
 
         {/* Contact block */}
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px', textAlign: 'center', marginTop: '32px' }}>
-          <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>Остались вопросы?</h3>
-          <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
-            Создайте обращение в поддержку — ответим в течение рабочего дня
-          </p>
-          <Link
-            href="/account?tab=support"
-            className="btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <i className="ti ti-headset" style={{ fontSize: '15px' }} />
-            Написать в поддержку
-          </Link>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px', marginTop: '32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <h3 style={{ marginBottom: '6px', fontSize: '16px' }}>Остались вопросы?</h3>
+            <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+              Ответим в течение рабочего дня
+            </p>
+          </div>
+
+          {isLoggedIn ? (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Link href="/account?tab=support" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <i className="ti ti-headset" style={{ fontSize: '15px' }} />
+                Написать в поддержку
+              </Link>
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', marginBottom: '16px' }}>
+                <Link href="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Войдите</Link> чтобы создать обращение, или напишите нам напрямую:
+              </p>
+
+              {cSent ? (
+                <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: 'var(--success)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ti ti-check" /> Сообщение отправлено — ответим на {cEmail}
+                </div>
+              ) : showContact ? (
+                <form onSubmit={handleContact} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <input
+                      placeholder="Ваше имя"
+                      value={cName} onChange={e => setCName(e.target.value)} required maxLength={100}
+                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                    <input
+                      type="email" placeholder="Email для ответа"
+                      value={cEmail} onChange={e => setCEmail(e.target.value)} required maxLength={200}
+                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  <input
+                    placeholder="Тема обращения"
+                    value={cSubject} onChange={e => setCSubject(e.target.value)} required minLength={3} maxLength={200}
+                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
+                  />
+                  <textarea
+                    placeholder="Опишите вашу проблему подробнее"
+                    value={cMessage} onChange={e => setCMessage(e.target.value)} required minLength={10} maxLength={5000} rows={4}
+                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  {cError && <p style={{ fontSize: '12px', color: 'var(--danger)', margin: 0 }}>{cError}</p>}
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => setShowContact(false)} className="btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }}>Отмена</button>
+                    <button type="submit" disabled={cLoading} className="btn-primary" style={{ padding: '8px 20px', fontSize: '13px', opacity: cLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {cLoading ? <i className="ti ti-loader-2" /> : <i className="ti ti-send" />}
+                      {cLoading ? 'Отправка...' : 'Отправить'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <button onClick={() => setShowContact(true)} className="btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                    <i className="ti ti-mail" style={{ fontSize: '15px' }} />
+                    Написать без регистрации
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
