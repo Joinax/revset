@@ -408,9 +408,54 @@ function SupportTab({ userId }: { userId: string }) {
   const [sendLoading,   setSendLoading]   = useState(false)
   const [sendError,     setSendError]     = useState('')
 
+  // FAQ deflector state
+  type FaqItem = { id: string; question: string; answer: string }
+  const [faqArticles, setFaqArticles] = useState<FaqItem[]>([])
+  const [faqLoading,  setFaqLoading]  = useState(false)
+  const [openFaqId,   setOpenFaqId]   = useState<string | null>(null)
+  const [faqVoted,    setFaqVoted]    = useState<Record<string, 'yes' | 'no'>>({})
+
+  // Map AccountClient category keys → FAQ DB category keys
+  const FAQ_CAT_MAP: Record<string, string> = {
+    ORDER:    'PAYMENT',
+    DOWNLOAD: 'DOWNLOAD',
+    ACCOUNT:  'ACCOUNT',
+    CONTENT:  'MODERATION',
+    OTHER:    'OTHER',
+  }
+
+  async function voteFaq(articleId: string, vote: 'yes' | 'no') {
+    if (faqVoted[articleId]) return
+    setFaqVoted(prev => ({ ...prev, [articleId]: vote }))
+    fetch(`/api/faq/${articleId}/helpful`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ vote }),
+    }).catch(() => {})
+  }
+
   useEffect(() => {
     fetchTickets()
   }, [])
+
+  // Fetch FAQ when user moves to step 2
+  useEffect(() => {
+    if (view !== 'create-step2' || !createCategory) return
+    const faqCat = FAQ_CAT_MAP[createCategory]
+    if (!faqCat) { setFaqArticles([]); return }
+    setFaqLoading(true)
+    setOpenFaqId(null)
+    setFaqVoted({})
+    fetch(`/api/faq?category=${faqCat}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: FaqItem[]) => {
+        const slice = data.slice(0, 3)
+        setFaqArticles(slice)
+        if (slice.length > 0) setOpenFaqId(slice[0].id)
+      })
+      .catch(() => setFaqArticles([]))
+      .finally(() => setFaqLoading(false))
+  }, [view, createCategory]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchTickets() {
     setLoadingList(true)
@@ -574,10 +619,63 @@ function SupportTab({ userId }: { userId: string }) {
         <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>Опишите проблему</h2>
         {cat && <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}><i className={`ti ${cat.icon}`} style={{ fontSize: '14px', color: 'var(--accent)' }} />{cat.label}</p>}
 
-        {/* FAQ deflector placeholder */}
-        <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(72,128,255,0.06)', border: '1px solid rgba(72,128,255,0.15)', marginBottom: '20px', fontSize: '13px', color: 'var(--muted)' }}>
-          Не нашли ответ? Опишите проблему — мы ответим в течение 24 часов
-        </div>
+        {/* FAQ deflector */}
+        {faqLoading && (
+          <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg2)', border: '1px solid var(--border)', marginBottom: '16px', fontSize: '13px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <i className="ti ti-loader-2" style={{ fontSize: '15px', opacity: 0.5 }} />
+            Ищем похожие вопросы...
+          </div>
+        )}
+
+        {!faqLoading && faqArticles.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', margin: '0 0 10px' }}>
+              Возможно, это поможет
+            </p>
+            {faqArticles.map(article => (
+              <div key={article.id} style={{ border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
+                <button
+                  onClick={() => setOpenFaqId(id => id === article.id ? null : article.id)}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: openFaqId === article.id ? 'var(--bg)' : 'var(--bg2)', border: 'none', cursor: 'pointer', textAlign: 'left', gap: '10px', fontFamily: 'inherit' }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.35 }}>{article.question}</span>
+                  <i className={`ti ${openFaqId === article.id ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '14px', color: 'var(--muted)', flexShrink: 0 }} />
+                </button>
+                {openFaqId === article.id && (
+                  <div style={{ padding: '10px 14px 14px', background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 12px' }}>{article.answer}</p>
+                    {!faqVoted[article.id] ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Это помогло?</span>
+                        <button onClick={() => voteFaq(article.id, 'yes')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '3px 10px', borderRadius: '20px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          <i className="ti ti-thumb-up" style={{ fontSize: '12px' }} /> Да
+                        </button>
+                        <button onClick={() => voteFaq(article.id, 'no')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '3px 10px', borderRadius: '20px', border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          <i className="ti ti-thumb-down" style={{ fontSize: '12px' }} /> Нет
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                        {faqVoted[article.id] === 'yes' ? 'Спасибо! Рады помочь.' : 'Понятно, опишите ниже — мы разберёмся.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 16px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Не нашли ответ? Опишите проблему</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            </div>
+          </div>
+        )}
+
+        {!faqLoading && faqArticles.length === 0 && (
+          <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(72,128,255,0.06)', border: '1px solid rgba(72,128,255,0.15)', marginBottom: '20px', fontSize: '13px', color: 'var(--muted)' }}>
+            Не нашли ответ? Опишите проблему — мы ответим в течение 24 часов
+          </div>
+        )}
 
         <div style={{ display: 'grid', gap: '16px' }}>
           <div>
