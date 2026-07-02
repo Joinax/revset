@@ -10,6 +10,8 @@ import { useReviewsCount } from '@/hooks/useReviewsCount'
 import { useReviewCommentsCount } from '@/hooks/useReviewCommentsCount'
 import { usePacksModerationCount } from '@/hooks/usePacksModerationCount'
 import { useSupportCount } from '@/hooks/useSupportCount'
+import { useIdeasModerationCount } from '@/hooks/useIdeasModerationCount'
+import { useIdeaCommentsCount } from '@/hooks/useIdeaCommentsCount'
 import { useAdminEvents } from '@/hooks/useAdminEvents'
 
 const links = [
@@ -17,7 +19,9 @@ const links = [
   { href: '/admin/families',     icon: 'ti-box',              label: 'Семейства' },
   { href: '/admin/packs',         icon: 'ti-package',          label: 'Паки' },
   { href: '/admin/pack-reviews', icon: 'ti-message-2',        label: 'Отзывы на паки' },
-  { href: '/admin/support',      icon: 'ti-headset',          label: 'Поддержка' },
+  { href: '/admin/support',        icon: 'ti-headset',          label: 'Поддержка' },
+  { href: '/admin/ideas',          icon: 'ti-bulb',             label: 'Идеи' },
+  { href: '/admin/ideas/comments', icon: 'ti-message-2',        label: 'Комм. идей' },
   { href: '/admin/users',        icon: 'ti-users',            label: 'Пользователи' },
   { href: '/admin/verification', icon: 'ti-shield-check',     label: 'Верификация' },
   { href: '/admin/transactions',    icon: 'ti-credit-card',    label: 'Транзакции' },
@@ -42,6 +46,8 @@ export default function AdminSidebar() {
   const { count: reviewCommentsCount,  isLoading: rcLoading } = useReviewCommentsCount()
   const { count: packsCount,           isLoading: pLoading }  = usePacksModerationCount()
   const { count: supportCount,         isLoading: sLoading }  = useSupportCount()
+  const { count: ideasCount,           isLoading: iLoading }  = useIdeasModerationCount()
+  const { count: ideaCommentsCount,    isLoading: icLoading } = useIdeaCommentsCount()
 
   // Карта badge-счётчиков по href — легко добавлять новые в будущем
   const badgeCounts: Record<string, number> = {
@@ -50,7 +56,9 @@ export default function AdminSidebar() {
     '/admin/packs':          packsCount,
     '/admin/reviews':        reviewsCount,
     '/admin/review-comments': reviewCommentsCount,
-    '/admin/support':        supportCount,
+    '/admin/support':          supportCount,
+    '/admin/ideas':            ideasCount,
+    '/admin/ideas/comments':   ideaCommentsCount,
   }
 
   // До первой загрузки SWR не показываем бейдж вообще —
@@ -61,7 +69,9 @@ export default function AdminSidebar() {
     '/admin/packs':          pLoading,
     '/admin/reviews':        rLoading,
     '/admin/review-comments': rcLoading,
-    '/admin/support':        sLoading,
+    '/admin/support':          sLoading,
+    '/admin/ideas':            iLoading,
+    '/admin/ideas/comments':   icLoading,
   }
 
   const W = expanded ? 240 : 72
