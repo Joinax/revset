@@ -14,10 +14,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Это главный рубеж защиты всей админки — proxy.ts проверяет только cookie.
   const currentUser = await db.user.findUnique({
     where:  { id: session.user.id },
-    select: { role: true, isBanned: true, name: true, email: true },
+    select: { role: true, isBanned: true, isSupport: true, isModerator: true, name: true, email: true },
   })
 
-  if (!currentUser || currentUser.isBanned || currentUser.role !== 'admin') {
+  const isAllowed = currentUser && !currentUser.isBanned && (
+    currentUser.role === 'admin' || currentUser.isSupport || currentUser.isModerator
+  )
+  if (!isAllowed) {
     redirect('/admin/login')
   }
 

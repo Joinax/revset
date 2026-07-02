@@ -478,6 +478,23 @@ function SupportTab({ userId }: { userId: string }) {
     }
   }
 
+  // Poll for new messages every 15s while in detail view
+  useEffect(() => {
+    if (view !== 'detail' || !selected) return
+    const id = selected.id
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/support/${id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSelected(prev => {
+          if (!prev || data.messages.length === prev.messages.length) return prev
+          return data
+        })
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [view, selected?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleCreate() {
     setCreateError('')
     if (!createSubject.trim()) { setCreateError('Укажите тему'); return }

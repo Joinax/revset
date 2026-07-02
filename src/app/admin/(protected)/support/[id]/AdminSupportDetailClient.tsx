@@ -34,9 +34,9 @@ type Props = {
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
-  URGENT: 'var(--admin-danger)',
+  URGENT: '#EF3826',
   HIGH:   '#F5883C',
-  MEDIUM: 'var(--admin-accent)',
+  MEDIUM: '#4880FF',
   LOW:    '#B9B9C2',
 }
 const PRIORITY_LABELS: Record<string, string> = {
