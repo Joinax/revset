@@ -137,20 +137,35 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
   const [showContact,   setShowContact] = useState(false)
   const [cName,         setCName]       = useState('')
   const [cEmail,        setCEmail]      = useState('')
-  const [cSubject,      setCSubject]    = useState('')
+  const [cCategory,     setCCategory]   = useState('')
   const [cMessage,      setCMessage]    = useState('')
   const [cLoading,      setCLoading]    = useState(false)
   const [cSent,         setCSent]       = useState(false)
   const [cError,        setCError]      = useState('')
 
+  const CONTACT_CATS = [
+    { key: 'PAYMENT',    label: 'Оплата',          icon: 'ti-credit-card'  },
+    { key: 'DOWNLOAD',   label: 'Скачивание',       icon: 'ti-download'     },
+    { key: 'ACCOUNT',    label: 'Аккаунт',          icon: 'ti-user'         },
+    { key: 'MODERATION', label: 'Модерация',        icon: 'ti-shield-check' },
+    { key: 'OTHER',      label: 'Другое',           icon: 'ti-help-circle'  },
+  ]
+
   async function handleContact(e: React.FormEvent) {
     e.preventDefault()
+    if (!cCategory) { setCError('Выберите категорию'); return }
     setCLoading(true); setCError('')
+    const catLabel = CONTACT_CATS.find(c => c.key === cCategory)?.label ?? cCategory
     try {
       const res = await fetch('/api/contact', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: cName, email: cEmail, subject: cSubject, message: cMessage }),
+        body:    JSON.stringify({
+          name:    cName,
+          email:   cEmail,
+          subject: `[${catLabel}] ${cMessage.slice(0, 60)}`,
+          message: cMessage,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setCError(data.error ?? 'Ошибка'); return }
@@ -286,7 +301,32 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
                   <i className="ti ti-check" /> Сообщение отправлено — ответим на {cEmail}
                 </div>
               ) : showContact ? (
-                <form onSubmit={handleContact} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <form onSubmit={handleContact} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Category chips */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Тема обращения *</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {CONTACT_CATS.map(cat => (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => setCCategory(cat.key)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
+                            border: `1px solid ${cCategory === cat.key ? 'var(--accent)' : 'var(--border)'}`,
+                            background: cCategory === cat.key ? 'rgba(72,128,255,0.1)' : 'var(--bg)',
+                            color: cCategory === cat.key ? 'var(--accent)' : 'var(--muted)',
+                            cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                          }}
+                        >
+                          <i className={`ti ${cat.icon}`} style={{ fontSize: '13px' }} />
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <input
                       placeholder="Ваше имя"
@@ -299,11 +339,6 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
                       style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
                     />
                   </div>
-                  <input
-                    placeholder="Тема обращения"
-                    value={cSubject} onChange={e => setCSubject(e.target.value)} required minLength={3} maxLength={200}
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
-                  />
                   <textarea
                     placeholder="Опишите вашу проблему подробнее"
                     value={cMessage} onChange={e => setCMessage(e.target.value)} required minLength={10} maxLength={5000} rows={4}
