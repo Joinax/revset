@@ -1,6 +1,6 @@
 'use client'
 // src/app/(public)/ideas/IdeasClient.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 type Idea = {
@@ -16,19 +16,37 @@ type Props = {
   isLoggedIn: boolean
 }
 
+const IDEA_CATEGORIES = [
+  'Дизайн', 'Функционал', 'Производительность', 'UI/UX',
+  'Безопасность', 'Монетизация', 'Социальные функции',
+]
+
 export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, isLoggedIn }: Props) {
   const [ideas, setIdeas]           = useState<Idea[]>(initialIdeas)
   const [total]                     = useState(initialTotal)
-  const [sort, setSort]             = useState<'popular' | 'new'>('popular')
+  const [sort, setSort]             = useState<'new' | 'popular'>('new')
   const [showForm, setShowForm]     = useState(false)
   const [title, setTitle]           = useState('')
   const [description, setDesc]      = useState('')
   const [category, setCategory]     = useState('')
+  const [customCat, setCustomCat]   = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted]   = useState(false)
   const [votingId, setVotingId]     = useState<string | null>(null)
 
-  async function loadIdeas(s: 'popular' | 'new') {
+  // Poll for newly approved ideas every 30s
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const res = await fetch(`/api/ideas?sort=${sort}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ideas?.length > ideas.length) setIdeas(data.ideas)
+      }
+    }, 30_000)
+    return () => clearInterval(iv)
+  }, [sort, ideas.length])
+
+  async function loadIdeas(s: 'new' | 'popular') {
     const res = await fetch(`/api/ideas?sort=${s}`)
     if (res.ok) {
       const data = await res.json()
@@ -36,7 +54,7 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
     }
   }
 
-  function handleSortChange(s: 'popular' | 'new') {
+  function handleSortChange(s: 'new' | 'popular') {
     setSort(s)
     loadIdeas(s)
   }
@@ -52,18 +70,20 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
     setVotingId(null)
   }
 
+  const finalCategory = category === '__other__' ? customCat : category
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!isLoggedIn) { window.location.href = '/login'; return }
     setSubmitting(true)
     const res = await fetch('/api/ideas', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, category: category || undefined }),
+      body: JSON.stringify({ title, description, category: finalCategory || undefined }),
     })
     setSubmitting(false)
     if (res.ok) {
       setSubmitted(true)
-      setTitle(''); setDesc(''); setCategory(''); setShowForm(false)
+      setTitle(''); setDesc(''); setCategory(''); setCustomCat(''); setShowForm(false)
     }
   }
 
@@ -118,15 +138,35 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
               value={description} onChange={e => setDesc(e.target.value)} required minLength={10} maxLength={4000} rows={4}
               style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
             />
-            <input
-              placeholder="Категория (необязательно)"
-              value={category} onChange={e => setCategory(e.target.value)} maxLength={50}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
-            />
+            {/* Category selector */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Категория (необязательно)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: category === '__other__' ? '8px' : 0 }}>
+                {IDEA_CATEGORIES.map(cat => (
+                  <button key={cat} type="button" onClick={() => setCategory(category === cat ? '' : cat)}
+                    style={{ padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                      border: `1px solid ${category === cat ? 'var(--accent)' : 'var(--border)'}`,
+                      background: category === cat ? 'rgba(72,128,255,0.1)' : 'var(--bg2)',
+                      color: category === cat ? 'var(--accent)' : 'var(--muted)',
+                    }}>{cat}</button>
+                ))}
+                <button type="button" onClick={() => setCategory(category === '__other__' ? '' : '__other__')}
+                  style={{ padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                    border: `1px solid ${category === '__other__' ? 'var(--accent)' : 'var(--border)'}`,
+                    background: category === '__other__' ? 'rgba(72,128,255,0.1)' : 'var(--bg2)',
+                    color: category === '__other__' ? 'var(--accent)' : 'var(--muted)',
+                  }}>Другое</button>
+              </div>
+              {category === '__other__' && (
+                <input
+                  placeholder="Укажите категорию"
+                  value={customCat} onChange={e => setCustomCat(e.target.value)} maxLength={50}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }}>
-                Отмена
-              </button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }}>Отмена</button>
               <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '8px 20px', fontSize: '13px', opacity: submitting ? 0.7 : 1 }}>
                 {submitting ? 'Отправка...' : 'Отправить'}
               </button>
@@ -135,9 +175,9 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
         </div>
       )}
 
-      {/* Sort tabs */}
+      {/* Sort tabs — "Новые" first */}
       <div style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '2px solid var(--border)' }}>
-        {(['popular', 'new'] as const).map(s => (
+        {(['new', 'popular'] as const).map(s => (
           <button key={s} onClick={() => handleSortChange(s)} style={{
             padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: '14px', fontWeight: sort === s ? 700 : 400,
@@ -145,7 +185,7 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
             borderBottom: sort === s ? '2px solid var(--accent)' : '2px solid transparent',
             marginBottom: '-2px', fontFamily: 'inherit',
           }}>
-            {s === 'popular' ? 'Популярные' : 'Новые'}
+            {s === 'new' ? 'Новые' : 'Популярные'}
           </button>
         ))}
         <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '13px', color: 'var(--muted)' }}>{total} идей</span>
@@ -159,7 +199,7 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
             border: '1px solid var(--border)', borderRadius: '14px',
             background: 'var(--bg)', transition: 'box-shadow 0.15s',
           }} className="idea-card">
-            {/* Vote box */}
+            {/* Like box */}
             <button
               onClick={() => handleVote(idea.id)}
               style={{
@@ -173,7 +213,7 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
             >
               {votingId === idea.id
                 ? <i className="ti ti-loader-2" style={{ fontSize: '18px', color: 'var(--muted)' }} />
-                : <i className="ti ti-chevron-up" style={{ fontSize: '18px', color: idea.hasVoted ? 'var(--accent)' : 'var(--muted)' }} />
+                : <i className="ti ti-thumb-up" style={{ fontSize: '18px', color: idea.hasVoted ? 'var(--accent)' : 'var(--muted)' }} />
               }
               <span style={{ fontSize: '14px', fontWeight: 700, color: idea.hasVoted ? 'var(--accent)' : 'var(--text)', lineHeight: 1 }}>{idea.voteCount}</span>
             </button>

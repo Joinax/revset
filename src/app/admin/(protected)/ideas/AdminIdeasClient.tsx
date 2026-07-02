@@ -1,6 +1,7 @@
 'use client'
 // src/app/admin/ideas/AdminIdeasClient.tsx
 import { useState } from 'react'
+import Link from 'next/link'
 
 type Idea = {
   id: string; number: number; title: string; description: string
@@ -16,15 +17,30 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_OPTIONS = Object.entries(STATUS_LABELS)
 
 export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[] }) {
-  const [tab, setTab]     = useState<'pending' | 'all'>('pending')
-  const [ideas, setIdeas] = useState<Idea[]>(initialIdeas)
-  const [rejectId, setRejectId]   = useState<string | null>(null)
-  const [rejectText, setRejectText] = useState('')
-  const [loading, setLoading]     = useState<string | null>(null)
+  const [tab, setTab]           = useState<'pending' | 'all'>('pending')
+  // Separate state: pending list (mutated by approve/reject) and all-ideas list
+  const [pendingIdeas, setPendingIdeas] = useState<Idea[]>(initialIdeas.filter(i => i.moderationStatus === 'PENDING'))
+  const [allIdeas, setAllIdeas]         = useState<Idea[]>([])
+  const [allLoaded, setAllLoaded]       = useState(false)
+  const [allLoading, setAllLoading]     = useState(false)
+  const [rejectId, setRejectId]         = useState<string | null>(null)
+  const [rejectText, setRejectText]     = useState('')
+  const [loading, setLoading]           = useState<string | null>(null)
 
   async function loadAll() {
+    if (allLoaded) return
+    setAllLoading(true)
     const res = await fetch('/api/admin/ideas?status=APPROVED')
-    if (res.ok) setIdeas(await res.json())
+    if (res.ok) {
+      setAllIdeas(await res.json())
+      setAllLoaded(true)
+    }
+    setAllLoading(false)
+  }
+
+  function handleTabChange(t: 'pending' | 'all') {
+    setTab(t)
+    if (t === 'all') loadAll()
   }
 
   async function handleAction(id: string, action: 'approve' | 'reject', comment?: string) {
@@ -33,7 +49,12 @@ export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, moderationComment: comment }),
     })
-    setIdeas(prev => prev.filter(i => i.id !== id))
+    setPendingIdeas(prev => prev.filter(i => i.id !== id))
+    // Also reload all-ideas if already loaded so the newly approved idea appears
+    if (action === 'approve' && allLoaded) {
+      const res = await fetch('/api/admin/ideas?status=APPROVED')
+      if (res.ok) setAllIdeas(await res.json())
+    }
     setLoading(null)
     setRejectId(null)
     setRejectText('')
@@ -44,10 +65,10 @@ export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action: 'set_status', status }),
     })
-    setIdeas(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+    setAllIdeas(prev => prev.map(i => i.id === id ? { ...i, status } : i))
   }
 
-  const displayed = tab === 'pending' ? ideas.filter(i => i.moderationStatus === 'PENDING') : ideas
+  const displayed = tab === 'pending' ? pendingIdeas : allIdeas
 
   return (
     <div style={{ padding: '32px', maxWidth: '900px' }}>
@@ -58,20 +79,26 @@ export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '2px solid var(--admin-border)' }}>
         {(['pending', 'all'] as const).map(t => (
-          <button key={t} onClick={() => { setTab(t); if (t === 'all') loadAll() }} style={{
+          <button key={t} onClick={() => handleTabChange(t)} style={{
             padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: '14px', fontWeight: tab === t ? 700 : 400,
             color: tab === t ? 'var(--admin-accent)' : 'var(--admin-muted)',
             borderBottom: tab === t ? '2px solid var(--admin-accent)' : '2px solid transparent',
             marginBottom: '-2px',
           }}>
-            {t === 'pending' ? `На проверке (${ideas.filter(i => i.moderationStatus === 'PENDING').length})` : 'Все идеи'}
+            {t === 'pending' ? `На проверке (${pendingIdeas.length})` : 'Все идеи'}
           </button>
         ))}
       </div>
 
-      {displayed.length === 0 ? (
-        <div style={{ textAlign: 'center', color: 'var(--admin-muted)', padding: '48px' }}>Нет идей для проверки</div>
+      {allLoading ? (
+        <div style={{ textAlign: 'center', color: 'var(--admin-muted)', padding: '48px' }}>
+          <i className="ti ti-loader-2" style={{ fontSize: '24px', opacity: 0.5 }} />
+        </div>
+      ) : displayed.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'var(--admin-muted)', padding: '48px' }}>
+          {tab === 'pending' ? 'Нет идей для проверки' : 'Нет одобренных идей'}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {displayed.map(idea => (
@@ -81,20 +108,24 @@ export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>#{idea.number}</span>
                     {idea.category && (
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--admin-bg2)', color: 'var(--admin-muted)' }}>
                         {idea.category}
                       </span>
                     )}
+                    {/* Link to public idea page */}
+                    <Link href={`/ideas/${idea.id}`} target="_blank" style={{ fontSize: '11px', color: 'var(--admin-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      Открыть <i className="ti ti-external-link" style={{ fontSize: '10px' }} />
+                    </Link>
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--admin-text)', marginBottom: '4px' }}>{idea.title}</div>
                   <div style={{ fontSize: '13px', color: 'var(--admin-muted)', marginBottom: '8px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {idea.description}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>
-                    {idea.author.name ?? idea.author.email} · <i className="ti ti-chevron-up" /> {idea.voteCount} · <i className="ti ti-message-circle" /> {idea.commentCount}
+                    {idea.author.name ?? idea.author.email} · <i className="ti ti-thumb-up" /> {idea.voteCount} · <i className="ti ti-message-circle" /> {idea.commentCount}
                   </div>
                 </div>
 

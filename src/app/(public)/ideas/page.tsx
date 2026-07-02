@@ -10,7 +10,7 @@ export default async function IdeasPage() {
   const [ideas, total] = await Promise.all([
     db.idea.findMany({
       where:   { moderationStatus: 'APPROVED' },
-      orderBy: { voteCount: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take:    20,
       include: { _count: { select: { comments: { where: { moderationStatus: 'APPROVED' } } } } },
     }),

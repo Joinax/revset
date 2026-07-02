@@ -31,8 +31,10 @@ export default function AdminAuthGate({
       <div style={{ marginLeft: '72px', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <AdminTopbar currentUser={currentUser} />
         {isFullHeight ? (
-          <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {children}
+          <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '0 76px 0 40px' }}>
+            <div style={{ maxWidth: '1100px', width: '100%', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {children}
+            </div>
           </main>
         ) : (
           <main style={{ flex: 1, padding: '32px 76px 32px 40px', display: 'flex', justifyContent: 'center' }}>

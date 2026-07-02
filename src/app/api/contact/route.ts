@@ -18,6 +18,11 @@ function escapeHtml(str: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // Fail fast if SMTP is not configured in this environment
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+    return NextResponse.json({ error: 'Служба поддержки временно недоступна — обратитесь напрямую на support@revset.ru' }, { status: 503 })
+  }
+
   try {
     const body   = await req.json()
     const parsed = schema.safeParse(body)

@@ -357,7 +357,7 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
                   <button onClick={() => setShowContact(true)} className="btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                     <i className="ti ti-mail" style={{ fontSize: '15px' }} />
-                    Написать без регистрации
+                    Написать
                   </button>
                 </div>
               )}

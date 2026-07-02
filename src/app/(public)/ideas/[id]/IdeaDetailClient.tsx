@@ -46,10 +46,6 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
     setCommentSent(true)
   }
 
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href).catch(() => {})
-  }
-
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '32px 20px' }}>
       <Link href="/ideas" style={{ fontSize: '13px', color: 'var(--muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '20px' }}
@@ -71,7 +67,7 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
           }}
           className="vote-btn-detail"
         >
-          <i className={`ti ${voting ? 'ti-loader-2' : 'ti-chevron-up'}`} style={{ fontSize: '22px', color: idea.hasVoted ? 'var(--accent)' : 'var(--muted)' }} />
+          <i className={`ti ${voting ? 'ti-loader-2' : 'ti-thumb-up'}`} style={{ fontSize: '22px', color: idea.hasVoted ? 'var(--accent)' : 'var(--muted)' }} />
           <span style={{ fontSize: '18px', fontWeight: 700, color: idea.hasVoted ? 'var(--accent)' : 'var(--text)', lineHeight: 1 }}>{idea.voteCount}</span>
           <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 500 }}>голосов</span>
         </button>
@@ -82,13 +78,6 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
             {idea.category && (
               <span className="chip" style={{ fontSize: '11px' }}>{idea.category}</span>
             )}
-            <button
-              onClick={copyLink}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '4px 8px', borderRadius: '6px' }}
-              className="share-btn"
-            >
-              <i className="ti ti-share" style={{ fontSize: '14px' }} /> Поделиться
-            </button>
           </div>
           <h1 style={{ fontFamily: 'var(--font-unbounded, Poppins, sans-serif)', fontSize: '20px', fontWeight: 700, margin: '0 0 10px', color: 'var(--text)' }}>{idea.title}</h1>
           <p style={{ color: 'var(--text)', fontSize: '15px', lineHeight: 1.65, margin: 0, opacity: 0.85 }}>{idea.description}</p>
@@ -149,7 +138,6 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
       <style>{`
         .back-link-ideas:hover { color: var(--accent) !important; }
         .vote-btn-detail:hover { border-color: var(--accent) !important; }
-        .share-btn:hover { background: var(--bg2) !important; color: var(--accent) !important; }
       `}</style>
     </div>
   )
