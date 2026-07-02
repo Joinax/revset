@@ -1,7 +1,7 @@
 'use client'
 
 // src/app/admin/support/[id]/AdminSupportDetailClient.tsx
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { getCategoryLabel } from '@/lib/ticket-categories'
 
@@ -76,9 +76,37 @@ export default function AdminSupportDetailClient({
   const [changingSt,   setChangingSt]   = useState(false)
   const [actionError,  setActionError]  = useState('')
 
-  const isClosed = ticket.status === 'CLOSED'
-  const st       = STATUS_LABELS[ticket.status] ?? STATUS_LABELS['AWAITING_SUPPORT']
-  const priColor = PRIORITY_COLOR[ticket.priority] ?? '#B9B9C2'
+  const isClosed   = ticket.status === 'CLOSED'
+  const st         = STATUS_LABELS[ticket.status] ?? STATUS_LABELS['AWAITING_SUPPORT']
+  const priColor   = PRIORITY_COLOR[ticket.priority] ?? '#B9B9C2'
+  const threadRef  = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight
+    }
+  }, [messages.length, pendingMsgs.length])
+
+  // Poll for new messages and read-status updates every 10s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/support/${ticket.id}`)
+        if (!res.ok) return
+        const data = await res.json()
+        // Update messages if there are new ones from the user
+        if (data.messages && data.messages.length > messages.length) {
+          setMessages(data.messages)
+        }
+        // Update userReadAt for checkmark state
+        if (data.userReadAt !== ticket.userReadAt) {
+          setTicket(t => ({ ...t, userReadAt: data.userReadAt }))
+        }
+      } catch { /* silent */ }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [ticket.id, ticket.userReadAt, messages.length])
 
   async function handleSend(retryTempId?: string) {
     if (!replyText.trim()) return
@@ -171,7 +199,7 @@ export default function AdminSupportDetailClient({
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', overflow: 'hidden' }}>
 
       {/* ── Left column: messages + composer ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--admin-border)' }}>
@@ -197,7 +225,7 @@ export default function AdminSupportDetailClient({
         </div>
 
         {/* Messages thread */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--admin-bg-page, var(--admin-bg2))' }}>
+        <div ref={threadRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--admin-bg-page, var(--admin-bg2))' }}>
           {messages.map(msg => {
             const isUser = !msg.isStaff
             if (msg.isInternal) {

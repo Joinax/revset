@@ -22,22 +22,25 @@ export default function AdminAuthGate({
     return <>{children}</>
   }
 
+  // Support ticket detail pages need a full-height chat layout — no main padding
+  const isFullHeight = /^\/admin\/support\/.+/.test(pathname)
+
   return (
     <>
       <AdminSidebar />
       <div style={{ marginLeft: '72px', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <AdminTopbar currentUser={currentUser} />
-        {/*
-          Сайдбар (72px) уже "съедает" часть левого пространства экрана.
-          Компенсируем зрительный сдвиг, добавляя доп. правый паддинг
-          в половину ширины сайдбара (36px) — так контент визуально
-          оказывается ближе к центру всего экрана, а не только этой области.
-        */}
-        <main style={{ flex: 1, padding: '32px 76px 32px 40px', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ maxWidth: '1100px', width: '100%' }}>
+        {isFullHeight ? (
+          <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {children}
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main style={{ flex: 1, padding: '32px 76px 32px 40px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ maxWidth: '1100px', width: '100%' }}>
+              {children}
+            </div>
+          </main>
+        )}
       </div>
     </>
   )

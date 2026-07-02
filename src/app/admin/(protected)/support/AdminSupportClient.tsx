@@ -88,6 +88,8 @@ function TicketRow({ ticket }: { ticket: TicketItem }) {
   )
 }
 
+type Stats = { total: number; open: number; closed: number; unassigned: number }
+
 export default function AdminSupportClient({
   agentId,
   initialUnassigned,
@@ -97,16 +99,21 @@ export default function AdminSupportClient({
   initialUnassigned: TicketItem[]
   initialMine: TicketItem[]
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>('unassigned')
-  const [search,    setSearch]    = useState('')
+  const [activeTab,  setActiveTab]  = useState<TabId>('unassigned')
+  const [search,     setSearch]     = useState('')
   const [allTickets, setAllTickets] = useState<TicketItem[]>([])
   const [allLoading, setAllLoading] = useState(false)
+  const [stats,      setStats]      = useState<Stats | null>(null)
 
   async function loadAll() {
     setAllLoading(true)
     try {
       const res = await fetch('/api/support?admin=1')
-      if (res.ok) setAllTickets(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setAllTickets(data.tickets ?? [])
+        setStats(data.stats ?? null)
+      }
     } finally {
       setAllLoading(false)
     }
@@ -189,6 +196,26 @@ export default function AdminSupportClient({
           ))}
         </div>
       </div>
+
+      {/* Stats bar — shown when "Все" tab loaded */}
+      {activeTab === 'all' && stats && (
+        <div style={{ display: 'flex', gap: '12px', padding: '16px 28px', background: 'var(--admin-bg2)', borderBottom: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Всего',       value: stats.total,      icon: 'ti-inbox',       color: 'var(--admin-text)' },
+            { label: 'В работе',    value: stats.open,       icon: 'ti-clock',       color: 'var(--admin-accent)' },
+            { label: 'Закрыто',     value: stats.closed,     icon: 'ti-circle-check',color: 'var(--admin-success)' },
+            { label: 'Без агента',  value: stats.unassigned, icon: 'ti-user-off',    color: 'var(--admin-warning)' },
+          ].map(s => (
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', flex: '1 1 120px' }}>
+              <i className={`ti ${s.icon}`} style={{ fontSize: '16px', color: s.color }} />
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: '11px', color: 'var(--admin-muted)', marginTop: '2px' }}>{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* List */}
       <div style={{ background: 'var(--admin-bg-page, var(--admin-bg2))', minHeight: '400px' }}>

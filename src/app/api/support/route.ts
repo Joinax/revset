@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { can } from '@/lib/permissions'
 import { TICKET_CATEGORIES, type TicketCategoryKey } from '@/lib/ticket-categories'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const createSchema = z.object({
   orderId:  z.string().optional(),
 })
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -32,6 +33,47 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const isStaff = can(currentUser, 'support')
+    const isAdmin = req.nextUrl.searchParams.get('admin') === '1'
+
+    // Admin/support mode: return all tickets (including closed) + stats
+    if (isAdmin && isStaff) {
+      const [tickets, stats] = await Promise.all([
+        db.supportTicket.findMany({
+          orderBy: [{ priority: 'desc' }, { updatedAt: 'desc' }],
+          select: {
+            id: true, number: true, subject: true, category: true,
+            priority: true, status: true, assignedTo: true,
+            updatedAt: true, createdAt: true,
+            _count: { select: { messages: true } },
+          },
+        }),
+        db.supportTicket.groupBy({
+          by: ['status'],
+          _count: { _all: true },
+        }),
+      ])
+
+      const statsMap = Object.fromEntries(stats.map(s => [s.status, s._count._all]))
+
+      return NextResponse.json({
+        tickets: tickets.map(t => ({
+          id: t.id, number: t.number, subject: t.subject,
+          category: t.category, priority: t.priority, status: t.status,
+          assignedTo: t.assignedTo,
+          updatedAt: t.updatedAt.toISOString(), createdAt: t.createdAt.toISOString(),
+          messageCount: t._count.messages,
+        })),
+        stats: {
+          total:    tickets.length,
+          open:     (statsMap['AWAITING_SUPPORT'] ?? 0) + (statsMap['AWAITING_USER'] ?? 0),
+          closed:   statsMap['CLOSED'] ?? 0,
+          unassigned: tickets.filter(t => !t.assignedTo && t.status !== 'CLOSED').length,
+        },
+      })
+    }
+
+    // User mode: own tickets only
     const tickets = await db.supportTicket.findMany({
       where:   { userId: session.user.id },
       orderBy: { updatedAt: 'desc' },

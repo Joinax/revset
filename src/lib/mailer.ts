@@ -3,14 +3,30 @@ import nodemailer from 'nodemailer'
 
 // SMTP транспорт — Яндекс почта
 export const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST ?? 'smtp.yandex.ru',
-  port:   Number(process.env.SMTP_PORT ?? 465),
-  secure: true,
+  host:              process.env.SMTP_HOST ?? 'smtp.yandex.ru',
+  port:              Number(process.env.SMTP_PORT ?? 465),
+  secure:            true,
+  connectionTimeout: 10_000,
+  greetingTimeout:   10_000,
+  socketTimeout:     30_000,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD,
   },
 })
+
+// Wrapper: reject if SMTP takes more than `ms` milliseconds
+export function sendMailWithTimeout(
+  options: Parameters<typeof transporter.sendMail>[0],
+  ms = 15_000,
+) {
+  return Promise.race([
+    transporter.sendMail(options),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Email timeout after ${ms}ms`)), ms)
+    ),
+  ])
+}
 
 // Экранирование HTML — защита от XSS в письмах.
 // Имена пользователей и названия товаров вставляются в HTML-шаблон,

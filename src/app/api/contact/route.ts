@@ -2,7 +2,7 @@
 // Public contact form — no auth required (for users who can't log in)
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { transporter } from '@/lib/mailer'
+import { sendMailWithTimeout } from '@/lib/mailer'
 
 const schema = z.object({
   name:    z.string().min(1).max(100),
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
     const { name, email, subject, message } = parsed.data
 
-    await transporter.sendMail({
+    await sendMailWithTimeout({
       from:    process.env.SMTP_USER,
       to:      process.env.SMTP_USER,
       replyTo: `"${name}" <${email}>`,
@@ -38,11 +38,17 @@ export async function POST(req: NextRequest) {
         <hr>
         <p>${escapeHtml(message)}</p>
       `,
-    })
+    }, 15_000)
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[POST /api/contact]', err)
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : 'Ошибка'
+    console.error('[POST /api/contact]', msg)
+    // Don't expose SMTP details to client
+    const isTimeout = msg.includes('timeout')
+    return NextResponse.json(
+      { error: isTimeout ? 'Сервер почты не отвечает, попробуйте позже' : 'Ошибка отправки' },
+      { status: 503 }
+    )
   }
 }
