@@ -790,8 +790,14 @@ function SupportTab({ userId }: { userId: string }) {
             <textarea
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              placeholder="Ваш ответ..."
-              rows={4}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                  e.preventDefault()
+                  if (replyText.trim() && !sendLoading) handleSend()
+                }
+              }}
+              placeholder="Ваш ответ... (Enter — отправить, Shift+Enter — новая строка)"
+              rows={3}
               style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
             />
             {sendError && <p style={{ fontSize: '12px', color: 'var(--danger)', margin: 0 }}>{sendError}</p>}

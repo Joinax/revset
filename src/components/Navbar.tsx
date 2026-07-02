@@ -55,6 +55,8 @@ export default function Navbar() {
           <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
             <Link href="/catalog"     className="nav-link">Каталог</Link>
             <Link href="/for-authors" className="nav-link">Авторам</Link>
+            <Link href="/ideas"       className="nav-link">Идеи</Link>
+            <Link href="/faq"         className="nav-link">FAQ</Link>
           </div>
 
           {/* Поиск — по центру, растягивается. На главной скрыт — там есть hero-search */}
@@ -171,6 +173,8 @@ export default function Navbar() {
           </form>
           <Link href="/catalog"     className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Каталог</Link>
           <Link href="/for-authors" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Авторам</Link>
+          <Link href="/ideas"       className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Идеи</Link>
+          <Link href="/faq"         className="mobile-nav-link" onClick={() => setMenuOpen(false)}>FAQ</Link>
           {user ? (
             <>
               <Link href="/account"           className="mobile-nav-link" onClick={() => setMenuOpen(false)}>Личный кабинет</Link>

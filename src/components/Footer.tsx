@@ -62,6 +62,7 @@ export default function Footer() {
             {[
               { href: '/about',       label: 'О нас'       },
               { href: '/for-authors', label: 'Авторам'     },
+              { href: '/ideas',       label: 'Идеи'        },
               { href: '/faq',         label: 'FAQ'         },
             ].map(link => (
               <Link key={link.href} href={link.href}

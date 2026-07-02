@@ -216,8 +216,14 @@ export default function AdminSupportDetailClient({
             <textarea
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              placeholder={isInternal ? 'Внутренняя заметка...' : 'Ответ клиенту...'}
-              rows={4}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                  e.preventDefault()
+                  if (replyText.trim() && !sendLoading) handleSend()
+                }
+              }}
+              placeholder={isInternal ? 'Внутренняя заметка... (Enter — отправить, Shift+Enter — новая строка)' : 'Ответ клиенту... (Enter — отправить, Shift+Enter — новая строка)'}
+              rows={3}
               style={{
                 width: '100%', boxSizing: 'border-box',
                 background: isInternal ? '#FFFDF0' : 'var(--admin-bg2)',

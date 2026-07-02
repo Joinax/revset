@@ -1,6 +1,6 @@
 'use client'
 // src/app/(public)/ideas/IdeasClient.tsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 
 type Idea = {
@@ -17,13 +17,13 @@ type Props = {
 }
 
 export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, isLoggedIn }: Props) {
-  const [ideas, setIdeas]       = useState<Idea[]>(initialIdeas)
-  const [total]                 = useState(initialTotal)
-  const [sort, setSort]         = useState<'popular' | 'new'>('popular')
-  const [showForm, setShowForm] = useState(false)
-  const [title, setTitle]       = useState('')
-  const [description, setDesc]  = useState('')
-  const [category, setCategory] = useState('')
+  const [ideas, setIdeas]           = useState<Idea[]>(initialIdeas)
+  const [total]                     = useState(initialTotal)
+  const [sort, setSort]             = useState<'popular' | 'new'>('popular')
+  const [showForm, setShowForm]     = useState(false)
+  const [title, setTitle]           = useState('')
+  const [description, setDesc]      = useState('')
+  const [category, setCategory]     = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted]   = useState(false)
   const [votingId, setVotingId]     = useState<string | null>(null)
@@ -70,58 +70,64 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 20px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontFamily: 'Poppins, sans-serif', fontSize: '28px', fontWeight: 700, margin: '0 0 6px' }}>Идеи</h1>
-          <p style={{ color: '#848484', fontSize: '14px', margin: 0 }}>Голосуйте за предложения или добавьте своё — лучшие реализуем</p>
+          <h1 style={{ fontFamily: 'var(--font-unbounded, sans-serif)', fontSize: '26px', fontWeight: 700, margin: '0 0 6px', color: 'var(--text)' }}>Идеи</h1>
+          <p style={{ color: 'var(--muted)', fontSize: '14px', margin: 0 }}>Голосуйте за предложения или добавьте своё — лучшие реализуем</p>
         </div>
         <button
           onClick={() => isLoggedIn ? setShowForm(true) : (window.location.href = '/login')}
-          style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer', background: '#4880FF', color: '#fff', fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
+          className="btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
         >
           <i className="ti ti-plus" /> Предложить идею
         </button>
       </div>
 
-      {/* Pending banner */}
+      {/* Pending banners */}
       {pendingIdeas.map(p => (
-        <div key={p.id} style={{ marginBottom: '12px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(255,167,86,0.12)', border: '1px solid rgba(255,167,86,0.3)', color: '#b35c00', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-          <i className="ti ti-clock" />
+        <div key={p.id} style={{ marginBottom: '10px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#B45309', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+          <i className="ti ti-clock" style={{ flexShrink: 0 }} />
           Ваша идея «{p.title}» на модерации — появится после проверки
         </div>
       ))}
 
       {submitted && (
-        <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(0,182,155,0.1)', border: '1px solid rgba(0,182,155,0.3)', color: '#007a66', fontSize: '14px' }}>
-          <i className="ti ti-check" /> Ваша идея отправлена на модерацию
+        <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: 'var(--success)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="ti ti-check" /> Ваша идея отправлена на модерацию — спасибо!
         </div>
       )}
 
       {/* Create form */}
       {showForm && (
-        <div style={{ marginBottom: '24px', padding: '20px', borderRadius: '14px', border: '1px solid #E0E0E0', background: '#fff' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Новая идея</h3>
+        <div style={{ marginBottom: '24px', padding: '20px', borderRadius: '14px', border: '1px solid var(--border)', background: 'var(--bg)', boxShadow: 'var(--shadow-rest)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--text)' }}>Новая идея</h3>
+            <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center', padding: '4px' }}>
+              <i className="ti ti-x" style={{ fontSize: '18px' }} />
+            </button>
+          </div>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <input
               placeholder="Заголовок (5–120 символов)"
               value={title} onChange={e => setTitle(e.target.value)} required minLength={5} maxLength={120}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #E0E0E0', fontSize: '14px' }}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
             />
             <textarea
               placeholder="Опишите идею подробнее (10–4000 символов)"
               value={description} onChange={e => setDesc(e.target.value)} required minLength={10} maxLength={4000} rows={4}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #E0E0E0', fontSize: '14px', resize: 'vertical' }}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
             />
             <input
               placeholder="Категория (необязательно)"
               value={category} onChange={e => setCategory(e.target.value)} maxLength={50}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #E0E0E0', fontSize: '14px' }}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '14px', background: 'var(--bg2)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
             />
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowForm(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #E0E0E0', background: 'none', cursor: 'pointer', fontSize: '13px' }}>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-outline" style={{ padding: '8px 16px', fontSize: '13px' }}>
                 Отмена
               </button>
-              <button type="submit" disabled={submitting} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#4880FF', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+              <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '8px 20px', fontSize: '13px', opacity: submitting ? 0.7 : 1 }}>
                 {submitting ? 'Отправка...' : 'Отправить'}
               </button>
             </div>
@@ -130,57 +136,63 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
       )}
 
       {/* Sort tabs */}
-      <div style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '2px solid #E0E0E0' }}>
+      <div style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '2px solid var(--border)' }}>
         {(['popular', 'new'] as const).map(s => (
           <button key={s} onClick={() => handleSortChange(s)} style={{
             padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: '14px', fontWeight: sort === s ? 700 : 400,
-            color: sort === s ? '#4880FF' : '#848484',
-            borderBottom: sort === s ? '2px solid #4880FF' : '2px solid transparent',
-            marginBottom: '-2px',
+            color: sort === s ? 'var(--accent)' : 'var(--muted)',
+            borderBottom: sort === s ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: '-2px', fontFamily: 'inherit',
           }}>
             {s === 'popular' ? 'Популярные' : 'Новые'}
           </button>
         ))}
-        <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '13px', color: '#848484' }}>{total} идей</span>
+        <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '13px', color: 'var(--muted)' }}>{total} идей</span>
       </div>
 
       {/* Ideas list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {ideas.map(idea => (
           <div key={idea.id} style={{
             display: 'flex', gap: '16px', padding: '16px',
-            border: '1px solid #E0E0E0', borderRadius: '14px', background: '#fff',
-          }}>
+            border: '1px solid var(--border)', borderRadius: '14px',
+            background: 'var(--bg)', transition: 'box-shadow 0.15s',
+          }} className="idea-card">
             {/* Vote box */}
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '48px', minHeight: '64px', borderRadius: '8px', border: `1px solid ${idea.hasVoted ? '#4880FF' : '#E0E0E0'}`, background: idea.hasVoted ? 'rgba(72,128,255,0.08)' : 'transparent', cursor: 'pointer' }}
+            <button
               onClick={() => handleVote(idea.id)}
+              style={{
+                flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', width: '52px', minHeight: '64px', borderRadius: '10px',
+                border: `2px solid ${idea.hasVoted ? 'var(--accent)' : 'var(--border)'}`,
+                background: idea.hasVoted ? 'rgba(72,128,255,0.08)' : 'transparent',
+                cursor: 'pointer', transition: 'all 0.15s', gap: '2px',
+              }}
+              className="vote-btn"
             >
-              {votingId === idea.id ? (
-                <i className="ti ti-loader-2" style={{ fontSize: '18px', color: '#848484' }} />
-              ) : (
-                <i className="ti ti-chevron-up" style={{ fontSize: '18px', color: idea.hasVoted ? '#4880FF' : '#848484' }} />
-              )}
-              <span style={{ fontSize: '14px', fontWeight: 700, color: idea.hasVoted ? '#4880FF' : '#202224' }}>{idea.voteCount}</span>
-            </div>
+              {votingId === idea.id
+                ? <i className="ti ti-loader-2" style={{ fontSize: '18px', color: 'var(--muted)' }} />
+                : <i className="ti ti-chevron-up" style={{ fontSize: '18px', color: idea.hasVoted ? 'var(--accent)' : 'var(--muted)' }} />
+              }
+              <span style={{ fontSize: '14px', fontWeight: 700, color: idea.hasVoted ? 'var(--accent)' : 'var(--text)', lineHeight: 1 }}>{idea.voteCount}</span>
+            </button>
 
             {/* Content */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <Link href={`/ideas/${idea.id}`} style={{ textDecoration: 'none' }}>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: '#202224', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {idea.title}
                 </div>
-                <div style={{ fontSize: '13px', color: '#848484', marginBottom: '10px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '10px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {idea.description}
                 </div>
               </Link>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 {idea.category && (
-                  <span style={{ fontSize: '11px', padding: '2px 10px', borderRadius: '20px', background: '#F5F6FA', color: '#848484' }}>
-                    {idea.category}
-                  </span>
+                  <span className="chip" style={{ fontSize: '11px' }}>{idea.category}</span>
                 )}
-                <span style={{ fontSize: '12px', color: '#848484', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <i className="ti ti-message-circle" style={{ fontSize: '13px' }} /> {idea.commentCount}
                 </span>
               </div>
@@ -190,8 +202,16 @@ export default function IdeasClient({ initialIdeas, initialTotal, pendingIdeas, 
       </div>
 
       {ideas.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#848484', padding: '48px' }}>Нет опубликованных идей</div>
+        <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '64px 0' }}>
+          <i className="ti ti-bulb" style={{ fontSize: '40px', display: 'block', marginBottom: '12px', opacity: 0.35 }} />
+          Нет опубликованных идей. Будьте первым!
+        </div>
       )}
+
+      <style>{`
+        .idea-card:hover { box-shadow: var(--shadow-hover); }
+        .vote-btn:hover { border-color: var(--accent) !important; }
+      `}</style>
     </div>
   )
 }
