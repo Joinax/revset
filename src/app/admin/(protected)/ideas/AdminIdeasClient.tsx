@@ -115,9 +115,8 @@ export default function AdminIdeasClient({ initialIdeas }: { initialIdeas: Idea[
                         {idea.category}
                       </span>
                     )}
-                    {/* Link to public idea page */}
-                    <Link href={`/ideas/${idea.id}`} target="_blank" style={{ fontSize: '11px', color: 'var(--admin-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      Открыть <i className="ti ti-external-link" style={{ fontSize: '10px' }} />
+                    <Link href={`/admin/ideas/${idea.id}`} style={{ fontSize: '11px', color: 'var(--admin-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      Открыть <i className="ti ti-arrow-right" style={{ fontSize: '10px' }} />
                     </Link>
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--admin-text)', marginBottom: '4px' }}>{idea.title}</div>

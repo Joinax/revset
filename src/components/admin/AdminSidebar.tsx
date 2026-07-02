@@ -120,7 +120,10 @@ export default function AdminSidebar() {
       {/* Nav */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 12px', flex: 1 }}>
         {links.map(({ href, icon, label }) => {
-          const active    = pathname.startsWith(href)
+          const active    = pathname === href || (
+            pathname.startsWith(href + '/') &&
+            !links.some(l => l.href !== href && l.href.startsWith(href + '/') && pathname.startsWith(l.href))
+          )
           const isHovered = hovered === href
           const badge     = badgeLoading[href] ? 0 : (badgeCounts[href] ?? 0)
 

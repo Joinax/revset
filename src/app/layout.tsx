@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
-import { Unbounded, Manrope, Nunito_Sans, Poppins } from 'next/font/google'
+import { Unbounded, Manrope, Nunito_Sans, Poppins, Geist } from 'next/font/google'
 import ThemeProvider from '@/components/ThemeProvider'
 import SessionProvider from '@/components/SessionProvider'
 import './globals.css'
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const unbounded = Unbounded({
   subsets: ['latin', 'cyrillic'],
@@ -45,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ru"
-      className={`${unbounded.variable} ${manrope.variable} ${nunitoSans.variable} ${poppins.variable}`}
+      className={cn(unbounded.variable, manrope.variable, nunitoSans.variable, poppins.variable, "font-sans", geist.variable)}
       suppressHydrationWarning
     >
       <head>

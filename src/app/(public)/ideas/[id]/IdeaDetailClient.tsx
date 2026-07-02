@@ -1,7 +1,12 @@
 'use client'
 // src/app/(public)/ideas/[id]/IdeaDetailClient.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+
+const S3  = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000'
+const BKT = process.env.NEXT_PUBLIC_S3_BUCKET   ?? 'revset'
+const s3Url = (key: string | null | undefined): string | null =>
+  key ? `${S3}/${BKT}/${key}` : null
 
 type Idea = {
   id: string; number: number; title: string; description: string
@@ -9,18 +14,30 @@ type Idea = {
 }
 
 type Comment = {
-  id: string; text: string; createdAt: string; author: { name: string | null }
+  id: string; text: string; createdAt: string
+  author: { id: string; name: string | null; image: string | null; isAuthor: boolean }
 }
 
 export default function IdeaDetailClient({ idea: initial, comments: initialComments, isLoggedIn }: {
   idea: Idea; comments: Comment[]; isLoggedIn: boolean
 }) {
   const [idea, setIdea]               = useState(initial)
-  const [comments]                    = useState(initialComments)
+  const [comments, setComments]       = useState(initialComments)
   const [voting, setVoting]           = useState(false)
   const [commentText, setCommentText] = useState('')
   const [sending, setSending]         = useState(false)
   const [commentSent, setCommentSent] = useState(false)
+
+  // Poll for newly approved comments every 20s
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      const res = await fetch(`/api/ideas/${idea.id}`).catch(() => null)
+      if (!res?.ok) return
+      const data = await res.json()
+      setComments(data.comments)
+    }, 20_000)
+    return () => clearInterval(timer)
+  }, [idea.id])
 
   async function handleVote() {
     if (!isLoggedIn) { window.location.href = '/login'; return }
@@ -95,14 +112,46 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-          {comments.map(c => (
-            <div key={c.id} style={{ padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '8px', lineHeight: 1.5 }}>{c.text}</div>
-              <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                {c.author.name ?? 'Аноним'} · {new Date(c.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {comments.map(c => {
+            const avatarUrl = s3Url(c.author.image)
+            const initials  = (c.author.name ?? 'А')[0].toUpperCase()
+            return (
+              <div key={c.id} style={{ padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  {/* Avatar */}
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                    {avatarUrl
+                      ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : initials
+                    }
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Name + date */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      {c.author.isAuthor ? (
+                        <Link href={`/author/${c.author.id}`} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}
+                          className="comment-author-link">
+                          {c.author.name ?? 'Аноним'}
+                        </Link>
+                      ) : (
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{c.author.name ?? 'Аноним'}</span>
+                      )}
+                      {c.author.isAuthor && (
+                        <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(72,128,255,0.1)', color: 'var(--accent)', fontWeight: 600 }}>Автор</span>
+                      )}
+                      <span style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: 'auto' }}>
+                        {new Date(c.createdAt).toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+
+                    {/* Text */}
+                    <div style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6 }}>{c.text}</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {commentSent ? (
@@ -138,6 +187,7 @@ export default function IdeaDetailClient({ idea: initial, comments: initialComme
       <style>{`
         .back-link-ideas:hover { color: var(--accent) !important; }
         .vote-btn-detail:hover { border-color: var(--accent) !important; }
+        .comment-author-link:hover { text-decoration: underline !important; }
       `}</style>
     </div>
   )

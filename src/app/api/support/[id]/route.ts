@@ -51,14 +51,15 @@ export async function GET(
       return NextResponse.json({ error: 'Не найдено' }, { status: 404 })
     }
 
-    // Access check: owner or support staff
-    if (ticket.userId !== session.user.id && !isStaff) {
+    // Access check: owner or support staff (guest tickets: staff only)
+    const isOwner = ticket.userId !== null && ticket.userId === session.user.id
+    if (!isOwner && !isStaff) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Update readAt
     const now = new Date()
-    if (ticket.userId === session.user.id && !isStaff) {
+    if (isOwner && !isStaff) {
       await db.supportTicket.update({
         where: { id: ticketId },
         data:  { userReadAt: now },

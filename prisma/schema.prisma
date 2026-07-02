@@ -453,8 +453,10 @@ enum AttachmentStatus {
 model SupportTicket {
   id          String         @id @default(cuid())
   number      Int            @unique @default(autoincrement())
-  userId      String
-  user        User           @relation("TicketUser",  fields: [userId],     references: [id])
+  userId      String?
+  user        User?          @relation("TicketUser",  fields: [userId],     references: [id])
+  guestEmail  String?
+  guestName   String?
   assignedTo  String?
   assignee    User?          @relation("TicketAgent", fields: [assignedTo], references: [id])
   subject     String
@@ -477,8 +479,8 @@ model TicketMessage {
   id          String             @id @default(cuid())
   ticketId    String
   ticket      SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId    String
-  author      User               @relation(fields: [authorId], references: [id])
+  authorId    String?
+  author      User?              @relation(fields: [authorId], references: [id])
   isStaff     Boolean            @default(false)
   isInternal  Boolean            @default(false)
   text        String?            @db.Text

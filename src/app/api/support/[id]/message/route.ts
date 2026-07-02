@@ -35,15 +35,16 @@ export async function POST(
 
     const ticket = await db.supportTicket.findUnique({
       where:  { id: ticketId },
-      select: { id: true, number: true, userId: true, status: true, assignedTo: true },
+      select: { id: true, number: true, userId: true, guestEmail: true, guestName: true, subject: true, status: true, assignedTo: true },
     })
 
     if (!ticket) {
       return NextResponse.json({ error: 'Не найдено' }, { status: 404 })
     }
 
-    // Access check: owner or support staff
-    if (ticket.userId !== session.user.id && !isStaff) {
+    // Access check: owner (registered) or support staff (guest tickets staff-only)
+    const isOwner = ticket.userId !== null && ticket.userId === session.user.id
+    if (!isOwner && !isStaff) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -114,8 +115,8 @@ export async function POST(
 
       // Status transitions (only for non-internal messages)
       if (!isInternal) {
-        const isOwner  = ticket.userId === session.user.id
-        const newStatus = isOwner ? 'AWAITING_SUPPORT' : 'AWAITING_USER'
+        const isTicketOwner = ticket.userId !== null && ticket.userId === session.user.id
+        const newStatus = isTicketOwner ? 'AWAITING_SUPPORT' : 'AWAITING_USER'
         await tx.supportTicket.update({
           where: { id: ticketId },
           data:  { status: newStatus, updatedAt: new Date() },
@@ -141,21 +142,36 @@ export async function POST(
     }
 
     // Notifications (fire-and-forget; don't let failures abort the response)
-    const isOwner = ticket.userId === session.user.id
+    const isTicketOwner = ticket.userId !== null && ticket.userId === session.user.id
     if (!isInternal) {
       try {
         if (isStaff) {
-          // Staff replied — notify ticket owner
-          await db.notification.create({
-            data: {
-              userId:  ticket.userId,
-              type:    'ticket_reply',
-              title:   'Ответ от поддержки',
-              message: `Поддержка ответила на обращение #${ticket.number}`,
-              link:    `/account?tab=support&ticket=${ticketId}`,
-            },
-          })
-        } else if (isOwner) {
+          if (ticket.guestEmail) {
+            // Guest ticket — send email reply notification
+            const { sendMailWithTimeout } = await import('@/lib/mailer')
+            const replyText = text?.trim() ?? ''
+            await sendMailWithTimeout({
+              from:    process.env.SMTP_USER,
+              to:      ticket.guestEmail,
+              subject: `Re: [#${ticket.number}] ${ticket.subject}`,
+              html:    `<p>Здравствуйте, ${ticket.guestName ?? ''}!</p>
+                        <p>Служба поддержки ответила на ваше обращение №${ticket.number}.</p>
+                        <blockquote style="border-left:3px solid #ccc;padding:0 12px;color:#555">${replyText.replace(/\n/g, '<br>')}</blockquote>
+                        <p>Если у вас есть дополнительные вопросы, напишите нам снова.</p>`,
+            }, 15_000).catch(err => console.error('[guest ticket email]', err))
+          } else if (ticket.userId) {
+            // Registered user — in-app notification
+            await db.notification.create({
+              data: {
+                userId:  ticket.userId,
+                type:    'ticket_reply',
+                title:   'Ответ от поддержки',
+                message: `Поддержка ответила на обращение #${ticket.number}`,
+                link:    `/account?tab=support&ticket=${ticketId}`,
+              },
+            })
+          }
+        } else if (isTicketOwner) {
           // Owner replied — notify assigned agent or all support staff
           if (ticket.assignedTo) {
             await db.notification.create({
@@ -193,7 +209,15 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ id: msgId }, { status: 201 })
+    return NextResponse.json({
+      id:          msgId,
+      text:        hasText ? text!.trim() : null,
+      isStaff,
+      isInternal,
+      authorId:    session.user.id,
+      createdAt:   new Date().toISOString(),
+      attachments: [],
+    }, { status: 201 })
   } catch (error) {
     console.error('[POST /api/support/[id]/message] error:', error)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })

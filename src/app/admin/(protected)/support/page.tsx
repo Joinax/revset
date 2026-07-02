@@ -35,14 +35,14 @@ export default async function AdminSupportPage() {
       initialUnassigned={unassignedTickets.map(t => ({
         id: t.id, number: t.number, subject: t.subject,
         category: t.category, priority: t.priority, status: t.status,
-        assignedTo: t.assignedTo,
+        assignedTo: t.assignedTo, guestEmail: t.guestEmail,
         updatedAt: t.updatedAt.toISOString(), createdAt: t.createdAt.toISOString(),
         messageCount: t._count.messages,
       }))}
       initialMine={myTickets.map(t => ({
         id: t.id, number: t.number, subject: t.subject,
         category: t.category, priority: t.priority, status: t.status,
-        assignedTo: t.assignedTo,
+        assignedTo: t.assignedTo, guestEmail: t.guestEmail,
         updatedAt: t.updatedAt.toISOString(), createdAt: t.createdAt.toISOString(),
         messageCount: t._count.messages,
       }))}

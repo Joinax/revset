@@ -141,6 +141,7 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
   const [cMessage,      setCMessage]    = useState('')
   const [cLoading,      setCLoading]    = useState(false)
   const [cSent,         setCSent]       = useState(false)
+  const [cTicketNum,    setCTicketNum]  = useState<number | null>(null)
   const [cError,        setCError]      = useState('')
 
   const CONTACT_CATS = [
@@ -170,6 +171,7 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
       const data = await res.json()
       if (!res.ok) { setCError(data.error ?? 'Ошибка'); return }
       setCSent(true)
+      if (data.number) setCTicketNum(data.number)
     } catch {
       setCError('Ошибка сети')
     } finally {
@@ -298,7 +300,11 @@ export default function FaqClient({ articles, isLoggedIn }: Props) {
 
               {cSent ? (
                 <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: 'var(--success)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ti ti-check" /> Сообщение отправлено — ответим на {cEmail}
+                  <i className="ti ti-check" />
+                  {cTicketNum
+                    ? `Обращение #${cTicketNum} создано — ответ придёт на ${cEmail}`
+                    : `Обращение создано — ответ придёт на ${cEmail}`
+                  }
                 </div>
               ) : showContact ? (
                 <form onSubmit={handleContact} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

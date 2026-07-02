@@ -33,11 +33,13 @@ export default async function AdminSupportDetailPage({
   })
   if (!ticket) notFound()
 
-  // Get ticket owner info
-  const owner = await db.user.findUnique({
-    where: { id: ticket.userId },
-    select: { id: true, name: true, email: true, image: true },
-  })
+  // Get ticket owner info (null for guest tickets)
+  const owner = ticket.userId
+    ? await db.user.findUnique({
+        where: { id: ticket.userId },
+        select: { id: true, name: true, email: true, image: true },
+      })
+    : null
 
   // Get assigned agent info
   const agent = ticket.assignedTo
@@ -69,6 +71,8 @@ export default async function AdminSupportDetailPage({
         priority:    ticket.priority,
         status:      ticket.status,
         assignedTo:  ticket.assignedTo,
+        guestEmail:  ticket.guestEmail,
+        guestName:   ticket.guestName,
         createdAt:   ticket.createdAt.toISOString(),
         updatedAt:   ticket.updatedAt.toISOString(),
         userReadAt:  ticket.userReadAt?.toISOString() ?? null,
@@ -79,7 +83,7 @@ export default async function AdminSupportDetailPage({
         text:       m.text,
         isStaff:    m.isStaff,
         isInternal: m.isInternal,
-        authorId:   m.authorId,
+        authorId:   m.authorId ?? '',
         createdAt:  m.createdAt.toISOString(),
         attachments: m.attachments.map(a => ({
           id: a.id, fileKey: a.fileKey, status: a.status, threat: a.threat,

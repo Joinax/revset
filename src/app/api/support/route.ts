@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true, number: true, subject: true, category: true,
             priority: true, status: true, assignedTo: true,
+            guestEmail: true,
             updatedAt: true, createdAt: true,
             _count: { select: { messages: true } },
           },
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
         tickets: tickets.map(t => ({
           id: t.id, number: t.number, subject: t.subject,
           category: t.category, priority: t.priority, status: t.status,
-          assignedTo: t.assignedTo,
+          assignedTo: t.assignedTo, guestEmail: t.guestEmail,
           updatedAt: t.updatedAt.toISOString(), createdAt: t.createdAt.toISOString(),
           messageCount: t._count.messages,
         })),

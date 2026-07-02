@@ -9,6 +9,7 @@ type TicketItem = {
   id: string; number: number; subject: string; category: string
   priority: string; status: string; assignedTo: string | null
   updatedAt: string; createdAt: string; messageCount: number
+  guestEmail: string | null
 }
 
 type TabId = 'unassigned' | 'mine' | 'all'
@@ -70,8 +71,11 @@ function TicketRow({ ticket }: { ticket: TicketItem }) {
         <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--admin-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '3px' }}>
           {ticket.subject}
         </div>
-        <div style={{ fontSize: '12px', color: 'var(--admin-muted)' }}>
+        <div style={{ fontSize: '12px', color: 'var(--admin-muted)', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
           #{ticket.number} · {getCategoryLabel(ticket.category)} · {priLabel}
+          {ticket.guestEmail && (
+            <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.12)', color: '#D97706', fontWeight: 600, fontSize: '11px' }}>Гость</span>
+          )}
         </div>
       </div>
 

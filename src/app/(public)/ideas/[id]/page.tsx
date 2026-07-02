@@ -15,7 +15,7 @@ export default async function IdeaDetailPage({ params }: { params: Promise<{ id:
       comments: {
         where:   { moderationStatus: 'APPROVED' },
         orderBy: { createdAt: 'asc' },
-        include: { user: { select: { name: true } } },
+        include: { user: { select: { id: true, name: true, image: true, authorProfile: { select: { id: true } } } } },
       },
       _count: { select: { comments: { where: { moderationStatus: 'APPROVED' } } } },
     },
@@ -47,7 +47,7 @@ export default async function IdeaDetailPage({ params }: { params: Promise<{ id:
         id:        c.id,
         text:      c.text,
         createdAt: c.createdAt.toISOString(),
-        author:    { name: c.user.name },
+        author:    { id: c.user.id, name: c.user.name, image: c.user.image, isAuthor: !!c.user.authorProfile },
       }))}
       isLoggedIn={!!session}
     />

@@ -17,6 +17,7 @@ type Ticket = {
   priority: string; status: string; assignedTo: string | null
   createdAt: string; updatedAt: string
   userReadAt: string | null; staffReadAt: string | null
+  guestEmail: string | null; guestName: string | null
 }
 
 type Owner  = { id: string; name: string | null; email: string | null; image: string | null }
@@ -254,7 +255,7 @@ export default function AdminSupportDetailClient({
                   {msg.text}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--admin-muted)', marginTop: '4px', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {msg.isStaff ? 'Вы' : (owner?.name ?? 'Клиент')} · {new Date(msg.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {msg.isStaff ? 'Вы' : (owner?.name ?? ticket.guestName ?? 'Гость')} · {new Date(msg.createdAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   {msg.isStaff && (() => {
                     const isRead = ticket.userReadAt && new Date(ticket.userReadAt) >= new Date(msg.createdAt)
                     return isRead
@@ -393,6 +394,16 @@ export default function AdminSupportDetailClient({
               <Link href={`/admin/users/${owner.id}`} style={{ fontSize: '12px', color: 'var(--admin-accent)', textDecoration: 'none', marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 Профиль <i className="ti ti-arrow-right" style={{ fontSize: '11px' }} />
               </Link>
+            </div>
+          ) : ticket.guestEmail ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(245,158,11,0.12)', color: '#D97706', fontWeight: 600 }}>Гость</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--admin-text)' }}>{ticket.guestName ?? 'Без имени'}</span>
+              </div>
+              <a href={`mailto:${ticket.guestEmail}`} style={{ fontSize: '12px', color: 'var(--admin-accent)', textDecoration: 'none' }}>
+                {ticket.guestEmail}
+              </a>
             </div>
           ) : (
             <div style={{ fontSize: '13px', color: 'var(--admin-muted)' }}>—</div>
